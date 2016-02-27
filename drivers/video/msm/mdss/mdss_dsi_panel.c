@@ -1929,6 +1929,7 @@ static void mdss_panel_parse_te_params(struct device_node *np,
 #else
 	te->rd_ptr_irq = timing->yres - timing->yres*55/1000-1;//pan
 #endif
+	te->wr_ptr_irq = 0;
 }
 
 
