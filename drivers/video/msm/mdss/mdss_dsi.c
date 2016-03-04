@@ -1488,6 +1488,8 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 
 	ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
 
+	ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
+
 error:
 	mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
 			  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_OFF);
