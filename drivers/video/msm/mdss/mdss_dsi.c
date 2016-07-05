@@ -3959,7 +3959,8 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 		return rc;
 	}
 
-	pinfo->panel_max_fps = mdss_panel_get_framerate(pinfo);
+	pinfo->panel_max_fps = mdss_panel_get_framerate(pinfo,
+				FPS_RESOLUTION_HZ);
 	pinfo->panel_max_vtotal = mdss_panel_get_vtotal(pinfo);
 	
 	ctrl_pdata->lcd_3v_vsp_en_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
