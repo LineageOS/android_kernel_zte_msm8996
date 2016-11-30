@@ -23,6 +23,7 @@
 #include "dsi-panel-sim-dualmipi-cmd.dtsi"
 #include "dsi-panel-nt35597-dsc-wqxga-cmd.dtsi"
 #include "dsi-panel-hx8379a-truly-fwvga-video.dtsi"
+#include "dsi-panel-zte-sam-s6e3fa3-sam-6p0-1080p-video.dtsi"
 #include "dsi-panel-r69007-dualdsi-wqxga-cmd.dtsi"
 #include "dsi-adv7533-720p.dtsi"
 #include "dsi-adv7533-1080p.dtsi"
@@ -31,6 +32,7 @@
 #include "dsi-panel-sharp-1080p-cmd.dtsi"
 #include "dsi-panel-sharp-dsc-4k-video.dtsi"
 
+#include "dsi-panel-zte-samsung-s6e3ha3-5p5-wqhd-dualmipi-cmd.dtsi"
 &soc {
 	dsi_panel_pwr_supply: dsi_panel_pwr_supply {
 		#address-cells = <1>;
@@ -199,14 +201,16 @@
 	qcom,mdss-dsi-panel-status-check-mode = "bta_check";
 };
 
-&dsi_nt35597_dsc_video {
+&dsi_SAM_S6E3FA3_SAM_6p0_1080P_video_vid {
 	qcom,mdss-dsi-panel-timings-8996 = [20 1d 05 07 03 03 04 a0
 		20 1d 05 07 03 03 04 a0
 		20 1d 05 07 03 03 04 a0
 		20 1d 05 07 03 03 04 a0
 		20 12 05 06 03 13 04 a0];
+
 	qcom,esd-check-enabled;
 	qcom,mdss-dsi-panel-status-check-mode = "bta_check";
+
 };
 
 &dsi_nt35597_dsc_cmd {

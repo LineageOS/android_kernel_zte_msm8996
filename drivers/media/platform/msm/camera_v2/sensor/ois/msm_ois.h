@@ -58,6 +58,12 @@ struct msm_ois_ctrl_t {
 	uint32_t subdev_id;
 	enum msm_ois_state_t ois_state;
 	struct msm_ois_vreg vreg_cfg;
+/*
+  * by ZTE_YCM_20151102 yi.changming 400050-1
+  */
+// --->
+	int ois_en_gpio;
+// <---400050-1
 };
 
 #endif

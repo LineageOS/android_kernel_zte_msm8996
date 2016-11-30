@@ -145,6 +145,7 @@ static ssize_t orig_data_size_show(struct device *dev,
 		(u64)(atomic64_read(&zram->stats.pages_stored)) << PAGE_SHIFT);
 }
 
+unsigned long zram_mem_used_total;
 static ssize_t mem_used_total_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -157,6 +158,8 @@ static ssize_t mem_used_total_show(struct device *dev,
 		val = zs_get_total_pages(meta->mem_pool);
 	}
 	up_read(&zram->init_lock);
+	zram_mem_used_total = (unsigned long)val;
+	printk("zcm is %lu\n", zram_mem_used_total);
 
 	return scnprintf(buf, PAGE_SIZE, "%llu\n", val << PAGE_SHIFT);
 }

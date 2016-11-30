@@ -44,9 +44,44 @@ static const struct file_operations uptime_proc_fops = {
 	.release	= single_release,
 };
 
+#ifndef CONFIG_ZTE_PLATFORM_SLEEPTIME
+#define CONFIG_ZTE_PLATFORM_SLEEPTIME 1
+#endif
+#ifdef CONFIG_ZTE_PLATFORM_SLEEPTIME
+//zte_get_total_suspend defined in kernel\time\timekeeping.c
+extern void zte_get_total_suspend(struct timespec *ts);
+
+static int sleeptime_proc_show(struct seq_file *m, void *v)
+{
+	struct timespec total_suspendtime;//zte
+	
+	zte_get_total_suspend(&total_suspendtime);
+	
+	seq_printf(m, "%lu.%02lu \n",
+			(unsigned long) total_suspendtime.tv_sec,
+			(total_suspendtime.tv_nsec / (NSEC_PER_SEC / 100))
+			);
+	return 0;
+}
+
+static int sleeptime_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, sleeptime_proc_show, NULL);
+}
+
+static const struct file_operations sleeptime_proc_fops = {
+	.open		= sleeptime_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+#endif
 static int __init proc_uptime_init(void)
 {
 	proc_create("uptime", 0, NULL, &uptime_proc_fops);
+	#ifdef CONFIG_ZTE_PLATFORM_SLEEPTIME
+	proc_create("sleeptime", 0, NULL, &sleeptime_proc_fops);
+	#endif
 	return 0;
 }
 fs_initcall(proc_uptime_init);

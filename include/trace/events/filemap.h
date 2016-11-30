@@ -52,6 +52,43 @@ DEFINE_EVENT(mm_filemap_op_page_cache, mm_filemap_add_to_page_cache,
 	TP_ARGS(page)
 	);
 
+
+#ifdef CONFIG_TASKSTATS
+DECLARE_EVENT_CLASS(mm_filemap_file_io_count_func,
+
+	TP_PROTO(struct page *page),
+
+	TP_ARGS(page),
+
+	TP_STRUCT__entry(
+		__field(unsigned long, i_ino)
+		__field(unsigned long, pages)
+		__field(dev_t, s_dev)
+	),
+
+	TP_fast_assign(
+		__entry->i_ino = page->mapping->host->i_ino;
+		__entry->pages = 0;
+
+		if (page->mapping->host->i_sb){
+			__entry->s_dev = page->mapping->host->i_sb->s_dev;
+		} else {
+			__entry->s_dev = page->mapping->host->i_rdev;
+		}
+
+		if (MINOR(__entry->s_dev) < 40){
+			__entry->pages = page->mapping->host->i_iopages;
+		}
+	),
+	TP_printk("ino :%lu[dev:%u] burn (%lu) pages", __entry->i_ino, MINOR(__entry->s_dev), __entry->pages)
+);
+
+DEFINE_EVENT_CONDITION(mm_filemap_file_io_count_func, mm_filemap_file_io_count,
+	TP_PROTO(struct page *page),
+	TP_ARGS(page),
+	TP_CONDITION((++page->mapping->host->i_iopages % 256 == 0))
+	);
+#endif
 #endif /* _TRACE_FILEMAP_H */
 
 /* This part must be outside protection */

@@ -360,6 +360,8 @@ struct msm_fb_data_type {
 	bool pending_switch;
 	struct mutex switch_lock;
 	struct input_handler *input_handler;
+	u32 vr_mode;		//zte jiangfeng add for VR mode
+	u32 vr_mode_exiting;	//zte jiangfeng add for VR mode
 };
 
 static inline void mdss_fb_update_notify_update(struct msm_fb_data_type *mfd)

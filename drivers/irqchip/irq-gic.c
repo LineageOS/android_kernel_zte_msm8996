@@ -286,6 +286,12 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 
 		pr_warning("%s: %d triggered %s\n", __func__,
 					i + gic->irq_offset, name);
+        //zte_pm 20151010
+         {//ZTE ZhengChao
+             extern void print_irq_info(int i);
+             print_irq_info(i + gic->irq_offset);
+         }
+         //zte)pm end
 	}
 }
 

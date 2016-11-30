@@ -92,6 +92,21 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 								__func__);
 		return;
 	}
+	
+/*zte,esd interrupt mode 0205  start */
+if ((pstatus_data->mfd->panel_power_state == MDSS_PANEL_POWER_ON)) {
+	if ( ctrl_pdata->lcd_esd_panel_error_flag > 0){
+		printk("LCD %s: ESD Error Flag(Interrupt Mode) :%d ,Pane Reset Now! \n", __func__,ctrl_pdata->lcd_esd_panel_error_flag);
+		ctrl_pdata->lcd_esd_panel_error_flag = 0;
+		goto status_dead;
+	}
+	else{
+		//printk("LCD %s: ESD Error Flag(Interrupt Mode) :%d ,Panel State OK! \n", __func__,ctrl_pdata->lcd_esd_panel_error_flag);
+		schedule_delayed_work(&pstatus_data->check_status,msecs_to_jiffies(interval));
+		return ;// do not read other regs.
+	}
+}
+/*zte,esd interrupt mode 0205  start */
 
 	if (!pdata->panel_info.esd_rdy) {
 		pr_debug("%s: unblank not complete, reschedule check status\n",
@@ -108,6 +123,30 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 		pr_err("%s: Display is off\n", __func__);
 		return;
 	}
+
+/*zte,esd 0122  start */
+	if ((pstatus_data->mfd->panel_power_state == MDSS_PANEL_POWER_ON)) {
+
+		if (ctrl_pdata->lcd_esd_gpio_enable  == 1) {
+			if (gpio_is_valid(ctrl_pdata->lcd_esd_gpio))
+				ret = gpio_get_value(ctrl_pdata->lcd_esd_gpio);
+			else{
+				printk("LCD %s: gpio for esd is invalid,function does not work! \n", __func__);
+				return ;// do not read other regs.
+			}
+			if ( ret > 0){
+			    printk("LCD %s: ESD Error Flag :%d ,Pane Reset Now! \n", __func__,ret);
+			    goto status_dead;
+			}
+			else{
+				//printk("LCD %s: ESD Error Flag :%d ,Panel State OK! \n", __func__,ret);
+				schedule_delayed_work(&pstatus_data->check_status,msecs_to_jiffies(interval));
+				return ;// do not read other regs.
+			}
+		}
+
+	}
+/*zte,esd 0122  end */
 
 	if (ctrl_pdata->status_mode == ESD_TE) {
 		if (mdss_check_te_status(ctrl_pdata, pstatus_data, interval))

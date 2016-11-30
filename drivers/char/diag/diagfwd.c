@@ -39,6 +39,7 @@
 #include "diag_usb.h"
 #include "diag_mux.h"
 
+void msm_ignore_sd_dump(int enable);
 #define STM_CMD_VERSION_OFFSET	4
 #define STM_CMD_MASK_OFFSET	5
 #define STM_CMD_DATA_OFFSET	6
@@ -50,6 +51,9 @@
 
 static int timestamp_switch;
 module_param(timestamp_switch, int, 0644);
+
+static int debug_diag_pkt;
+module_param(debug_diag_pkt, int, 0644);
 
 int wrap_enabled;
 uint16_t wrap_count;
@@ -902,6 +906,11 @@ int diag_process_apps_pkt(unsigned char *buf, int len,
 	pr_debug("diag: In %s, received cmd %02x %02x %02x\n",
 		 __func__, entry.cmd_code, entry.subsys_id, entry.cmd_code_hi);
 
+	if (debug_diag_pkt) {
+		pr_info("diag: In %s, received cmd %02x %02x %02x\n",
+			__func__, entry.cmd_code, entry.subsys_id, entry.cmd_code_hi);
+	}
+
 	if (*buf == DIAG_CMD_LOG_ON_DMND && driver->log_on_demand_support &&
 	    driver->feature[PERIPHERAL_MODEM].rcvd_feature_mask) {
 		write_len = diag_cmd_log_on_demand(buf, len,
@@ -924,6 +933,13 @@ int diag_process_apps_pkt(unsigned char *buf, int len,
 		} else
 			write_len = diag_send_data(reg_item, buf, len);
 		mutex_unlock(&driver->cmd_reg_mutex);
+
+		if (debug_diag_pkt) {
+			pr_info("diag: In %s, send_data %02x %02x %02x, proc:%d, ret:%d\n",
+		 		__func__, temp_entry->cmd_code, temp_entry->subsys_id,
+				temp_entry->cmd_code_hi, reg_item->proc, write_len);
+		}
+
 		return write_len;
 	}
 	mutex_unlock(&driver->cmd_reg_mutex);
@@ -976,6 +992,7 @@ int diag_process_apps_pkt(unsigned char *buf, int len,
 		msleep(5000);
 		/* call download API */
 		msm_set_restart_mode(RESTART_DLOAD);
+		msm_ignore_sd_dump(1); //ensure that do not enter into sd dump
 		printk(KERN_CRIT "diag: download mode set, Rebooting SoC..\n");
 		kernel_restart(NULL);
 		/* Not required, represents that command isnt sent to modem */
@@ -1538,7 +1555,7 @@ int diagfwd_init(void)
 	for (i = 0; i < DIAG_NUM_PROC; i++)
 		driver->real_time_mode[i] = 1;
 	driver->supports_separate_cmdrsp = 1;
-	driver->supports_apps_hdlc_encoding = 1;
+	driver->supports_apps_hdlc_encoding = 0;
 	mutex_init(&driver->diag_hdlc_mutex);
 	mutex_init(&driver->diag_cntl_mutex);
 	mutex_init(&driver->mode_lock);

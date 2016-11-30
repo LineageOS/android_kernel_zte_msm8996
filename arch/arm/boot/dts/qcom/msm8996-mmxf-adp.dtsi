@@ -601,6 +601,17 @@
 	};
 };
 
+&pmi8994_gpios {
+	gpio@c700 {	/* GPIO 8, lcd_reg_en, 5V boost  */
+		qcom,mode = <1>;
+		qcom,vin-sel = <2>;
+		qcom,src-sel = <0>;
+		qcom,invert = <1>;   /* need invert = 0 */
+		qcom,master-en = <1>;
+		status = "okay";
+	};
+};
+
 &pm8994_gpios {
 	gpio@c600 { /* GPIO 7 - NFC DWL REQ */
 		qcom,mode = <1>;
@@ -855,3 +866,4 @@
 	status = "disabled";
 	/delete-property/ qcom,spkr-sd-n-gpio;
 };
+

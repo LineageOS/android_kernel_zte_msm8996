@@ -393,6 +393,7 @@ static void *scsi_seq_start(struct seq_file *sfile, loff_t *pos)
 			break;
 		sfile->private++;
 	}
+
 	return dev;
 }
 
@@ -448,12 +449,77 @@ static const struct file_operations proc_scsi_operations = {
 	.release	= seq_release,
 };
 
+static int proc_print_emmc_id(struct device *dev, void *data)
+{
+
+	struct scsi_device *sdev;
+	struct seq_file *s = data;
+
+	int logical_block_size = 4096; //fixme...
+
+	u64 capacity_512 = 0;
+
+	if (!scsi_is_sdev_device(dev))
+		goto out;
+
+	sdev = to_scsi_device(dev);
+
+	if (sdev->host->hostt->device_capacity) {
+	    capacity_512 = sdev->host->hostt->device_capacity(sdev);
+	}
+
+	if (sdev->lun == 0) {
+	    seq_printf(s, "Memory Type: UFS (  %s)\n"
+		     "Logical Block Size (bytes): %d\n"
+		     "Size (kB): %llu\n"
+		     "Manufacture: %.8s\n"
+		     "Product Name: %.15s\n",
+		     scsi_device_type(sdev->type),
+		     logical_block_size,
+		     (u64)(capacity_512 * 512 / 1024),
+		     sdev->vendor,
+		     sdev->model);
+	}
+out:
+      return 0;
+}
+
+static int proc_emmc_id_show(struct seq_file *sfile, void *dev)
+{
+	return proc_print_emmc_id(dev, sfile);
+}
+
+
+static const struct seq_operations proc_emmc_id_ops = {
+	.start	= scsi_seq_start,
+	.next	= scsi_seq_next,
+	.stop	= scsi_seq_stop,
+	.show	= proc_emmc_id_show
+};
+
+static int proc_emmc_id_open(struct inode *inode, struct file *file)
+{
+	/*
+	 * We don't really need this for the write case but it doesn't
+	 * harm either.
+	 */
+	return seq_open(file, &proc_emmc_id_ops);
+}
+
+static const struct file_operations proc_emmc_id_operations = {
+	.owner		= THIS_MODULE,
+	.open		= proc_emmc_id_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
 /**
  * scsi_init_procfs - create scsi and scsi/scsi in procfs
  */
 int __init scsi_init_procfs(void)
 {
 	struct proc_dir_entry *pde;
+	struct proc_dir_entry *p;
 
 	proc_scsi = proc_mkdir("scsi", NULL);
 	if (!proc_scsi)
@@ -461,6 +527,10 @@ int __init scsi_init_procfs(void)
 
 	pde = proc_create("scsi/scsi", 0, NULL, &proc_scsi_operations);
 	if (!pde)
+		goto err2;
+
+	p = proc_create("driver/emmc_id", 0, NULL, &proc_emmc_id_operations);
+	if (!p)
 		goto err2;
 
 	return 0;
@@ -478,4 +548,5 @@ void scsi_exit_procfs(void)
 {
 	remove_proc_entry("scsi/scsi", NULL);
 	remove_proc_entry("scsi", NULL);
+	remove_proc_entry("driver/emmc_id", NULL);
 }

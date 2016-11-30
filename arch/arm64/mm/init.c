@@ -43,6 +43,14 @@
 
 #include "mm.h"
 
+
+#define MSM_SDLOG_PHYS      0xA0000000
+#define MSM_SDLOG_SIZE      (1024*1024 * 16)
+extern	char __initdata boot_command_line[COMMAND_LINE_SIZE];
+#define CMDLINE_SDLOG_SIZE          "sdlog.size=0x00000000"
+static int sdlog_enable = 0;
+
+
 phys_addr_t memstart_addr __read_mostly = 0;
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -138,6 +146,42 @@ static void arm64_memory_present(void)
 }
 #endif
 
+static void sdlog_memory_reserve(void)
+{
+	//sdlog flag is passed from boot parameter, set the flag if sdlog is enabled
+	if (strstr(boot_command_line, CMDLINE_SDLOG_SIZE))
+	{
+		pr_notice("sdlog disabled\n");
+	}
+	else
+	{
+		memblock_reserve(MSM_SDLOG_PHYS, MSM_SDLOG_SIZE);
+		pr_notice("sdlog enabled, reserve 0x%16lx - 0x%16lx for sdlog (0x%lx byte) \n", (long unsigned int)MSM_SDLOG_PHYS, (long unsigned int)(MSM_SDLOG_PHYS+MSM_SDLOG_SIZE), (long unsigned int)MSM_SDLOG_SIZE);
+		sdlog_enable = 1;
+	}
+}
+
+int sdlog_memory_reserved(void)
+{
+  pr_notice(" sdlog_memory_reserved sdlog_enable %d\n", sdlog_enable);
+	return sdlog_enable;
+}
+EXPORT_SYMBOL(sdlog_memory_reserved);
+
+unsigned int sdlog_memory_get_addr(void)
+{
+	return MSM_SDLOG_PHYS;
+}
+EXPORT_SYMBOL(sdlog_memory_get_addr);
+
+
+int sdlog_memory_get_size(void)
+{
+	return MSM_SDLOG_SIZE;
+}
+EXPORT_SYMBOL(sdlog_memory_get_size);
+
+
 void __init arm64_memblock_init(void)
 {
 	phys_addr_t dma_phys_limit = 0;
@@ -153,6 +197,7 @@ void __init arm64_memblock_init(void)
 #endif
 
 	early_init_fdt_scan_reserved_mem();
+	sdlog_memory_reserve();
 
 	/* 4GB maximum for 32-bit only capable devices */
 	if (IS_ENABLED(CONFIG_ZONE_DMA))

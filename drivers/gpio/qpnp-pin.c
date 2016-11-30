@@ -27,6 +27,7 @@
 #include <linux/export.h>
 #include <linux/qpnp/pin.h>
 
+#include <linux/seq_file.h>			//zte jiangfeng add
 #define Q_REG_ADDR(q_spec, reg_index)	\
 		((q_spec)->offset + reg_index)
 
@@ -1671,6 +1672,295 @@ static void __exit qpnp_pin_exit(void)
 #endif
 	spmi_driver_unregister(&qpnp_pin_driver);
 }
+//zte_pm_liyf_20151010_beigin
+int pmic_dump_pins(struct seq_file *m, int curr_len, char *gpio_buffer)
+{
+	char read_buf[256];
+	static const char * const cmode_gpio[] = { "In", "Out", "In/Out", "Reserved"};
+	static const char * const cmode_mpp[] = { "Digital In", "Digital Out",
+		"Digital In/Out", "bid", "Analog In", "Analog Out", "I Sink", "Reserved"};
+	int rc	=	0;
+	struct qpnp_pin_chip *q_chip;
+	struct qpnp_pin_spec *q_spec = NULL;
+	u8 type;
+	int gpios;
+	int i,len;
+	struct qpnp_pin_cfg param;
+
+	mutex_lock(&qpnp_pin_chips_lock);
+	list_for_each_entry(q_chip, &qpnp_pin_chips, chip_list)
+	{
+		type	=	q_chip->chip_gpios[0]->type;
+		gpios	=	q_chip->gpio_chip.ngpio;
+
+		//printk("%s, %s, numbers: %d\n", __func__, q_chip->gpio_chip.label, gpios);
+		if (m)
+		{
+			seq_printf(m, "%s\n", q_chip->gpio_chip.label);
+		}
+		else
+		{
+			pr_info("%s\n", q_chip->gpio_chip.label);
+			curr_len += sprintf(gpio_buffer + curr_len,
+				"%s, numbers: %d, pin lowest: %d, pin highest: %d,\n", q_chip->gpio_chip.label, gpios,
+				q_chip->pmic_pin_lowest, q_chip->pmic_pin_highest);
+		}
+
+		for(i=0;i<gpios;i++)
+		{
+			len=0;
+			q_spec = qpnp_chip_gpio_get_spec(q_chip, i);
+			rc = qpnp_pin_read_regs(q_chip, q_spec);
+
+			param.mode	   = q_reg_get(&q_spec->regs[Q_REG_I_MODE_CTL],
+								Q_REG_MODE_SEL_SHIFT,
+								Q_REG_MODE_SEL_MASK);
+			param.output_type  = q_reg_get(&q_spec->regs[Q_REG_I_DIG_OUT_CTL],
+								Q_REG_OUT_TYPE_SHIFT,
+								Q_REG_OUT_TYPE_MASK);
+			param.invert	   = q_reg_get(&q_spec->regs[Q_REG_I_MODE_CTL],
+								Q_REG_OUT_INVERT_SHIFT,
+								Q_REG_OUT_INVERT_MASK);
+			param.pull	   = q_reg_get(&q_spec->regs[Q_REG_I_DIG_PULL_CTL],
+								Q_REG_PULL_SHIFT, Q_REG_PULL_MASK);
+			param.vin_sel	   = q_reg_get(&q_spec->regs[Q_REG_I_DIG_VIN_CTL],
+								Q_REG_VIN_SHIFT, Q_REG_VIN_MASK);
+			param.out_strength = q_reg_get(&q_spec->regs[Q_REG_I_DIG_OUT_CTL],
+								Q_REG_OUT_STRENGTH_SHIFT,
+								Q_REG_OUT_STRENGTH_MASK);
+			param.src_sel	= q_reg_get(&q_spec->regs[Q_REG_I_MODE_CTL],
+								Q_REG_SRC_SEL_SHIFT, Q_REG_SRC_SEL_MASK);
+			param.master_en    = q_reg_get(&q_spec->regs[Q_REG_I_EN_CTL],
+								Q_REG_MASTER_EN_SHIFT,
+								Q_REG_MASTER_EN_MASK);
+			param.aout_ref	  = q_reg_get(&q_spec->regs[Q_REG_I_AOUT_CTL],
+								Q_REG_AOUT_REF_SHIFT,
+								Q_REG_AOUT_REF_MASK);
+			param.ain_route    = q_reg_get(&q_spec->regs[Q_REG_I_AIN_CTL],
+								Q_REG_AIN_ROUTE_SHIFT,
+								Q_REG_AIN_ROUTE_MASK);
+			param.cs_out	= q_reg_get(&q_spec->regs[Q_REG_I_SINK_CTL],
+								Q_REG_CS_OUT_SHIFT,
+								Q_REG_CS_OUT_MASK);
+
+			if(type ==	Q_GPIO_TYPE)
+			{
+				len += sprintf(read_buf + len, "PM_GPIO[%-2d]: ", i + q_chip->pmic_pin_lowest);
+				len += sprintf(read_buf + len, "[DIR]%-6.6s, ", cmode_gpio[param.mode]);
+				len += sprintf(read_buf + len, "[INVERT] %d, ", param.invert);
+
+				switch(param.output_type)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[OUTPUT_TYPE]CMOS, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[OUTPUT_TYPE]PMOS, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[OUTPUT_TYPE]NMOS, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[OUTPUT_TYPE]unknown, ");
+						break;
+				}
+				switch(param.pull)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[PULL]pull-up 30uA, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[PULL]pull-up 1.5uA, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[PULL]pull-up 31.5uA, ");
+						break;
+					case 0x3:
+						len += sprintf(read_buf + len, "[PULL]pull-up 1.5uA + 30uA boost, ");
+						break;
+					case 0x4:
+						len += sprintf(read_buf + len, "[PULL]pull-down 10uA, ");
+						break;
+					case 0x5:
+						len += sprintf(read_buf + len, "[PULL]no pull, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[PULL]unknown, ");
+						break;
+				}
+				switch(param.vin_sel)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[VIN]VIN0, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[VIN]VIN1, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[VIN]VIN2, ");
+						break;
+					case 0x3:
+						len += sprintf(read_buf + len, "[VIN]VIN3, ");
+						break;
+					case 0x4:
+						len += sprintf(read_buf + len, "[VIN]VIN4, ");
+						break;
+					case 0x5:
+						len += sprintf(read_buf + len, "[VIN]VIN5, ");
+						break;
+					case 0x6:
+						len += sprintf(read_buf + len, "[VIN]VIN6, ");
+						break;
+					case 0x7:
+						len += sprintf(read_buf + len, "[VIN]VIN7, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[VIN]unknown, ");
+						break;
+
+				}
+				switch(param.out_strength)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[DRV]Reserved, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[DRV]Low, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[DRV]Medium, ");
+						break;
+					case 0x3:
+						len += sprintf(read_buf + len, "[DRV]High, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[DRV]unknown, ");
+						break;
+				}
+			}
+			else if(type	==	Q_MPP_TYPE)
+			{
+				len += sprintf(read_buf + len, "PM_MPP[%-2d]: ", i + q_chip->pmic_pin_lowest);
+				len += sprintf(read_buf + len, "[DIR]%-14.14s, ", cmode_mpp[param.mode]);
+				len += sprintf(read_buf + len, "[INVERT] %d, ", param.invert);
+
+				switch(param.pull)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[PULL]0.6k, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[PULL]open, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[PULL]10K, ");
+						break;
+					case 0x3:
+						len += sprintf(read_buf + len, "[PULL]30K, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[PULL]unknown, ");
+						break;
+				}
+
+				switch(param.vin_sel)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[VIN]VIN0, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[VIN]VIN1, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[VIN]VIN2, ");
+						break;
+					case 0x3:
+						len += sprintf(read_buf + len, "[VIN]VIN3, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[VIN]VIN0, ");
+						break;
+				}
+
+				len += sprintf(read_buf + len, "[EN]%s, ", param.master_en? "Enabled " : "Disabled ");
+				switch(param.aout_ref)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[REF]1V25, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[REF]unknown, ");
+						break;
+				}
+
+				switch(param.ain_route)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[Route]hkadc5, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[Route]hkadc6, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[Route]hkadc7, ");
+						break;
+					case 0x3:
+						len += sprintf(read_buf + len, "[Route]hkadc8, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[Route]unknown, ");
+						break;
+				}
+
+				switch(param.ain_route)
+				{
+					case 0x0:
+						len += sprintf(read_buf + len, "[I_Sink]5 mA, ");
+						break;
+					case 0x1:
+						len += sprintf(read_buf + len, "[I_Sink]10 mA, ");
+						break;
+					case 0x2:
+						len += sprintf(read_buf + len, "[I_Sink]15 mA, ");
+						break;
+					case 0x3:
+						len += sprintf(read_buf + len, "[I_Sink]20 mA, ");
+						break;
+					case 0x4:
+						len += sprintf(read_buf + len, "[I_Sink]25 mA, ");
+						break;
+					case 0x5:
+						len += sprintf(read_buf + len, "[I_Sink]30 mA, ");
+						break;
+					case 0x6:
+						len += sprintf(read_buf + len, "[I_Sink]35 mA, ");
+						break;
+					case 0x7:
+						len += sprintf(read_buf + len, "[I_Sink]40 mA, ");
+						break;
+					default:
+						len += sprintf(read_buf + len, "[I_Sink]unknown, ");
+						break;
+				}
+			}
+
+			read_buf[len]	=	'\0';
+			if (m) {
+				seq_printf(m, "%s\n", read_buf);
+			} else {
+				pr_info("%s\n", read_buf);
+				curr_len += sprintf(gpio_buffer +
+				curr_len, "%s\n", read_buf);
+			}
+		}
+	}
+	mutex_unlock(&qpnp_pin_chips_lock);
+
+	if (rc)
+		pr_err("Failed on %s() rc=%d\n", __func__,rc);
+	return rc;
+}
+//zte_pm_liyf_20151010_end
 
 MODULE_DESCRIPTION("QPNP PMIC gpio driver");
 MODULE_LICENSE("GPL v2");

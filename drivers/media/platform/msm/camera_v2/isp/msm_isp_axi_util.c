@@ -1515,13 +1515,19 @@ static struct msm_isp_buffer *msm_isp_get_stream_buffer(
 		vfe_dev->error_info.framedrop_flag = 1;
 		return buf;
 	}
-
+/*
+  * by ZTE_YCM_20151102 yi.changming 400154
+  */
+// --->
+#if 0
 	if (buf->num_planes != stream_info->num_planes) {
 		pr_err("%s: Invalid buffer\n", __func__);
 		vfe_dev->buf_mgr->ops->put_buf(vfe_dev->buf_mgr,
 				bufq_handle, buf->buf_idx);
 		buf = NULL;
 	}
+#endif
+// <---400154
 	return buf;
 }
 

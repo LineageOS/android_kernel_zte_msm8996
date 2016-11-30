@@ -22,7 +22,7 @@
 #include <linux/tracepoint.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/core.h>
-
+#include <linux/ktime.h>//tcd
 /*
  * Unconditional logging of mmc block erase operations,
  * including cmd, address, size
@@ -52,6 +52,60 @@ DEFINE_EVENT(mmc_blk_erase_class, mmc_blk_erase_end,
 	TP_PROTO(unsigned int cmd, unsigned int addr, unsigned int size),
 	TP_ARGS(cmd, addr, size));
 
+#ifdef CONFIG_TASKSTATS
+TRACE_EVENT(mmc_pid_blk_read_summary,
+	TP_PROTO(struct task_struct *p),
+	TP_ARGS(p),
+	TP_STRUCT__entry(
+		__field(pid_t, pid)
+		__field(unsigned long long, io_read_bytes)
+	),
+	TP_fast_assign(
+		__entry->pid = p->pid;
+		__entry->io_read_bytes = p->ioac.read_bytes;
+	),
+	TP_printk("process [%u] do read io %llu bytes",
+		  __entry->pid, __entry->io_read_bytes)
+);
+
+TRACE_EVENT(mmc_pid_blk_write_summary,
+	TP_PROTO(struct task_struct *p),
+	TP_ARGS(p),
+	TP_STRUCT__entry(
+		__field(pid_t, pid)
+		__field(unsigned long long, io_write_bytes)
+	),
+	TP_fast_assign(
+		__entry->pid = p->pid;
+		__entry->io_write_bytes = p->ioac.write_bytes;
+	),
+	TP_printk("process [%u] do write io %llu bytes",
+		  __entry->pid, __entry->io_write_bytes)
+);
+
+DECLARE_EVENT_CLASS(mmc_blk_rw_summary_class,
+	TP_PROTO(unsigned long rb, s64 rt, unsigned long wb, s64 wt),
+	TP_ARGS(rb,rt,wb,wt),
+	TP_STRUCT__entry(
+		__field(unsigned long, readbyte)
+		__field(s64, readtime)
+		__field(unsigned long, writebyte)
+		__field(s64, writetime)
+	),
+	TP_fast_assign(
+		__entry->readbyte = rb;
+		__entry->writebyte = wb;
+		__entry->readtime = rt;
+		__entry->writetime = wt;
+	),
+	TP_printk("emmc_ior:%lu bytes in %lld us;emmc_iow:%lu bytes in %lld us", __entry->readbyte, __entry->readtime,__entry->writebyte, __entry->writetime)
+);
+		
+
+DEFINE_EVENT(mmc_blk_rw_summary_class, mmc_blk_rw_summary,
+	TP_PROTO(unsigned long rb, s64 rt, unsigned long wb, s64 wt),
+	TP_ARGS(rb,rt,wb,wt));
+#endif
 /*
  * Logging of start of read or write mmc block operation,
  * including cmd, address, size

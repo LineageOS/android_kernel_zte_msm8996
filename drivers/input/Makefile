@@ -28,3 +28,7 @@ obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
 obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 
+#shilinfeng for fp 20150828
+obj-$(CONFIG_INPUT_SYNA_VFS) += fingerprint/synaptics_vfs/
+obj-$(CONFIG_INPUT_FPC) += fingerprint/fpc/
+obj-$(CONFIG_FINGERPRINT_GOODIX_GF3118M) += fingerprint/goodix/

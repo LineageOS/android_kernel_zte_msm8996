@@ -40,6 +40,9 @@
 
 #include <asm/current.h>
 
+
+#define SUBSYSTEM_RAMDUMP_FLUSH_TIME        5000
+
 #define DISABLE_SSR 0x9889deed
 /* If set to 0x9889deed, call to subsystem_restart_dev() returns immediately */
 static uint disable_restart_work;
@@ -957,6 +960,42 @@ static void device_restart_work_hdlr(struct work_struct *work)
 {
 	struct subsys_device *dev = container_of(work, struct subsys_device,
 							device_restart_work);
+
+	if (enable_ramdumps)
+	{
+		struct subsys_device **list;
+		struct subsys_soc_restart_order *order = dev->restart_order;
+		unsigned count;
+
+		/*
+		 * It's OK to not take the registration lock at this point.
+		 * This is because the subsystem list inside the relevant
+		 * restart order is not being traversed.
+		 */
+		if (order) {
+			list = order->subsys_ptrs;
+			count = order->count;
+		} else {
+			list = &dev;
+			count = 1;
+		}
+
+		pr_info("device_restart_work_hdlr start to dump\n");
+
+		mutex_lock(&soc_order_reg_lock);
+
+		notify_each_subsys_device(list, count, SUBSYS_BEFORE_SHUTDOWN, NULL);
+		for_each_subsys_device(list, count, NULL, subsystem_shutdown);
+		notify_each_subsys_device(list, count, SUBSYS_AFTER_SHUTDOWN, NULL);
+
+		notify_each_subsys_device(list, count, SUBSYS_RAMDUMP_NOTIFICATION,
+		                NULL);
+		/* Collect ram dumps for all subsystems in order here */
+		for_each_subsys_device(list, count, NULL, subsystem_ramdump);
+		mutex_unlock(&soc_order_reg_lock);
+
+		msleep_interruptible(SUBSYSTEM_RAMDUMP_FLUSH_TIME);
+	}
 
 	notify_each_subsys_device(&dev, 1, SUBSYS_SOC_RESET, NULL);
 	/*

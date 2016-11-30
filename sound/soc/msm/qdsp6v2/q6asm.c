@@ -2522,6 +2522,13 @@ static int __q6asm_open_write(struct audio_client *ac, uint32_t format,
 	}
 	ac->io_mode |= TUN_WRITE_IO_MODE;
 
+#if 0
+// rm by LA.HB.1.3.1-00510-8x96.0
+	rc = q6asm_map_asm_cal(ac);
+	pr_debug("%s: q6asm_map_asm_cal ret=%d\n", __func__, rc);
+#endif
+pr_err("%s: chenjun: format(%#X), bits(%d)\n", __func__, format, bits_per_sample); // ZTE_chenjun
+
 	return 0;
 fail_cmd:
 	return rc;
@@ -2701,6 +2708,9 @@ static int __q6asm_open_read_write(struct audio_client *ac, uint32_t rd_format,
 		goto fail_cmd;
 	}
 
+pr_err("chenjun: %s: rd_format(%#X), wrformat(%#X), bits(%d)\n", __func__,
+			rd_format, wr_format, open.bits_per_sample); // ZTE_chenjun
+
 	return 0;
 fail_cmd:
 	return rc;
@@ -2779,6 +2789,9 @@ int q6asm_open_loopback_v2(struct audio_client *ac, uint16_t bits_per_sample)
 				atomic_read(&ac->cmd_state));
 		goto fail_cmd;
 	}
+
+dev_err(ac->dev, "chenjun: %s: session[%d], bits(%d)\n", __func__,
+			ac->session, open.bits_per_sample); // ZTE_chenjun
 
 	return 0;
 fail_cmd:
@@ -3071,6 +3084,10 @@ int q6asm_enc_cfg_blk_pcm_v2(struct audio_client *ac,
 				atomic_read(&ac->cmd_state));
 		goto fail_cmd;
 	}
+
+	pr_err("%s: chenjun: Session %d, rate = %d, channels = %d, bits(%d)\n", __func__,
+			 ac->session, rate, channels, enc_cfg.bits_per_sample); // ZTE_chenjun
+
 	return 0;
 fail_cmd:
 	return rc;
@@ -3154,6 +3171,10 @@ int q6asm_enc_cfg_blk_pcm_native(struct audio_client *ac,
 				atomic_read(&ac->cmd_state));
 		goto fail_cmd;
 	}
+
+	pr_err("%s: chenjun: Session %d, rate = %d, channels = %d, bits(%d)\n", __func__,
+			 ac->session, rate, channels, enc_cfg.bits_per_sample); // ZTE_chenjun
+
 	return 0;
 fail_cmd:
 	return rc;
@@ -3606,6 +3627,9 @@ static int __q6asm_media_format_block_pcm(struct audio_client *ac,
 
 	memset(channel_mapping, 0, PCM_FORMAT_MAX_NUM_CHANNEL);
 
+	pr_err("%s: chenjun: bits(%d), rate(%d)\n",
+		  __func__, fmt.bits_per_sample, rate); // ZTE_chenjun
+
 	if (use_default_chmap) {
 		if (q6asm_map_channels(channel_mapping, channels, false)) {
 			pr_err("%s: map channels failed %d\n",
@@ -3701,6 +3725,9 @@ static int __q6asm_media_format_block_multi_ch_pcm(struct audio_client *ac,
 	channel_mapping = fmt.channel_mapping;
 
 	memset(channel_mapping, 0, PCM_FORMAT_MAX_NUM_CHANNEL);
+
+	pr_err("%s: chenjun: rate[%d], ch[%d], bits[%d]\n", __func__, rate,
+		channels, fmt.bits_per_sample); // ZTE_chenjun
 
 	if (use_default_chmap) {
 		if (q6asm_map_channels(channel_mapping, channels, false)) {
@@ -6582,6 +6609,9 @@ int q6asm_get_asm_topology(int session_id)
 	}
 
 	topology = session[session_id]->topology;
+
+	pr_err("%s: chenjun: Using topology %#X\n", __func__, topology); // ZTE_chenjun
+
 done:
 	return topology;
 }

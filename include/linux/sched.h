@@ -833,6 +833,7 @@ struct task_delay_info {
 	u64 blkio_start;	/* Shared by blkio, swapin */
 	u64 blkio_delay;	/* wait for sync block io completion */
 	u64 swapin_delay;	/* wait for swapin block io completion */
+	u64 last_swapin_delay;  /* wait for swapin block io completion */
 	u32 blkio_count;	/* total count of the number of sync block */
 				/* io operations performed */
 	u32 swapin_count;	/* total count of the number of swapin block */
@@ -840,6 +841,7 @@ struct task_delay_info {
 
 	u64 freepages_start;
 	u64 freepages_delay;	/* wait for memory reclaim */
+	u64 last_freepages_delay;    /* wait for memory reclaim */
 	u32 freepages_count;	/* total count of memory reclaim */
 };
 #endif	/* CONFIG_TASK_DELAY_ACCT */
@@ -1133,6 +1135,16 @@ struct sched_statistics {
 	u64			nr_wakeups_affine_attempts;
 	u64			nr_wakeups_passive;
 	u64			nr_wakeups_idle;
+#ifdef CONFIG_TASK_DELAY_ACCT
+	u64                     last_iowait_sum;
+        u64                     last_iowait_timestamp;
+
+        u64                     last_cpuwait_timestamp;
+        u64                     last_cpuwait_sum;
+
+        u64                     last_cpuusage_sum;
+        u64                     cpuusage_summary;
+#endif
 };
 #endif
 

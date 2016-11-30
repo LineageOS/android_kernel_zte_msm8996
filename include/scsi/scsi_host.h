@@ -347,6 +347,15 @@ struct scsi_host_template {
 	 */
 
 	int (*host_reset)(struct Scsi_Host *shost, int reset_type);
+
+	/*
+	 * The device_capacity function will return the device capacity
+	 * Get from qTotalRawDeviceCapacity parameter
+	 *
+	 * Status: OPTIONAL
+	 */
+	u64 (*device_capacity)(struct scsi_device *dev);
+
 #define SCSI_ADAPTER_RESET	1
 #define SCSI_FIRMWARE_RESET	2
 

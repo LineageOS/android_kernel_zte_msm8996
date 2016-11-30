@@ -356,6 +356,10 @@ struct msm_ssphy_qmp {
 	int			init_seq_len;
 	unsigned int		*qmp_phy_reg_offset;
 	int			reg_offset_cnt;
+	/* for ssusb phy eye diagram test, 1/4 */
+	int			tx_swing_val;
+	int			deemphasis_val;
+	/* end */
 };
 
 static const struct of_device_id msm_usb_id_table[] = {
@@ -519,6 +523,132 @@ static int configure_phy_regs(struct usb_phy *uphy,
 	return 0;
 }
 
+/* for ssusb phy eye diagram test, 2/4 */
+#define QSERDES_USB3_TX_DRV_LVL            0x22C
+#define MSM8996_TX_SWING_MASK              0x1F
+#define MSM8996_TX_SWING_ENABLE_BIT        0x20  /* Bit5 should be set to 1 for effect */
+
+#define QSERDES_USB3_TX_EMP_POST1_LVL      0x218
+#define MSM8996_DEEMPHASIS_MASK            0x1F
+#define MSM8996_DEEMPHASIS_ENABLE_BIT      0x20  /* Bit5 should be set to 1 for effect */
+
+#define USB3_PHY_TXDEEMPH_M3P5DB_V0        0x628
+
+static struct msm_ssphy_qmp *the_ssusb_phy = NULL;
+static int ssusb_phy_override_deemphasis;
+static int ssusb_phy_override_tx_swing;
+
+static int msm_ssphy_qmp_override_params(struct msm_ssphy_qmp *phy)
+{
+	int data = 0;
+
+	/*
+	 * Set tx swing value */
+	if (ssusb_phy_override_tx_swing)
+		phy->tx_swing_val= ssusb_phy_override_tx_swing;
+	if (phy->tx_swing_val)
+	{
+		data = readb_relaxed(phy->base + QSERDES_USB3_TX_DRV_LVL);
+		data &= ~MSM8996_TX_SWING_MASK;
+		data |= (phy->tx_swing_val);
+		data |= MSM8996_TX_SWING_ENABLE_BIT;
+		writel_relaxed(data, phy->base + QSERDES_USB3_TX_DRV_LVL);
+	}
+
+	/* Set deemphasis value */
+	if (ssusb_phy_override_deemphasis)
+		phy->deemphasis_val = ssusb_phy_override_deemphasis;
+	if (phy->deemphasis_val)
+	{
+		//data = readb_relaxed(phy->base + QSERDES_USB3_TX_EMP_POST1_LVL);
+		data = readb_relaxed(phy->base + USB3_PHY_TXDEEMPH_M3P5DB_V0);
+		data &= ~MSM8996_DEEMPHASIS_MASK;
+		data |= (phy->deemphasis_val);
+		//data |= MSM8996_DEEMPHASIS_ENABLE_BIT; //no overwrite bit 
+		//writel_relaxed(data, phy->base + QSERDES_USB3_TX_EMP_POST1_LVL);
+		writel_relaxed(data, phy->base + USB3_PHY_TXDEEMPH_M3P5DB_V0);
+	}
+
+	return 0;
+}
+
+static int tx_swing_write(const char *val, struct kernel_param *kp)
+{
+	int err;
+	char buf[256], *b;
+	unsigned long tmp;
+
+	if (the_ssusb_phy == NULL)
+		return -EINVAL;
+
+	strlcpy(buf, val, sizeof(buf));
+	b = strim(buf);
+	if (b) {
+		err = kstrtoul(b, 16, &tmp);
+		if (err) {
+			pr_err("%s kstrtoul failed\n",__func__);
+			goto out;
+		}
+		ssusb_phy_override_tx_swing = tmp;
+		pr_debug("%s ssusb_phy_override_tx_swing: 0x%x\n",
+			__func__, ssusb_phy_override_tx_swing);
+		msm_ssphy_qmp_override_params(the_ssusb_phy);
+	}
+
+out:
+	return strlen(val);
+}
+
+static int deemphasis_write(const char *val, struct kernel_param *kp)
+{
+	int err;
+	char buf[256], *b;
+	unsigned long tmp;
+
+	if (the_ssusb_phy == NULL)
+		return -EINVAL;
+
+	strlcpy(buf, val, sizeof(buf));
+	b = strim(buf);
+	if (b) {
+		err = kstrtoul(b, 16, &tmp);
+		if (err) {
+			pr_err("%s kstrtoul failed\n",__func__);
+			goto out;
+		}
+		ssusb_phy_override_deemphasis= tmp;
+		pr_debug("%s ssusb_phy_override_deemphasis: 0x%x\n",
+			__func__, ssusb_phy_override_deemphasis);
+		msm_ssphy_qmp_override_params(the_ssusb_phy);
+	}
+
+out:
+	return strlen(val);
+}
+
+static int tx_swing_read(char *buf, struct kernel_param *kp)
+{
+	if (the_ssusb_phy == NULL)
+		return -EINVAL;
+
+	return snprintf(buf, PAGE_SIZE, "TX SWING: 0x%02x\n",
+		readb_relaxed(the_ssusb_phy->base + QSERDES_USB3_TX_DRV_LVL));
+}
+
+static int deemphasis_read(char *buf, struct kernel_param *kp)
+{
+	if (the_ssusb_phy == NULL)
+		return -EINVAL;
+
+	return snprintf(buf, PAGE_SIZE, "DeEmphasis: 0x%02x\n",
+		readb_relaxed(the_ssusb_phy->base + USB3_PHY_TXDEEMPH_M3P5DB_V0));
+}
+module_param_call(tune_tx_swing, tx_swing_write, tx_swing_read, NULL, 0664);
+MODULE_PARM_DESC(tune_tx_swing, "SSUSB tx swing eye diagram");
+module_param_call(tune_deemphasis, deemphasis_write, deemphasis_read, NULL, 0664);
+MODULE_PARM_DESC(tune_deemphasis, "SSUSB deemphasis eye diagram");
+/* end */
+
 /* SSPHY Initialization */
 static int msm_ssphy_qmp_init(struct usb_phy *uphy)
 {
@@ -610,6 +740,8 @@ static int msm_ssphy_qmp_init(struct usb_phy *uphy)
 			return ret;
 		}
 	}
+
+	msm_ssphy_qmp_override_params(phy); /* for ssusb phy eye diagram test, 3/4 */
 
 	writel_relaxed(0x03, phy->base + phy->phy_reg[USB3_PHY_START]);
 	writel_relaxed(0x00, phy->base + phy->phy_reg[USB3_PHY_SW_RESET]);
@@ -1058,6 +1190,18 @@ static int msm_ssphy_qmp_probe(struct platform_device *pdev)
 					"qcom,qmp-misc-config");
 	if (phy->misc_config)
 		dev_dbg(dev, "Miscellaneous configurations are enabled.\n");
+
+	/* for ssusb phy eye diagram test, 4/4 */
+	if (of_property_read_u32(dev->of_node, "qcom,deemphasis-value",
+						&phy->deemphasis_val))
+		dev_dbg(dev, "unable to read ssphy deemphasis value\n");
+	if (of_property_read_u32(dev->of_node, "qcom,tx-swing-value",
+						&phy->tx_swing_val))
+		dev_dbg(dev, "unable to read ssphy tx swing value\n");
+
+	if (the_ssusb_phy == NULL)
+		the_ssusb_phy = phy;
+	/* end */
 
 	phy->phy.dev			= dev;
 	phy->phy.init			= msm_ssphy_qmp_init;

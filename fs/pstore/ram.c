@@ -34,7 +34,10 @@
 #include <linux/slab.h>
 #include <linux/compiler.h>
 #include <linux/pstore_ram.h>
-
+#ifdef CONFIG_ZTE_RAM_CONSOLE
+#include <linux/of.h>
+#include <linux/of_address.h>
+#endif
 #define RAMOOPS_KERNMSG_HDR "===="
 #define MIN_MEM_SIZE 4096UL
 
@@ -81,6 +84,10 @@ MODULE_PARM_DESC(ramoops_ecc,
 		"if non-zero, the option enables ECC support and specifies "
 		"ECC buffer size in bytes (1 is a special value, means 16 "
 		"bytes ECC)");
+
+#ifdef CONFIG_ZTE_RAM_CONSOLE
+int zte_get_ramoops_paraments(struct platform_device *pdev);
+#endif
 
 struct ramoops_context {
 	struct persistent_ram_zone **przs;
@@ -429,7 +436,9 @@ static int ramoops_init_prz(struct device *dev, struct ramoops_context *cxt,
 		return err;
 	}
 
+#ifndef CONFIG_ZTE_RAM_CONSOLE        
 	persistent_ram_zap(*prz);
+#endif
 
 	*paddr += sz;
 
@@ -451,6 +460,9 @@ static int ramoops_probe(struct platform_device *pdev)
 	phys_addr_t paddr;
 	int err = -EINVAL;
 
+#ifdef CONFIG_ZTE_RAM_CONSOLE
+	zte_get_ramoops_paraments(pdev);
+#endif
 	/* Only a single ramoops area allowed at a time, so fail extra
 	 * probes.
 	 */
@@ -487,6 +499,7 @@ static int ramoops_probe(struct platform_device *pdev)
 
 	dump_mem_sz = cxt->size - cxt->console_size - cxt->ftrace_size
 			- cxt->pmsg_size;
+
 	err = ramoops_init_przs(dev, cxt, &paddr, dump_mem_sz);
 	if (err)
 		goto fail_out;
@@ -581,15 +594,78 @@ static int __exit ramoops_remove(struct platform_device *pdev)
 	return -EBUSY;
 }
 
+#ifdef CONFIG_ZTE_RAM_CONSOLE
+static struct of_device_id ramoops_ids[] = {
+        {.compatible = "qcom,ramoops"},
+        {},
+};
+#endif
+
 static struct platform_driver ramoops_driver = {
 	.probe		= ramoops_probe,
 	.remove		= __exit_p(ramoops_remove),
 	.driver		= {
 		.name	= "ramoops",
 		.owner	= THIS_MODULE,
+                .of_match_table = ramoops_ids,
 	},
 };
 
+#ifdef CONFIG_ZTE_RAM_CONSOLE
+int zte_get_ramoops_paraments(struct platform_device *pdev)
+{
+
+  struct ramoops_platform_data *pdata = pdev->dev.platform_data;
+  struct device_node *node = pdev->dev.of_node;
+  int ret = 0;
+  const __be32 *cell;
+  int len = 0;
+  int i = 0;
+
+  ret = of_property_read_u32(node, "mem_type",
+                               &pdata->mem_type);
+  if (ret) {
+   	dev_err(&pdev->dev, "Failed to find mem_type.\n");
+                        return ret;
+  }
+
+  ret = of_property_read_u32(node, "dump_oops",
+                               &pdata->dump_oops);
+  if (ret) {
+        dev_err(&pdev->dev, "Failed to find record_size.\n");
+                        return ret;
+  }
+
+  cell = of_get_property(node, "size", &len);
+  if (!cell || len < 4*sizeof(u64)) {
+  	pr_err("ramoops: cannot find property\n");
+        return -EINVAL;
+  }
+
+  if ((len % sizeof(u64))) {
+        pr_err("ramoops: unexpected number of memory size\n");
+        return -EINVAL;
+  }
+
+  for( i= 0; i < (len / sizeof(u64)); ++i) {
+                /*
+                 * of_read_number always returns a 64-bit number.
+                 * But we can truncate it on a 32-bit system.
+                 */
+                if (i == 0)
+                        pdata->console_size = (phys_addr_t)of_read_number(cell, 2);
+                if (i == 1)
+                        pdata->record_size = (phys_addr_t)of_read_number(cell, 2);
+                if (i == 2)
+                        pdata->ftrace_size = (phys_addr_t)of_read_number(cell, 2);
+                if (i == 3)
+                        pdata->pmsg_size = (phys_addr_t)of_read_number(cell, 2);
+                cell += 2;
+}
+
+  return 0;
+}
+#else
 static void ramoops_register_dummy(void)
 {
 	if (!mem_size)
@@ -624,10 +700,14 @@ static void ramoops_register_dummy(void)
 			PTR_ERR(dummy));
 	}
 }
+#endif
 
 static int __init ramoops_init(void)
 {
+
+#ifndef CONFIG_ZTE_RAM_CONSOLE
 	ramoops_register_dummy();
+#endif
 	return platform_driver_register(&ramoops_driver);
 }
 postcore_initcall(ramoops_init);
@@ -639,6 +719,67 @@ static void __exit ramoops_exit(void)
 	kfree(dummy_data);
 }
 module_exit(ramoops_exit);
+
+
+#if defined(CONFIG_ZTE_RAM_CONSOLE)&& defined(CONFIG_OF_RESERVED_MEM)
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_reserved_mem.h>
+
+static int rmem_ramoops_device_init(struct reserved_mem *rmem, struct device *dev)
+{
+        struct ramoops_platform_data *ramoops_pdata;
+        struct platform_device *pdev;
+	int ret = -1;
+
+        pr_info("%s e\n",__FUNCTION__);
+
+        if (!rmem->size || !rmem->base){
+                pr_err("reserved memory size is 0\n");
+                return -EINVAL;
+	}
+
+
+        ramoops_pdata =(struct ramoops_platform_data *)kzalloc(sizeof(struct ramoops_platform_data), GFP_KERNEL);
+
+        if (!ramoops_pdata) {
+                pr_err("could not allocate pdata\n");
+                return -ENOMEM;
+        }
+	
+        ramoops_pdata->mem_size = rmem->size;
+        ramoops_pdata->mem_address = rmem->base;
+
+	pdev = container_of(dev,struct platform_device, dev);
+	ret = platform_device_add_data(pdev,(const void *)ramoops_pdata,sizeof(struct ramoops_platform_data));
+	if (ret){
+                pr_err("failed to add data to device\n");
+                return -EINVAL;
+	}
+        pr_info("%s x\n",__FUNCTION__);
+	return 0;
+}
+
+static void rmem_ramoops_device_release(struct reserved_mem *rmem,
+                                    struct device *dev)
+{
+        pr_info("%s e\n",__FUNCTION__);
+}
+
+static const struct reserved_mem_ops removed_ramoops_ops = {
+        .device_init    = rmem_ramoops_device_init,
+        .device_release = rmem_ramoops_device_release,
+};
+
+static int __init removed_ramoops_setup(struct reserved_mem *rmem)
+{
+        rmem->ops = &removed_ramoops_ops;
+        pr_info("Removed memory: created ramoops memory pool at %pa, size %ld MiB\n",
+                &rmem->base, (unsigned long)rmem->size / SZ_1M);
+        return 0;
+}
+RESERVEDMEM_OF_DECLARE(dma, "removed_ramoops_memory", removed_ramoops_setup);
+#endif
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Marco Stornelli <marco.stornelli@gmail.com>");

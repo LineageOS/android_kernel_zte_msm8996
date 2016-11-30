@@ -30,7 +30,7 @@
 #include "mdss_panel.h"
 #include "mdss_mdp.h"
 
-#define STATUS_CHECK_INTERVAL_MS 5000
+#define STATUS_CHECK_INTERVAL_MS 1000
 #define STATUS_CHECK_INTERVAL_MIN_MS 50
 #define DSI_STATUS_CHECK_INIT -1
 #define DSI_STATUS_CHECK_DISABLE 1
@@ -99,6 +99,19 @@ irqreturn_t hw_vsync_handler(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
+/*zte,esd interrupt mode 0205  start */
+ irqreturn_t esd_gpio_interrupt_handler(int irq, void *data)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata =
+			(struct mdss_dsi_ctrl_pdata *)data;
+	
+	ctrl_pdata->lcd_esd_panel_error_flag++;
+
+	return IRQ_HANDLED;
+}
+/*zte,esd interrupt mode 0205  start */
+
 
 /*
  * fb_event_callback() - Call back function for the fb_register_client()

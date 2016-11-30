@@ -509,7 +509,16 @@ static int32_t msm_flash_low(
 		if (flash_ctrl->torch_trigger[i]) {
 			max_current = flash_ctrl->torch_max_current[i];
 			if (flash_data->flash_current[i] >= 0 &&
+/*
+  * by ZTE_YCM_20151001 yi.changming 400021
+  */
+// --->
+#if 0
 				flash_data->flash_current[i] <
+#else
+				flash_data->flash_current[i] <=
+#endif
+// <---400021
 				max_current) {
 				curr = flash_data->flash_current[i];
 			} else {
@@ -546,7 +555,16 @@ static int32_t msm_flash_high(
 		if (flash_ctrl->flash_trigger[i]) {
 			max_current = flash_ctrl->flash_max_current[i];
 			if (flash_data->flash_current[i] >= 0 &&
+/*
+  * by ZTE_YCM_20151001 yi.changming 400021
+  */
+// --->
+#if 0
 				flash_data->flash_current[i] <
+#else
+				flash_data->flash_current[i] <=
+#endif
+// <---400021
 				max_current) {
 				curr = flash_data->flash_current[i];
 			} else {

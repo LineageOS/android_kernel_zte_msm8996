@@ -3,7 +3,6 @@
 #
 menuconfig TOUCHSCREEN_SYNAPTICS_DSX_v21
 	bool "Synaptics DSX touchscreen"
-	default y
 	help
 	  Say Y here if you have a Synaptics DSX touchscreen connected
 	  to your system.
@@ -12,9 +11,6 @@ menuconfig TOUCHSCREEN_SYNAPTICS_DSX_v21
 
 if TOUCHSCREEN_SYNAPTICS_DSX_v21
 
-choice
-	default TOUCHSCREEN_SYNAPTICS_DSX_I2C_v21
-	prompt "Synaptics DSX touchscreen bus interface"
 
 config TOUCHSCREEN_SYNAPTICS_DSX_I2C_v21
 	bool "I2C"
@@ -37,7 +33,7 @@ config TOUCHSCREEN_SYNAPTICS_DSX_SPI_v21
 	  If unsure, say N.
 
 	  This module uses the services of DSX CORE
-endchoice
+
 
 config TOUCHSCREEN_SYNAPTICS_DSX_CORE_v21
 	tristate "Synaptics DSX core driver module"

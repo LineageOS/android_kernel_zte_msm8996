@@ -1,0 +1,8 @@
+menuconfig TOUCHSCREEN_GT1X
+	bool "goodix gt1x touchscreen"
+	default n
+	help
+	  Say Y here if you have a goodix gt1x touchscreen connected
+	  to your system.
+
+	  If unsure, say N.

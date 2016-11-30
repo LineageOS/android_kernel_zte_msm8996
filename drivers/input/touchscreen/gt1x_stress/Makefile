@@ -1,0 +1,8 @@
+obj-$(CONFIG_STRESS_TOUCHSCREEN_GT1X) += gt1x.o
+obj-$(CONFIG_STRESS_TOUCHSCREEN_GT1X) += gt1x_generic.o 
+obj-$(CONFIG_STRESS_TOUCHSCREEN_GT1X) += gt1x_extents.o 
+obj-$(CONFIG_STRESS_TOUCHSCREEN_GT1X) += gt1x_tools.o 
+obj-$(CONFIG_STRESS_TOUCHSCREEN_GT1X) += gt1x_update.o
+obj-$(CONFIG_STRESS_TOUCHSCREEN_GT1X) += ndt_stress.o
+
+

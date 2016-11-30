@@ -60,6 +60,10 @@
 
 #include "atags.h"
 
+#if 1    //ZTE_XJB_20130216 for power_off charging
+int offcharging_flag=0;
+int pm_ftm_flag=0;
+#endif//ZTE
 
 #if defined(CONFIG_FPE_NWFPE) || defined(CONFIG_FPE_FASTFPE)
 char fpe_type[8];
@@ -920,6 +924,20 @@ void __init setup_arch(char **cmdline_p)
 	init_mm.end_code   = (unsigned long) _etext;
 	init_mm.end_data   = (unsigned long) _edata;
 	init_mm.brk	   = (unsigned long) _end;
+
+#if 1   //ZTE_XJB_20130216 for power_off charging
+    //get the boot mode here.
+    if (strstr(boot_command_line, "androidboot.mode=charger"))
+    {
+        offcharging_flag = 1;
+	printk("ZTE :boot mode is offcharging/charger \n"); //ZTE
+    }
+    else if (strstr(boot_command_line, "androidboot.mode=ftm"))
+    {
+        pm_ftm_flag = 1;
+	printk("ZTE :boot mode is ftm \n"); //ZTE
+    }
+#endif
 
 	/* populate cmd_line too for later use, preserving boot_command_line */
 	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);

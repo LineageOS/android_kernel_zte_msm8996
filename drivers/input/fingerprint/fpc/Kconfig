@@ -1,0 +1,3 @@
+config INPUT_FPC
+	tristate "fpc fingerprint driver"
+	default n

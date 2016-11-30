@@ -1941,10 +1941,41 @@ static const struct snd_kcontrol_new ext_ec_ref_mux_ul9 =
 static int msm_routing_ext_ec_get(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
+	int ec_ref_ctl_value = 0; // ZTE_chenjun
+
 	pr_debug("%s: ext_ec_ref_rx  = %x\n", __func__, msm_route_ext_ec_ref);
 
 	mutex_lock(&routing_lock);
+
+// ZTE_chenjun
+#if 0
 	ucontrol->value.integer.value[0] = msm_route_ext_ec_ref;
+#else
+	switch (msm_route_ext_ec_ref) {
+	case AFE_PORT_ID_PRIMARY_MI2S_TX:
+		ec_ref_ctl_value = EC_PORT_ID_PRIMARY_MI2S_TX;
+		break;
+	case AFE_PORT_ID_SECONDARY_MI2S_TX:
+		ec_ref_ctl_value = EC_PORT_ID_SECONDARY_MI2S_TX;
+		break;
+	case AFE_PORT_ID_TERTIARY_MI2S_TX:
+		ec_ref_ctl_value = EC_PORT_ID_TERTIARY_MI2S_TX;
+		break;
+	case AFE_PORT_ID_QUATERNARY_MI2S_TX:
+		ec_ref_ctl_value = EC_PORT_ID_QUATERNARY_MI2S_TX;
+		break;
+	case SLIMBUS_1_TX:
+		ec_ref_ctl_value = EC_PORT_ID_SLIMBUS_1_TX;
+		break;
+	default:
+		ec_ref_ctl_value = 0;
+		break;
+	}
+
+	ucontrol->value.integer.value[0] = ec_ref_ctl_value;
+#endif
+//
+
 	mutex_unlock(&routing_lock);
 	return 0;
 }
@@ -1961,7 +1992,7 @@ static int msm_routing_ext_ec_put(struct snd_kcontrol *kcontrol,
 	bool state = false;
 	struct snd_soc_dapm_update *update = NULL;
 
-	pr_debug("%s: msm_route_ec_ref_rx = %d value = %ld\n",
+	pr_err("%s: msm_route_ec_ref_rx = %d value = %ld\n",
 		 __func__, msm_route_ext_ec_ref,
 		 ucontrol->value.integer.value[0]);
 
@@ -3410,6 +3441,9 @@ static const struct snd_kcontrol_new mmul1_mixer_controls[] = {
 	SOC_SINGLE_EXT("SLIM_0_TX", MSM_BACKEND_DAI_SLIMBUS_0_TX,
 		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
 		msm_routing_put_audio_mixer),
+	SOC_SINGLE_EXT("SLIM_1_TX", MSM_BACKEND_DAI_SLIMBUS_1_TX,
+		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
+		msm_routing_put_audio_mixer),  //lhs
 	SOC_SINGLE_EXT("AUX_PCM_UL_TX", MSM_BACKEND_DAI_AUXPCM_TX,
 		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
 		msm_routing_put_audio_mixer),
@@ -4772,6 +4806,10 @@ static const struct snd_kcontrol_new quat_mi2s_rx_port_mixer_controls[] = {
 	SOC_SINGLE_EXT("INTERNAL_FM_TX", MSM_BACKEND_DAI_QUATERNARY_MI2S_RX,
 	MSM_BACKEND_DAI_INT_FM_TX, 1, 0, msm_routing_get_port_mixer,
 	msm_routing_put_port_mixer),
+	SOC_SINGLE_EXT("SLIM_0_TX", MSM_BACKEND_DAI_QUATERNARY_MI2S_RX,
+	MSM_BACKEND_DAI_SLIMBUS_0_TX, 1, 0, msm_routing_get_port_mixer,
+	msm_routing_put_port_mixer),
+
 };
 
 static const struct snd_kcontrol_new tert_tdm_rx_0_port_mixer_controls[] = {
@@ -7447,6 +7485,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"MultiMedia1 Mixer", "TERT_MI2S_TX", "TERT_MI2S_TX"},
 	{"MultiMedia2 Mixer", "TERT_MI2S_TX", "TERT_MI2S_TX"},
 	{"MultiMedia1 Mixer", "SLIM_0_TX", "SLIMBUS_0_TX"},
+	{"MultiMedia1 Mixer", "SLIM_1_TX", "SLIMBUS_1_TX"},
 	{"MultiMedia1 Mixer", "AUX_PCM_UL_TX", "AUX_PCM_TX"},
 	{"MultiMedia5 Mixer", "AUX_PCM_TX", "AUX_PCM_TX"},
 	{"MultiMedia1 Mixer", "SEC_AUX_PCM_UL_TX", "SEC_AUX_PCM_TX"},
@@ -8348,6 +8387,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 
 	{"QUAT_MI2S_RX Port Mixer", "PRI_MI2S_TX", "PRI_MI2S_TX"},
 	{"QUAT_MI2S_RX Port Mixer", "INTERNAL_FM_TX", "INT_FM_TX"},
+	{"QUAT_MI2S_RX Port Mixer", "SLIM_0_TX", "SLIMBUS_0_TX"},
 	{"QUAT_MI2S_RX", NULL, "QUAT_MI2S_RX Port Mixer"},
 
 	/* Backend Enablement */

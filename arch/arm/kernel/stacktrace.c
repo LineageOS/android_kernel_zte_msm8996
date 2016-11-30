@@ -123,7 +123,8 @@ static noinline void __save_stack_trace(struct task_struct *tsk,
 	data.no_sched_functions = nosched;
 
 	if (tsk != current) {
-#ifdef CONFIG_SMP
+//#ifdef CONFIG_SMP //zte_pm_liyf_20151010
+#if 0  //ZTE_PM_LHX
 		/*
 		 * What guarantees do we have here that 'tsk' is not
 		 * running on another CPU?  For now, ignore it as we

@@ -529,6 +529,30 @@ static int msm_qti_pp_set_sec_auxpcm_lb_vol_mixer(
 	return 0;
 }
 
+static int msm_afe_lb_vol_ctrl_mmi;
+static const DECLARE_TLV_DB_LINEAR(afe_lb_vol_gain_mmi, 0, INT_RX_VOL_MAX_STEPS);
+
+static int msm_qti_pp_get_slimbus_0_tx_lb_vol_mixer(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = msm_afe_lb_vol_ctrl_mmi;
+	return 0;
+}
+
+static int msm_qti_pp_set_slimbus_0_tx_lb_vol_mixer(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *ucontrol)
+{
+	afe_loopback_gain(SLIMBUS_0_TX,
+			  ucontrol->value.integer.value[0]);
+	pr_info("%s: mmi vol %ld\n", __func__, ucontrol->value.integer.value[0]);
+
+	msm_afe_lb_vol_ctrl_mmi = ucontrol->value.integer.value[0];
+
+	return 0;
+}
+
+
+
 static int msm_qti_pp_get_channel_map_mixer(struct snd_kcontrol *kcontrol,
 					    struct snd_ctl_elem_value *ucontrol)
 {
@@ -764,6 +788,13 @@ static const struct snd_kcontrol_new sec_auxpcm_lb_vol_mixer_controls[] = {
 	sec_auxpcm_lb_vol_gain),
 };
 
+static const struct snd_kcontrol_new int_mmi_vol_mixer_controls[] = {
+	SOC_SINGLE_EXT_TLV("SLIMBUS LOOPBACK Volume", SND_SOC_NOPM, 0,
+	INT_RX_VOL_GAIN, 0, msm_qti_pp_get_slimbus_0_tx_lb_vol_mixer,
+	msm_qti_pp_set_slimbus_0_tx_lb_vol_mixer, afe_lb_vol_gain_mmi),
+};
+
+
 static const struct snd_kcontrol_new multi_ch_channel_map_mixer_controls[] = {
 	SOC_SINGLE_MULTI_EXT("Playback Device Channel Map", SND_SOC_NOPM, 0, 16,
 	0, 8, msm_qti_pp_get_channel_map_mixer,
@@ -959,4 +990,7 @@ void msm_qti_pp_add_controls(struct snd_soc_platform *platform)
 
 	snd_soc_add_platform_controls(platform, asphere_mixer_controls,
 			ARRAY_SIZE(asphere_mixer_controls));
+
+	snd_soc_add_platform_controls(platform, int_mmi_vol_mixer_controls,
+			ARRAY_SIZE(int_mmi_vol_mixer_controls));
 }

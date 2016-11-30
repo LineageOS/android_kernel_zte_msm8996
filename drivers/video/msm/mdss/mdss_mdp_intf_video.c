@@ -810,6 +810,8 @@ static int mdss_mdp_video_vfp_fps_update(struct mdss_mdp_video_ctx *ctx,
 		mdp_video_write(ctx, MDSS_MDP_REG_INTF_VSYNC_PERIOD_F0,
 			new_vsync_period_f0 & 0x7fffff);
 	}
+	MDSS_XLOG(ctx->intf_num, current_vsync_period_f0,
+		hsync_period, vsync_period, new_vsync_period_f0);
 
 	pr_debug("if:%d vtotal:%d htotal:%d f0:0x%x nw_f0:0x%x\n",
 		ctx->intf_num, vsync_period, hsync_period,
@@ -929,6 +931,7 @@ static int mdss_mdp_video_config_fps(struct mdss_mdp_ctl *ctl, int new_fps)
 	struct mdss_mdp_video_ctx *ctx, *sctx = NULL;
 	struct mdss_panel_data *pdata;
 	int rc = 0;
+
 	struct mdss_data_type *mdata = ctl->mdata;
 	struct mdss_mdp_ctl *sctl = NULL;
 
@@ -960,6 +963,13 @@ static int mdss_mdp_video_config_fps(struct mdss_mdp_ctl *ctl, int new_fps)
 		rc = -EINVAL;
 		goto end;
 	}
+
+
+	pr_debug("ctl:%d dfps_update:%d fps:%d\n",
+		ctl->num, pdata->panel_info.dfps_update, new_fps);
+	MDSS_XLOG(ctl->num, pdata->panel_info.dfps_update,
+		new_fps, XLOG_FUNC_ENTRY);
+
 
 	pr_debug("ctl:%d dfps_update:%d fps:%d\n",
 		ctl->num, pdata->panel_info.dfps_update, new_fps);

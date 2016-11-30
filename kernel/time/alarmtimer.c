@@ -30,7 +30,7 @@
 #include "lpm-levels.h"
 #endif
 #include <linux/workqueue.h>
-
+#define ALARM_DELTA 120
 /**
  * struct alarm_base - Alarm timer bases
  * @lock:		Lock for syncrhonized access to the base
@@ -147,6 +147,11 @@ void set_power_on_alarm(void)
 	alarm_delta = wall_time.tv_sec - rtc_secs;
 	alarm_time = alarm_secs - alarm_delta;
 
+	if ((alarm_time - ALARM_DELTA) > rtc_secs)
+			alarm_time -= ALARM_DELTA;
+	else
+		goto disable_alarm;
+
 	rtc_time_to_tm(alarm_time, &alarm.time);
 	alarm.enabled = 1;
 	rc = rtc_set_alarm(rtcdev, &alarm);
@@ -154,9 +159,11 @@ void set_power_on_alarm(void)
 		goto disable_alarm;
 
 	mutex_unlock(&power_on_alarm_lock);
+	printk("%s. ZTE set_power_on_alarm successful! alarm_time=%ld,rtc_secs=%ld\n",__func__,alarm_time,rtc_secs);
 	return;
 
 disable_alarm:
+	printk("%s. ZTE set_power_on_alarm disable_alarm!\n",__func__);
 	rtc_alarm_irq_enable(rtcdev, 0);
 exit:
 	mutex_unlock(&power_on_alarm_lock);

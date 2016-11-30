@@ -31,7 +31,16 @@
 #define CYCLES_PER_MICRO_SEC_DEFAULT 4915
 #define CCI_MAX_DELAY 1000000
 
+/*
+  * by ZTE_YCM_20150820 yi.changming 400149
+  */
+// --->
+#if 1
 #define CCI_TIMEOUT msecs_to_jiffies(100)
+#else
+#define CCI_TIMEOUT msecs_to_jiffies(400)
+#endif
+// <---400149
 
 /* TODO move this somewhere else */
 #define MSM_CCI_DRV_NAME "msm_cci"

@@ -945,6 +945,30 @@ static umode_t scsi_sdev_attr_is_visible(struct kobject *kobj,
 	return attr->mode;
 }
 
+static ssize_t mmc_info_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev = to_scsi_device(dev);
+
+	int logical_block_size = 4096; //fixme...
+	u64 capacity_512 = 0;
+
+	if (sdev->host->hostt->device_capacity) {
+	    capacity_512 = sdev->host->hostt->device_capacity(sdev);
+	}
+
+	return sprintf(buf, "Memory Type: UFS(  %s)\n"
+		       "Logical Block Size (bytes): %d\n"
+		       "Size (kB): %llu\n"
+		       "Manufacture: %.8s\n"
+		       "Product Name: %.15s\n",
+		       scsi_device_type(sdev->type),
+		       logical_block_size,
+		       (u64)(capacity_512 * 512 / 1024),
+		       sdev->vendor,
+		       sdev->model);
+}
+static DEVICE_ATTR(info, S_IRUGO, mmc_info_show, NULL);
+
 /* Default template for device attributes.  May NOT be modified */
 static struct attribute *scsi_sdev_attrs[] = {
 	&dev_attr_device_blocked.attr,
@@ -967,6 +991,7 @@ static struct attribute *scsi_sdev_attrs[] = {
 	&dev_attr_queue_depth.attr,
 	&dev_attr_queue_type.attr,
 	&dev_attr_queue_ramp_up_period.attr,
+	&dev_attr_info.attr,
 	REF_EVT(media_change),
 	REF_EVT(inquiry_change_reported),
 	REF_EVT(capacity_change_reported),

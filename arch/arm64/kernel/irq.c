@@ -31,6 +31,38 @@
 
 unsigned long irq_err_count;
 
+//zte_pm_liyf_20151010 cp 8952
+int zte_smd_wakeup	=	0;
+void print_irq_info(int i)
+{
+    struct irqaction * action;
+    struct irq_desc* zte_irq_desc;
+    unsigned long flags;
+    zte_irq_desc = irq_to_desc(i);
+    if (zte_irq_desc) {
+        raw_spin_lock_irqsave(&zte_irq_desc->lock, flags);
+        action = zte_irq_desc->action;
+        if (!action)
+            goto unlock;
+            printk(KERN_ERR "[IRQ] IRQ-NUM=%d\n",i);
+            printk(KERN_ERR "      chip->name=%10s\n",zte_irq_desc->irq_data.chip->name ? : "-");
+            printk(KERN_ERR "      action->name=%s\n",action->name);
+
+            //zte jiangfeng add
+            //notes:use ' adb shell cat /proc/interrupts | grep smd '  could find :IRQ-NUM=57
+            if(!strcmp(action->name,"qcom,smd-modem"))//note: zte change smd-dev to smd-modem 20150304
+                zte_smd_wakeup	=	1;
+
+            for (action = action->next; action; action = action->next)
+                printk(KERN_ERR "      action->name=%s\n",action->name);
+
+	unlock:
+            raw_spin_unlock_irqrestore(&zte_irq_desc->lock, flags);
+        } else{
+            printk(KERN_ERR "[IRQ] error in dump irq info for irq %d\n", i);
+        }
+}
+//zte_pm end
 int arch_show_interrupts(struct seq_file *p, int prec)
 {
 #ifdef CONFIG_SMP

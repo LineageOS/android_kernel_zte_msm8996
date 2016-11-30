@@ -14,11 +14,24 @@
 
 #include <linux/module.h>
 #include "msm_sd.h"
+#include "msm_sensor.h"
 #include "msm_ois.h"
 #include "msm_cci.h"
+/*
+  * by ZTE_YCM_20151102 yi.changming 400050-1
+  */
+// --->
+#include <linux/of.h>
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+// <---400050-1
+
+// --->
+#include "zte_camera_ois_util.h"
+// <---
 
 DEFINE_MSM_MUTEX(msm_ois_mutex);
-/*#define MSM_OIS_DEBUG*/
+#define MSM_OIS_DEBUG
 #undef CDBG
 #ifdef MSM_OIS_DEBUG
 #define CDBG(fmt, args...) pr_err(fmt, ##args)
@@ -38,12 +51,31 @@ static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl,
 	int32_t rc = -EFAULT;
 	int32_t i = 0;
 	struct msm_camera_i2c_seq_reg_array *reg_setting;
+       uint16_t read_data = 0;
 	CDBG("Enter\n");
 
 	for (i = 0; i < size; i++) {
 		switch (settings[i].i2c_operation) {
 		case MSM_OIS_WRITE: {
 			switch (settings[i].data_type) {
+/*
+  * by ZTE_YCM_20151102 yi.changming 400050-1
+  */
+// --->
+			case MSM_CAMERA_I2C_NO_DATA:
+				settings[i].reg_addr = settings[i].reg_addr >> 8;
+				settings[i].data_type = MSM_CAMERA_I2C_BYTE_DATA;
+				o_ctrl->i2c_client.addr_type = MSM_CAMERA_I2C_BYTE_ADDR;
+				pr_err("MSM_CAMERA_I2C_NO_DATA: E\n");
+				rc = o_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+					&o_ctrl->i2c_client,
+					settings[i].reg_addr,
+					settings[i].reg_data,
+					settings[i].data_type);
+				o_ctrl->i2c_client.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+				pr_err("MSM_CAMERA_I2C_NO_DATA: X  rc = %d\n",rc);
+				break;
+// <---400050-1
 			case MSM_CAMERA_I2C_BYTE_DATA:
 			case MSM_CAMERA_I2C_WORD_DATA:
 				rc = o_ctrl->i2c_client.i2c_func_tbl->i2c_write(
@@ -107,6 +139,8 @@ static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl,
 					settings[i].reg_data,
 					settings[i].data_type,
 					settings[i].delay);
+				if (rc < 0)
+					return rc;
 				break;
 
 			default:
@@ -115,10 +149,29 @@ static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl,
 				break;
 			}
 		}
+
+		break;
+		case MSM_OIS_READ: {
+			switch (settings[i].data_type) {
+			case MSM_CAMERA_I2C_BYTE_DATA:
+			case MSM_CAMERA_I2C_WORD_DATA:
+				rc = o_ctrl->i2c_client.i2c_func_tbl
+					->i2c_read(&o_ctrl->i2c_client,
+					settings[i].reg_addr,&(read_data),settings[i].data_type);
+				settings[i].reg_data = read_data;
+				if (rc < 0)
+					return rc;
+				break;
+
+			default:
+				pr_err("Unsupport data type: %d\n",
+					settings[i].data_type);
+				break;
+			}
+		}
+		break;
 		}
 
-		if (rc < 0)
-			break;
 	}
 
 	CDBG("Exit\n");
@@ -161,7 +214,16 @@ static int32_t msm_ois_power_down(struct msm_ois_ctrl_t *o_ctrl)
 			pr_err("%s failed %d\n", __func__, __LINE__);
 			return rc;
 		}
+/*
+  * by ZTE_YCM_20151102 yi.changming 400050-1
+  */
+// --->
+		if (gpio_is_valid(o_ctrl->ois_en_gpio)) {
+			gpio_direction_output(o_ctrl->ois_en_gpio,0);
+		    gpio_free(o_ctrl->ois_en_gpio);
 
+	       }
+// <---400050-1
 		o_ctrl->i2c_tbl_index = 0;
 		o_ctrl->ois_state = OIS_OPS_INACTIVE;
 	}
@@ -190,6 +252,27 @@ static int msm_ois_init(struct msm_ois_ctrl_t *o_ctrl)
 	return rc;
 }
 
+static int msm_ois_deinit(struct msm_ois_ctrl_t *o_ctrl)
+{
+	int rc = 0;
+	CDBG("Enter\n");
+	if (!o_ctrl) {
+		pr_err("failed\n");
+		return -EINVAL;
+	}
+	mutex_lock(o_ctrl->ois_mutex);
+	if (o_ctrl->ois_device_type == MSM_CAMERA_PLATFORM_DEVICE &&
+		o_ctrl->ois_state == OIS_OPS_ACTIVE) {
+		rc = o_ctrl->i2c_client.i2c_func_tbl->i2c_util(
+			&o_ctrl->i2c_client, MSM_CCI_RELEASE);
+		if (rc < 0)
+			pr_err("cci_deinit failed\n");
+	}
+	o_ctrl->ois_state = OIS_OPS_INACTIVE;
+	mutex_unlock(o_ctrl->ois_mutex);
+	CDBG("Exit\n");
+	return rc;
+}
 static int32_t msm_ois_control(struct msm_ois_ctrl_t *o_ctrl,
 	struct msm_ois_set_info_t *set_info)
 {
@@ -232,10 +315,10 @@ static int32_t msm_ois_control(struct msm_ois_ctrl_t *o_ctrl,
 			pr_err("Error copying\n");
 			return -EFAULT;
 		}
-
 		rc = msm_ois_write_settings(o_ctrl,
 			set_info->ois_params.setting_size,
 			settings);
+
 		kfree(settings);
 		if (rc < 0) {
 			pr_err("Error\n");
@@ -248,6 +331,69 @@ static int32_t msm_ois_control(struct msm_ois_ctrl_t *o_ctrl,
 	return rc;
 }
 
+static int32_t msm_ois_read(struct msm_ois_ctrl_t *o_ctrl,
+	struct msm_ois_set_info_t *set_info)
+{
+	struct reg_settings_ois_t *settings = NULL;
+	int32_t rc = 0;
+	struct msm_camera_cci_client *cci_client = NULL;
+	CDBG("Enter\n");
+
+	if (o_ctrl->ois_device_type == MSM_CAMERA_PLATFORM_DEVICE) {
+		cci_client = o_ctrl->i2c_client.cci_client;
+		cci_client->sid =
+			set_info->ois_params.i2c_addr >> 1;
+		cci_client->retries = 3;
+		cci_client->id_map = 0;
+		cci_client->cci_i2c_master = o_ctrl->cci_master;
+		cci_client->i2c_freq_mode = set_info->ois_params.i2c_freq_mode;
+	} else {
+		o_ctrl->i2c_client.client->addr =
+			set_info->ois_params.i2c_addr;
+	}
+	o_ctrl->i2c_client.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+
+	if (set_info->ois_params.setting_size > 0 &&
+		set_info->ois_params.setting_size
+		< MAX_OIS_REG_SETTINGS) {
+		settings = kmalloc(
+			sizeof(struct reg_settings_ois_t) *
+			(set_info->ois_params.setting_size),
+			GFP_KERNEL);
+		if (settings == NULL) {
+			pr_err("Error allocating memory\n");
+			return -EFAULT;
+		}
+		if (copy_from_user(settings,
+			(void *)set_info->ois_params.settings,
+			set_info->ois_params.setting_size *
+			sizeof(struct reg_settings_ois_t))) {
+			kfree(settings);
+			pr_err("Error copying\n");
+			return -EFAULT;
+		}
+
+		rc = msm_ois_write_settings(o_ctrl,
+			set_info->ois_params.setting_size,
+			settings);
+		if (copy_to_user((void *)set_info->ois_params.settings,settings,
+			set_info->ois_params.setting_size *
+			sizeof(struct reg_settings_ois_t))) {
+			kfree(settings);
+			pr_err("Error copying\n");
+			return -EFAULT;
+		}
+		kfree(settings);
+		if (rc < 0) {
+			pr_err("Error\n");
+			return -EFAULT;
+		}
+	}
+
+	CDBG("Exit\n");
+
+	return rc;
+}
 
 static int32_t msm_ois_config(struct msm_ois_ctrl_t *o_ctrl,
 	void __user *argp)
@@ -264,6 +410,11 @@ static int32_t msm_ois_config(struct msm_ois_ctrl_t *o_ctrl,
 		if (rc < 0)
 			pr_err("msm_ois_init failed %d\n", rc);
 		break;
+	case CFG_OIS_DEINIT:
+		rc = msm_ois_deinit(o_ctrl);
+		if (rc < 0)
+			pr_err("msm_ois_deinit failed %d\n", rc);
+		break;
 	case CFG_OIS_POWERDOWN:
 		rc = msm_ois_power_down(o_ctrl);
 		if (rc < 0)
@@ -278,6 +429,11 @@ static int32_t msm_ois_config(struct msm_ois_ctrl_t *o_ctrl,
 		rc = msm_ois_control(o_ctrl, &cdata->cfg.set_info);
 		if (rc < 0)
 			pr_err("Failed ois control%d\n", rc);
+		break;
+	case CFG_OIS_READ:
+		rc = msm_ois_read(o_ctrl, &(cdata->cfg.set_info));
+		if (rc < 0)
+			pr_err("Failed ois read%d\n", rc);
 		break;
 	case CFG_OIS_I2C_WRITE_SEQ_TABLE: {
 		struct msm_camera_i2c_seq_reg_setting conf_array;
@@ -445,7 +601,21 @@ static int32_t msm_ois_power_up(struct msm_ois_ctrl_t *o_ctrl)
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		return rc;
 	}
-
+/*
+  * by ZTE_YCM_20151102 yi.changming 400050-1
+  */
+// --->
+	if (gpio_is_valid(o_ctrl->ois_en_gpio)) {
+	    rc = gpio_request(o_ctrl->ois_en_gpio,"ois_enable");
+		if (rc) {
+			pr_err("request oisa_en gpio failed, rc=%d\n",
+				       rc);
+			return rc;
+		}
+		gpio_direction_output(o_ctrl->ois_en_gpio,1);
+		msleep(20);
+	}
+// <---400050-1
 	o_ctrl->ois_state = OIS_ENABLE_STATE;
 	CDBG("Exit\n");
 	return rc;
@@ -577,6 +747,22 @@ static long msm_ois_subdev_do_ioctl(
 				settings);
 			parg = &ois_data;
 			break;
+		case CFG_OIS_READ:
+			ois_data.cfg.set_info.ois_params.setting_size =
+				u32->cfg.set_info.ois_params.setting_size;
+			ois_data.cfg.set_info.ois_params.i2c_addr =
+				u32->cfg.set_info.ois_params.i2c_addr;
+			ois_data.cfg.set_info.ois_params.i2c_freq_mode =
+				u32->cfg.set_info.ois_params.i2c_freq_mode;
+			ois_data.cfg.set_info.ois_params.i2c_addr_type =
+				u32->cfg.set_info.ois_params.i2c_addr_type;
+			ois_data.cfg.set_info.ois_params.i2c_data_type =
+				u32->cfg.set_info.ois_params.i2c_data_type;
+			ois_data.cfg.set_info.ois_params.settings =
+				compat_ptr(u32->cfg.set_info.ois_params.
+				settings);
+			parg = &ois_data;
+			break;
 		case CFG_OIS_I2C_WRITE_SEQ_TABLE:
 			if (copy_from_user(&settings32,
 				(void *)compat_ptr(u32->cfg.settings),
@@ -619,7 +805,7 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 	struct msm_camera_cci_client *cci_client = NULL;
 	struct msm_ois_ctrl_t *msm_ois_t = NULL;
 	struct msm_ois_vreg *vreg_cfg;
-	CDBG("Enter\n");
+	printk("Enter\n");
 
 	if (!pdev->dev.of_node) {
 		pr_err("of_node NULL\n");
@@ -662,6 +848,16 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 		}
 	}
 
+/*
+  * by ZTE_YCM_20151102 yi.changming 400050-1
+  */
+// --->
+	msm_ois_t->ois_en_gpio = of_get_named_gpio((&pdev->dev)->of_node,
+		"qcom,platform-ois-en-gpio", 0);
+	if (!gpio_is_valid(msm_ois_t->ois_en_gpio))
+		pr_err("%s:%d, ois enable gpio not specified\n",__func__, __LINE__);
+// <---400050-1
+
 	msm_ois_t->ois_v4l2_subdev_ops = &msm_ois_subdev_ops;
 	msm_ois_t->ois_mutex = &msm_ois_mutex;
 
@@ -702,8 +898,14 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 #endif
 	msm_ois_t->msm_sd.sd.devnode->fops =
 		&msm_ois_v4l2_subdev_fops;
-
-	CDBG("Exit\n");
+/*
+  *add ois debug interface,by feng.ya on 20160222
+  */
+// --->
+	if(msm_ois_enable_debugfs(msm_ois_t))
+		printk("%s:%d creat debugfs fail\n", __func__, __LINE__);
+// <---
+	printk("Exit\n");
 	return rc;
 }
 

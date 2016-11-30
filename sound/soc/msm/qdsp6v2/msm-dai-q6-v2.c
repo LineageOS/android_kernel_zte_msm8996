@@ -3114,6 +3114,11 @@ static int msm_dai_q6_mi2s_hw_params(struct snd_pcm_substream *substream,
 		i2s->channel_mode, i2s->mono_stereo, i2s->ws_src,
 		i2s->sample_rate, i2s->data_format, i2s->reserved);
 
+// ZTE_chenjun
+	dev_err(dai->dev, "%s: channels = %d, rate = %u, bit_width = %hu\n",
+		__func__, dai_data->channels, dai_data->rate, i2s->bit_width);
+//
+
 	return 0;
 
 error_invalid_data:
@@ -3293,7 +3298,8 @@ static struct snd_soc_dai_driver msm_dai_q6_mi2s_dai[] = {
 			.aif_name = "QUAT_MI2S_RX",
 			.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
 			SNDRV_PCM_RATE_16000,
-			.formats = SNDRV_PCM_FMTBIT_S16_LE,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE |
+				SNDRV_PCM_FMTBIT_S24_LE, // ZTE_chenjun
 			.rate_min =     8000,
 			.rate_max =     48000,
 		},

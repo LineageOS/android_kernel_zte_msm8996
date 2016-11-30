@@ -902,10 +902,12 @@ void dpm_resume(pm_message_t state)
 		get_device(dev);
 		if (!is_async(dev)) {
 			int error;
-
+            unsigned long jif = 0; //zte_pm_liyf_20151010
 			mutex_unlock(&dpm_list_mtx);
-
+            jif = jiffies; //zte_pm_liyf_20151010
 			error = device_resume(dev, state, false);
+			if ((jiffies - jif) > 1) //zte_pm_liyf_20151010
+			    printk(KERN_ERR"ZTE_PM: devices of %s exit  device_resume %lu ms\n",dev_name(dev), (jiffies - jif)*10); //zte_pm_20130606
 			if (error) {
 				suspend_stats.failed_resume++;
 				dpm_save_failed_step(SUSPEND_RESUME);

@@ -20,6 +20,9 @@ void __attribute__((weak)) arch_report_meminfo(struct seq_file *m)
 {
 }
 
+extern long long unsigned int graphic_memory;
+extern unsigned long zram_mem_used_total;
+
 static int meminfo_proc_show(struct seq_file *m, void *v)
 {
 	struct sysinfo i;
@@ -132,6 +135,8 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		"VmallocTotal:   %8lu kB\n"
 		"VmallocUsed:    %8lu kB\n"
 		"VmallocChunk:   %8lu kB\n"
+		"Graphic:        %8llu kB\n"
+		"Zram:           %8lu kB\n"
 #ifdef CONFIG_MEMORY_FAILURE
 		"HardwareCorrupted: %5lu kB\n"
 #endif
@@ -185,7 +190,9 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		K(committed),
 		(unsigned long)VMALLOC_TOTAL >> 10,
 		vmi.used >> 10,
-		vmi.largest_chunk >> 10
+		vmi.largest_chunk >> 10,
+		graphic_memory >> 12,
+		zram_mem_used_total << 2 
 #ifdef CONFIG_MEMORY_FAILURE
 		,atomic_long_read(&num_poisoned_pages) << (PAGE_SHIFT - 10)
 #endif
@@ -198,6 +205,8 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	hugetlb_report_meminfo(m);
 
 	arch_report_meminfo(m);
+	graphic_memory = 0;
+	zram_mem_used_total = 0;
 
 	return 0;
 #undef K

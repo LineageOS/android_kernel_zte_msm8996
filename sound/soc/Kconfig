@@ -62,6 +62,8 @@ source "sound/soc/codecs/Kconfig"
 
 # generic frame-work
 source "sound/soc/generic/Kconfig"
-
+# 2015-07-30 weizj add audience es804 start
+source "sound/soc/codecs/audience/Kconfig"
+# 2015-07-30 weizj add audience es804 end
 endif	# SND_SOC
 

@@ -26,9 +26,11 @@
 #include <soc/qcom/subsystem_notif.h>
 #include <soc/qcom/subsystem_restart.h>
 #include <soc/qcom/ramdump.h>
-
 #include <soc/qcom/smem.h>
 
+#ifdef CONFIG_ZTE_BOOT_MODE
+#include <soc/qcom/socinfo.h>
+#endif
 
 #include "smem_private.h"
 
@@ -1255,6 +1257,29 @@ static int smem_init_target_info(phys_addr_t info_addr, resource_size_t size)
 	return 0;
 }
 
+/*
+ * Support for FTM & RECOVERY mode by ZTE_BOOT
+ */
+#ifdef CONFIG_ZTE_BOOT_MODE
+static void smem_zte_set_nv_bootmode(int bootmode)
+{
+    int *smem_bootmode = NULL;
+
+    smem_bootmode = (int *)smem_alloc(SMEM_ID_VENDOR0, sizeof(int), 0, SMEM_ANY_HOST_FLAG);
+    if (!smem_bootmode) {
+        printk(KERN_ERR"%s: alloc smem failed!\n", __func__);
+        return;
+    }
+    /*
+     * 0: Normal mode
+     * 1: FTM mode
+     */
+    *smem_bootmode = bootmode;
+
+    printk(KERN_ERR"%s: set ftm flag %d to smem.\n", __func__,bootmode);
+}
+#endif
+
 static int msm_smem_probe(struct platform_device *pdev)
 {
 	char *key;
@@ -1450,6 +1475,20 @@ smem_targ_info_done:
 	ret = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 	if (ret)
 		LOG_ERR("%s: of_platform_populate failed %d\n", __func__, ret);
+
+/*
+ * Support for FTM & RECOVERY mode by ZTE_BOOT
+ *
+ * 0: Normal mode
+ * 1: FTM mode
+ */
+#ifdef CONFIG_ZTE_BOOT_MODE
+    if (socinfo_get_ftm_flag() == 0) {
+        smem_zte_set_nv_bootmode(MAGIC_NUM_NON_FTM_MODE);
+    } else {
+        smem_zte_set_nv_bootmode(MAGIC_NUM_FTM_MODE);
+    }
+#endif
 
 	return 0;
 

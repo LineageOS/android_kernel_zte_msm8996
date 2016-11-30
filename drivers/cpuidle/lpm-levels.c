@@ -826,6 +826,10 @@ bool psci_enter_sleep(struct lpm_cluster *cluster, int idx, bool from_idle)
 }
 #endif
 
+//zte_pm_liyf_20151010
+extern bool zte_msm_cpu_pm_enter_sleep(enum msm_pm_sleep_mode mode, bool from_idle);
+extern void zte_pm_before_powercollapse(void);
+
 static int lpm_cpuidle_select(struct cpuidle_driver *drv,
 		struct cpuidle_device *dev)
 {
@@ -870,14 +874,13 @@ static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 
 	if (!use_psci) {
 		if (idx > 0)
-			update_debug_pc_event(CPU_ENTER, idx, 0xdeaffeed,
-					0xdeaffeed, true);
-		success = msm_cpu_pm_enter_sleep(cluster->cpu->levels[idx].mode,
-				true);
+			update_debug_pc_event(CPU_ENTER, idx, 0xdeaffeed,0xdeaffeed, true);
+
+		success = zte_msm_cpu_pm_enter_sleep(cluster->cpu->levels[idx].mode, true);//zte_pm_liyf
 
 		if (idx > 0)
-			update_debug_pc_event(CPU_EXIT, idx, success,
-							0xdeaffeed, true);
+			update_debug_pc_event(CPU_EXIT, idx, success,0xdeaffeed, true);
+
 	} else {
 		success = psci_enter_sleep(cluster, idx, true);
 	}
@@ -1091,6 +1094,12 @@ static void lpm_suspend_wake(void)
 	lpm_stats_suspend_exit();
 }
 
+//zte_pm_20160223, avoid log-overflow
+//delete log when lpm-suspend-enter ktime_get() in timekeeping.c
+bool get_lpm_suspend_value(void){
+     return suspend_in_progress;
+}
+
 static int lpm_suspend_enter(suspend_state_t state)
 {
 	int cpu = raw_smp_processor_id();
@@ -1124,9 +1133,12 @@ static int lpm_suspend_enter(suspend_state_t state)
 	clock_debug_print_enabled();
 
 	if (!use_psci)
-		msm_cpu_pm_enter_sleep(cluster->cpu->levels[idx].mode, false);
+	     zte_msm_cpu_pm_enter_sleep(cluster->cpu->levels[idx].mode, false);//zte_pm_liyf
 	else
-		psci_enter_sleep(cluster, idx, true);
+	{
+	     zte_pm_before_powercollapse();//zte_pm_20160104 add. suspend->PC, so record log
+	     psci_enter_sleep(cluster, idx, true);
+	}
 
 	if (idx > 0)
 		update_debug_pc_event(CPU_EXIT, idx, true, 0xdeaffeed,

@@ -529,6 +529,8 @@ void getnstimeofday64(struct timespec64 *ts)
 }
 EXPORT_SYMBOL(getnstimeofday64);
 
+extern bool get_lpm_suspend_value(void);//zte_pm_20160223
+
 ktime_t ktime_get(void)
 {
 	struct timekeeper *tk = &tk_core.timekeeper;
@@ -536,7 +538,11 @@ ktime_t ktime_get(void)
 	ktime_t base;
 	s64 nsecs;
 
-	WARN_ON(timekeeping_suspended);
+    //WARN_ON(timekeeping_suspended);
+    //zte_pm_20160223, avoid log-overflow, delete log when lpm-suspend timekeeping
+    bool lpm_suspend_value = get_lpm_suspend_value();
+    if (lpm_suspend_value == false)
+        WARN_ON(timekeeping_suspended);
 
 	do {
 		seq = read_seqcount_begin(&tk_core.seq);
@@ -1614,6 +1620,20 @@ void getboottime(struct timespec *ts)
 	*ts = ktime_to_timespec(t);
 }
 EXPORT_SYMBOL_GPL(getboottime);
+
+//zte_pm_liyf_20151010
+#ifndef CONFIG_ZTE_PLATFORM_SLEEPTIME
+#define CONFIG_ZTE_PLATFORM_SLEEPTIME 1
+#endif
+#ifdef CONFIG_ZTE_PLATFORM_SLEEPTIME
+void zte_get_total_suspend(struct timespec *ts)
+{
+	//*ts =  timekeeper.total_sleep_time;
+	return;//zte_pm_liyf_temp_20151010
+}
+EXPORT_SYMBOL_GPL(zte_get_total_suspend);
+#endif
+//zte_pm_liyf_20151010_end
 
 unsigned long get_seconds(void)
 {

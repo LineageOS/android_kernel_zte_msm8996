@@ -30,6 +30,7 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
+#include <linux/wakelock.h>
 
 struct nqx_platform_data {
 	unsigned int irq_gpio;
@@ -87,6 +88,7 @@ static struct notifier_block nfcc_notifier = {
 };
 
 unsigned int	disable_ctrl;
+struct wake_lock nfc_wake_lock;
 
 static void nqx_init_stat(struct nqx_dev *nqx_dev)
 {
@@ -136,10 +138,13 @@ static irqreturn_t nqx_dev_irq_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
+	nqx_disable_irq(nqx_dev);
 	spin_lock_irqsave(&nqx_dev->irq_enabled_lock, flags);
 	nqx_dev->count_irq++;
 	spin_unlock_irqrestore(&nqx_dev->irq_enabled_lock, flags);
 	wake_up(&nqx_dev->read_wq);
+
+	wake_lock_timeout(&nfc_wake_lock, HZ / 2);
 
 	return IRQ_HANDLED;
 }
@@ -175,7 +180,7 @@ static ssize_t nfc_read(struct file *filp, char __user *buf,
 		} else {
 			ret = wait_event_interruptible(nqx_dev->read_wq,
 					gpio_get_value(nqx_dev->irq_gpio));
-			nqx_disable_irq(nqx_dev);
+			//nqx_disable_irq(nqx_dev);
 			if (ret)
 				goto err;
 		}
@@ -203,6 +208,9 @@ static ssize_t nfc_read(struct file *filp, char __user *buf,
 		dev_dbg(&nqx_dev->client->dev, "%s : NfcNciRx %x %x %x\n",
 			__func__, tmp[0], tmp[1], tmp[2]);
 #endif
+
+	wake_lock_timeout(&nfc_wake_lock, HZ / 2);
+
 	if (copy_to_user(buf, tmp, ret)) {
 		dev_warn(&nqx_dev->client->dev,
 			"%s : failed to copy to user space\n", __func__);
@@ -242,7 +250,7 @@ static ssize_t nfc_write(struct file *filp, const char __user *buf,
 	dev_dbg(&nqx_dev->client->dev, "%s : NfcNciTx %x %x %x\n",
 			__func__, tmp[0], tmp[1], tmp[2]);
 #endif
-	usleep_range(1000, 1100);
+//	usleep_range(1000, 1100);
 	return ret;
 }
 
@@ -285,7 +293,6 @@ int nfc_ioctl_power_states(struct file *filp, unsigned long arg)
 		 * interrupts to avoid spurious notifications to upper
 		 * layers.
 		 */
-		nqx_disable_irq(nqx_dev);
 		dev_dbg(&nqx_dev->client->dev,
 			"gpio_set_value disable: %s: info: %p\n",
 			__func__, nqx_dev);
@@ -707,7 +714,7 @@ static int nqx_probe(struct i2c_client *client,
 	spin_lock_init(&nqx_dev->irq_enabled_lock);
 
 	nqx_dev->nqx_device.minor = MISC_DYNAMIC_MINOR;
-	nqx_dev->nqx_device.name = "nq-nci";
+	nqx_dev->nqx_device.name = "pn548";
 	nqx_dev->nqx_device.fops = &nfc_dev_fops;
 
 	r = misc_register(&nqx_dev->nqx_device);
@@ -719,12 +726,18 @@ static int nqx_probe(struct i2c_client *client,
 	/* NFC_INT IRQ */
 	nqx_dev->irq_enabled = true;
 	r = request_irq(client->irq, nqx_dev_irq_handler,
+			  IRQF_TRIGGER_HIGH, client->name, nqx_dev);
+/*
+	r = request_irq(client->irq, nqx_dev_irq_handler,
 			  IRQF_TRIGGER_RISING, client->name, nqx_dev);
+*/
 	if (r) {
 		dev_err(&client->dev, "%s: request_irq failed\n", __func__);
 		goto err_request_irq_failed;
 	}
 	nqx_disable_irq(nqx_dev);
+
+	wake_lock_init(&nfc_wake_lock, WAKE_LOCK_SUSPEND, "nfc_sleep");
 
 	/*
 	 * To be efficient we need to test whether nfcc hardware is physically
@@ -792,6 +805,7 @@ static int nqx_remove(struct i2c_client *client)
 {
 	struct nqx_dev *nqx_dev;
 
+	wake_lock_destroy(&nfc_wake_lock);
 	nqx_dev = i2c_get_clientdata(client);
 	free_irq(client->irq, nqx_dev);
 	misc_deregister(&nqx_dev->nqx_device);
@@ -816,8 +830,9 @@ static int nqx_suspend(struct device *device)
 static int nqx_resume(struct device *device)
 {
 	struct i2c_client *client = to_i2c_client(device);
+	struct nqx_dev *nqx_dev = i2c_get_clientdata(client);
 
-	if (device_may_wakeup(&client->dev))
+	if (device_may_wakeup(&client->dev) && nqx_dev->irq_enabled)
 		disable_irq_wake(client->irq);
 	return 0;
 }

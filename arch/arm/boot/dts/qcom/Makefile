@@ -24,8 +24,6 @@ dtb-$(CONFIG_ARCH_MSM8996) += msm8996-v2-pmi8994-cdp.dtb \
 	msm8996-v3-fluid.dtb \
 	msm8996-v3-liquid.dtb \
 	msm8996-v3-dtp.dtb \
-	msm8996-v3-pm8004-mmxf-adp.dtb \
-	msm8996-v3-pm8004-agave-adp.dtb \
 	msm8996pro-pmi8994-cdp.dtb \
 	msm8996pro-pmi8994-mtp.dtb \
 	msm8996pro-pmi8994-pmk8001-cdp.dtb \
@@ -57,7 +55,12 @@ dtb-$(CONFIG_ARCH_MSM8996) += msm8996-v2-pmi8994-cdp.dtb \
 	apq8096-v2-pmi8994-pm8004-pmk8001-cdp.dtb \
 	apq8096-v2-liquid.dtb \
 	apq8096-v2-dragonboard.dtb \
+	apq8096-v3-dragonboard.dtb \
+        zte-msm8996-v2-pmi8994-ailsa_ii.dtb \
 	apq8096-v2-auto-dragonboard.dtb \
+        zte-msm8996-v3-pmi8996-ailsa_ii.dtb \
+        zte-msm8996-v3-pmi8996-aviva.dtb \
+        zte-msm8996pro-pmi8996-ailsa_ii.dtb \
 	apq8096-v3-pmi8994-cdp.dtb \
 	apq8096-v3-pmi8994-mtp.dtb \
 	apq8096-v3-pmi8994-pmk8001-cdp.dtb \

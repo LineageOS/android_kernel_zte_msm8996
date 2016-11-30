@@ -582,6 +582,11 @@ static int __add_to_page_cache_locked(struct page *page,
 	if (!huge)
 		mem_cgroup_commit_charge(page, memcg, false);
 	trace_mm_filemap_add_to_page_cache(page);
+#ifdef CONFIG_TASK_IO_ACCOUNTING
+	if (page->mapping->host->i_ino != 0)
+		trace_mm_filemap_file_io_count(page);
+#endif
+
 	return 0;
 err_insert:
 	page->mapping = NULL;

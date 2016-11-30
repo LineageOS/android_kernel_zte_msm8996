@@ -404,6 +404,11 @@ __internal_add_timer(struct tvec_base *base, struct timer_list *timer)
 	 * Timers are FIFO:
 	 */
 	list_add_tail(&timer->entry, vec);
+	if((unsigned long)timer->function == timer->data)
+	{
+		printk("yxl: bad timer added, timer=%p,dumpstack here \n",timer);
+		dump_stack();
+	}		
 }
 
 static void internal_add_timer(struct tvec_base *base, struct timer_list *timer)
@@ -684,8 +689,11 @@ static inline void __run_deferrable_timers(void)
 	if (time_after_eq(jiffies, tvec_base_deferrable.timer_jiffies)) {
 		if ((atomic_cmpxchg(&deferrable_pending, 1, 0) &&
 			tick_do_timer_cpu == TICK_DO_TIMER_NONE) ||
-			tick_do_timer_cpu == smp_processor_id())
+			tick_do_timer_cpu == smp_processor_id()) {
+				smp_rmb();
 				__run_timers(&tvec_base_deferrable);
+				smp_wmb();
+        }
 
 	}
 }
@@ -1274,6 +1282,12 @@ static inline void __run_timers(struct tvec_base *base)
 			timer_stats_account_timer(timer);
 
 			base->running_timer = timer;
+      if ((unsigned long)fn == data)
+      {
+      	printk("yxl: head=%p, head->next=%p, head->prev=%p timer=%p \n", head, head->next,head->prev,timer);
+      	printk("yxl: &work_list=%p \n", &work_list);
+      	
+      }		 			
 			detach_expired_timer(timer, base);
 
 			if (irqsafe) {

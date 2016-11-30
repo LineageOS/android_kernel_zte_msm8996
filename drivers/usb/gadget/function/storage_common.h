@@ -88,6 +88,13 @@ do {									\
 #define ASC(x)		((u8) ((x) >> 8))
 #define ASCQ(x)		((u8) (x))
 
+// oem, for SCSI Command sent by OS X
+#define SC_GET_CONFIGRATION    0x46
+#define SC_SET_CD_SPEED	       0xbb
+// oem, for start_stop usb debug
+#include <linux/syscalls.h>
+#define SC_START_STOP_USB_DEBUG  0x86
+
 struct fsg_lun {
 	struct file	*filp;
 	loff_t		file_length;

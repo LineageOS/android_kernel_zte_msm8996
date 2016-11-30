@@ -124,6 +124,7 @@ static char get_cacheflag(const struct kgsl_memdesc *m)
 	return table[kgsl_memdesc_get_cachemode(m)];
 }
 
+long long unsigned int graphic_memory = 0;
 
 static int print_mem_entry(int id, void *ptr, void *data)
 {
@@ -150,6 +151,7 @@ static int print_mem_entry(int id, void *ptr, void *data)
 			m->size, entry->id, flags,
 			memtype_str(kgsl_memdesc_usermem_type(m)),
 			usage, m->sgt->nents);
+	graphic_memory += (long long unsigned int)m->size;
 
 	if (entry->metadata[0] != 0)
 		seq_printf(s, " %s", entry->metadata);

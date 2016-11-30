@@ -526,6 +526,12 @@ config HID_ORTEK
 	   - Ortek WKB-2000
 	   - Skycable wireless presenter
 
+config HID_OVR
+	tristate "Oculus VR driver"
+	depends on HID
+	---help---
+	Support for sensor on Oculus VR device.
+
 config HID_PANTHERLORD
 	tristate "Pantherlord/GreenAsia game controller"
 	depends on HID

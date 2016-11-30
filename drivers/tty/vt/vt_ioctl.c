@@ -1440,7 +1440,7 @@ int vt_move_to_console(unsigned int vt, int alloc)
 		return 0;
 	}
 	prev = fg_console;
-
+	printk("zte_console vt_move_to_console BEGIN: %s console    %d ---->   %d!!!!\n",alloc?"SUSPEND":"RESUME",prev,vt);//ZTE_PM_LHX_20140212 add for debug
 	if (alloc && vc_allocate(vt)) {
 		/* we can't have a free VC for now. Too bad,
 		 * we don't want to mess the screen for now. */
@@ -1462,6 +1462,7 @@ int vt_move_to_console(unsigned int vt, int alloc)
 		pr_debug("Suspend: Can't switch VCs.");
 		return -EINTR;
 	}
+	printk("zte_console vt_move_to_console DONE!!!!\n");//ZTE_PM_LHX_20140212 add for debug
 	return prev;
 }
 

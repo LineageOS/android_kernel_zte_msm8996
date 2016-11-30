@@ -49,6 +49,7 @@
  * we do not waste memory on systems that are not using tracing.
  */
 bool ring_buffer_expanded;
+bool abs_time = false;
 
 /*
  * We need to change this state when a selftest is running.
@@ -423,7 +424,7 @@ static inline void trace_access_lock_init(void)
 unsigned long trace_flags = TRACE_ITER_PRINT_PARENT | TRACE_ITER_PRINTK |
 	TRACE_ITER_ANNOTATE | TRACE_ITER_CONTEXT_INFO | TRACE_ITER_SLEEP_TIME |
 	TRACE_ITER_GRAPH_TIME | TRACE_ITER_RECORD_CMD | TRACE_ITER_OVERWRITE |
-	TRACE_ITER_IRQ_INFO | TRACE_ITER_MARKERS | TRACE_ITER_FUNCTION;
+	TRACE_ITER_IRQ_INFO | TRACE_ITER_MARKERS | TRACE_ITER_FUNCTION| TRACE_ITER_TGID;
 
 static void tracer_tracing_on(struct trace_array *tr)
 {
@@ -1550,9 +1551,10 @@ static void __trace_find_cmdline(int pid, char comm[])
 	}
 
 	map = savedcmd->map_pid_to_cmdline[pid];
-	if (map != NO_CMDLINE_MAP)
-		strcpy(comm, get_saved_cmdlines(map));
-	else
+	if (map != NO_CMDLINE_MAP) {
+		strncpy(comm, get_saved_cmdlines(map),TASK_COMM_LEN-1);
+		comm[15] = 0;
+	} else
 		strcpy(comm, "<...>");
 }
 
@@ -1571,6 +1573,13 @@ int trace_find_tgid(int pid)
 {
 	unsigned map;
 	int tgid;
+
+	
+	if (pid > PID_MAX_DEFAULT)
+	    	return -1;
+
+	if (WARN_ON_ONCE(pid < 0))
+	    	return -1;
 
 	preempt_disable();
 	arch_spin_lock(&trace_cmdline_lock);
@@ -4855,6 +4864,10 @@ tracing_entries_write(struct file *filp, const char __user *ubuf,
 	ret = tracing_resize_ring_buffer(tr, val, tracing_get_cpu(inode));
 	if (ret < 0)
 		return ret;
+	if ( val == 1048576 )
+	   abs_time = true;
+	else
+	   abs_time = false;
 
 	*ppos += cnt;
 

@@ -21,6 +21,7 @@
 #include <linux/delayacct.h>
 #include <linux/module.h>
 
+#include <trace/events/sched.h>
 int delayacct_on __read_mostly = 1;	/* Delay accounting turned on/off */
 EXPORT_SYMBOL_GPL(delayacct_on);
 struct kmem_cache *delayacct_cache;
@@ -69,12 +70,20 @@ void __delayacct_blkio_start(void)
 
 void __delayacct_blkio_end(void)
 {
-	if (current->delays->flags & DELAYACCT_PF_SWAPIN)
+	if (current->delays->flags & DELAYACCT_PF_SWAPIN) {
 		/* Swapin block I/O */
 		delayacct_end(&current->delays->blkio_start,
 			&current->delays->swapin_delay,
 			&current->delays->swapin_count);
-	else	/* Other block I/O */
+		if (current->delays->swapin_delay > current->delays->last_swapin_delay){
+			if (current->delays->swapin_delay - current->delays->last_swapin_delay > 20*1000*1000){
+//				trace_printk("process [%u] swap io delay %llu nsec\n", current->pid, current->delays->swapin_delay);
+				trace_sched_delay_wait_swap_io(current);
+				current->delays->last_swapin_delay = current->delays->swapin_delay;
+			}
+		} else
+			current->delays->last_swapin_delay = current->delays->swapin_delay;
+	} else	/* Other block I/O */
 		delayacct_end(&current->delays->blkio_start,
 			&current->delays->blkio_delay,
 			&current->delays->blkio_count);
@@ -154,5 +163,16 @@ void __delayacct_freepages_end(void)
 	delayacct_end(&current->delays->freepages_start,
 			&current->delays->freepages_delay,
 			&current->delays->freepages_count);
+
+	if (current->delays->freepages_delay > current->delays->last_freepages_delay){
+		if (current->delays->freepages_delay - current->delays->last_freepages_delay > 20*1000*1000){
+			//trace_printk("process [%u] memory io delay %llu nsec\n", current->pid, current->delays->freepages_delay);
+			trace_sched_delay_wait_memory_io(current);
+			current->delays->last_freepages_delay = current->delays->freepages_delay;
+		}
+	} else
+		current->delays->last_swapin_delay = current->delays->swapin_delay;
+
+
 }
 

@@ -208,6 +208,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_RESTRICTED_CHARGING,
 	POWER_SUPPLY_PROP_CURRENT_CAPABILITY,
 	POWER_SUPPLY_PROP_TYPEC_MODE,
+	POWER_SUPPLY_PROP_SHIPMODE, /*zte add shipmode*/
 	POWER_SUPPLY_PROP_ALLOW_HVDCP3,
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT,
@@ -339,7 +340,9 @@ static inline struct power_supply *
 power_supply_get_by_phandle(struct device_node *np, const char *property)
 { return NULL; }
 #endif /* CONFIG_OF */
-extern void power_supply_changed(struct power_supply *psy);
+//extern void power_supply_changed(struct power_supply *psy);
+extern void power_supply_changed_ori(struct power_supply *psy,const char* func,int line);
+#define power_supply_changed(psy)      power_supply_changed_ori(psy,__func__, __LINE__)
 extern int power_supply_am_i_supplied(struct power_supply *psy);
 extern int power_supply_set_battery_charged(struct power_supply *psy);
 
@@ -430,5 +433,9 @@ static inline bool power_supply_is_watt_property(enum power_supply_property psp)
 
 	return 0;
 }
+
+#ifdef CONFIG_USB_HD3SS3220
+extern void interfere_id_irq_from_usb(int enable);
+#endif
 
 #endif /* __LINUX_POWER_SUPPLY_H__ */

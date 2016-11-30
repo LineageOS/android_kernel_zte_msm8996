@@ -813,6 +813,13 @@ static const struct tasha_reg_mask_val tasha_spkr_default[] = {
 	{WCD9335_CDC_BOOST1_BOOST_CTL, 0x7C, 0x50},
 };
 
+// ZTE_chenjun
+#if !defined(CONFIG_SOUNDWIRE_WCD_CTRL)
+int swrm_wcd_notify(struct platform_device *pdev, u32 id, void *data)
+{
+	return 0;
+}
+#endif
 static const struct tasha_reg_mask_val tasha_spkr_mode1[] = {
 	{WCD9335_CDC_COMPANDER7_CTL3, 0x80, 0x00},
 	{WCD9335_CDC_COMPANDER8_CTL3, 0x80, 0x00},

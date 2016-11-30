@@ -66,14 +66,20 @@ static int dapm_up_seq[] = {
 	[snd_soc_dapm_dai_link] = 2,
 	[snd_soc_dapm_dai_in] = 4,
 	[snd_soc_dapm_dai_out] = 4,
+#if defined(CONFIG_AK4961_CODEC)
+	[snd_soc_dapm_pga] = 4,
+	[snd_soc_dapm_adc] = 5,
+#else
+	[snd_soc_dapm_pga] = 9,
 	[snd_soc_dapm_adc] = 4,
+#endif	
 	[snd_soc_dapm_mic] = 5,
 	[snd_soc_dapm_mux] = 6,
 	[snd_soc_dapm_dac] = 7,
 	[snd_soc_dapm_switch] = 8,
 	[snd_soc_dapm_mixer] = 8,
 	[snd_soc_dapm_mixer_named_ctl] = 8,
-	[snd_soc_dapm_pga] = 9,
+	//[snd_soc_dapm_pga] = 9,
 	[snd_soc_dapm_aif_in] = 9,
 	[snd_soc_dapm_aif_out] = 9,
 	[snd_soc_dapm_out_drv] = 11,
@@ -89,7 +95,12 @@ static int dapm_down_seq[] = {
 	[snd_soc_dapm_kcontrol] = 1,
 	[snd_soc_dapm_aif_in] = 2,
 	[snd_soc_dapm_aif_out] = 2,
+	
+#if defined(CONFIG_AK4961_CODEC)
+	[snd_soc_dapm_adc] = 3,
+#else 
 	[snd_soc_dapm_adc] = 5,
+#endif
 	[snd_soc_dapm_hp] = 3,
 	[snd_soc_dapm_spk] = 3,
 	[snd_soc_dapm_line] = 3,

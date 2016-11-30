@@ -37,6 +37,7 @@
 #include <linux/pm.h>
 #include <linux/of.h>
 #include <linux/ipc_logging.h>
+#include <../soc/qcom/smd_private.h> //zte jiangfeng   for L in 20150304
 
 #define MODULE_NAME "msm_smdpkt"
 #define DEVICE_NAME "smdpkt"
@@ -111,6 +112,8 @@ enum {
 	SMD_PKT_STATUS = 1U << 0,
 	SMD_PKT_READ = 1U << 1,
 	SMD_PKT_WRITE = 1U << 2,
+	SMD_PKT_READ_DUMP_BUFFER = 1U << 3,	    //notes: debug for smd-log  20150304
+	SMD_PKT_WRITE_DUMP_BUFFER = 1U << 4,	//notes: debug for smd-log  20150304
 	SMD_PKT_POLL = 1U << 5,
 };
 
@@ -144,6 +147,37 @@ do { \
 		pr_info("Write: "x); \
 	SMD_PKT_LOG_STRING(x); \
 } while (0)
+//zte jiangfeng  //notes: debug for smd-log  20150304
+#define SMD_PKT_LOG_BUF(buf, cnt) \
+    do { \
+        char log_buf[128]; \
+        int i; \
+        if (smd_pkt_ilctxt) { \
+            i = cnt < 16 ? cnt : 16; \
+            hex_dump_to_buffer(buf, i, 16, 1, log_buf, \
+                       sizeof(log_buf), false); \
+            ipc_log_string(smd_pkt_ilctxt, "<SMD_PKT>: %s", log_buf); \
+        } \
+    } while (0)
+
+#define D_READ_DUMP_BUFFER(prestr, cnt, buf) \
+        do { \
+            if (msm_smd_pkt_debug_mask & SMD_PKT_READ_DUMP_BUFFER) \
+                print_hex_dump(KERN_INFO, prestr, \
+                           DUMP_PREFIX_NONE, 16, 1, \
+                           buf, cnt, 1); \
+            SMD_PKT_LOG_BUF(buf, cnt); \
+        } while (0)
+
+#define D_WRITE_DUMP_BUFFER(prestr, cnt, buf) \
+    do { \
+        if (msm_smd_pkt_debug_mask & SMD_PKT_WRITE_DUMP_BUFFER) \
+            print_hex_dump(KERN_INFO, prestr, \
+                       DUMP_PREFIX_NONE, 16, 1, \
+                       buf, cnt, 1); \
+        SMD_PKT_LOG_BUF(buf, cnt); \
+    } while (0)
+//zte jiangfeng end
 
 #define D_POLL(x...) \
 do { \
@@ -379,6 +413,12 @@ static long smd_pkt_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+//zte jiangfeng
+extern int zte_qmi_data_wakeup;
+extern int zte_qmi_state_change_wakeup;
+unsigned char is_qmi_channel(char* channel_name);
+extern int zte_smd_wakeup;
+//zte jiangfeng end
 ssize_t smd_pkt_read(struct file *file,
 		       char __user *_buf,
 		       size_t count,
@@ -390,6 +430,15 @@ ssize_t smd_pkt_read(struct file *file,
 	struct smd_pkt_dev *smd_pkt_devp;
 	unsigned long flags;
 	void *buf;
+	//zte jiangfeng add
+	unsigned char i_f_type;
+	unsigned int length;
+	unsigned char service_id;
+	unsigned char client_id;
+	unsigned char ctrl_type;
+	unsigned int traction_id;
+	unsigned int message_id;
+	//zte jiangfeng end
 
 	smd_pkt_devp = file->private_data;
 
@@ -505,8 +554,58 @@ wait_for_packet:
 			return notify_reset(smd_pkt_devp);
 		}
 	} while (pkt_size != bytes_read);
+	//zte jiangfeng add
+	if(zte_smd_wakeup)
+	   {
+	     printk("SMD ch %u  data event ",smd_pkt_devp->ch->n );
+	     printk("SMD ch %s data event ",&smd_pkt_devp->ch->name[0]);
+         //notes: debug for smd-log  20150304
+	     //D_READ_DUMP_BUFFER("Read: ", (bytes_read > 16 ? 16 : bytes_read), buf);
+		 zte_smd_wakeup = 0;
+		}
+	//zte jiangfeng end
 	mutex_unlock(&smd_pkt_devp->rx_lock);
 
+	//zte jiangfeng add
+    /* Control Channel Mesage
+    ------------------------------------------------------------------------------
+    type:       I/F type | Length| Control Flags| Service Type| Client ID| QMUX SDU|
+    ------------------------------------------------------------------------------
+                         | QMUX Header                                   |
+    ------------------------------------------------------------------------------
+    size(byte):     1     |   2      |         1         |         1         |     1      |
+    ------------------------------------------------------------------------------
+
+    QMUX SDU
+    ------------------------------------------------------------------------------
+    type:		 Control Flags| contraction id| message ID| length|
+    ------------------------------------------------------------------------------
+    size(byte):          1		  |   2           | 	 2	      |    2	   |
+    ------------------------------------------------------------------------------
+     */
+	//printk("QMI recev %d bytes\n",bytes_read);
+	//printk("channel n=%d name=%s add=0x%p\n",smd_pkt_devp->ch->n,smd_pkt_devp->ch->name,buf);
+
+	if(zte_qmi_data_wakeup	&& is_qmi_channel(smd_pkt_devp->ch->name)){
+
+         //notes: debug for smd-log  20150304
+         //D_READ_DUMP_BUFFER("Read: ", (bytes_read > 16 ? 16 : bytes_read), buf);
+
+         if(bytes_read	> 15 && (buf != NULL)){
+            char *buf_debug = (char *)buf;
+            i_f_type  =   *buf_debug;
+            length  =   (*(buf_debug+1)<<8) +*(buf_debug+2);
+            service_id  =   *(buf_debug+4);
+            client_id   =   *(buf_debug+5);
+            ctrl_type   =   *(buf_debug+6);
+            traction_id =   (*(buf_debug+7)<<8) +*(buf_debug+8);
+            message_id  =   (*(buf_debug+10)<<8) +*(buf_debug+9);
+            printk("ZTE_PM QMI recev: channel %s, I/F type: 0x%x, service id 0x%x, client id: 0x%x, ctrl type 0x%x, traction id: 0x%x, message id 0x%x\n",
+               smd_pkt_devp->ch->name,i_f_type, service_id, client_id, ctrl_type, traction_id, message_id);
+		}
+		zte_qmi_data_wakeup =	0;
+	}
+	//zte jiangfeng add, end
 	mutex_lock(&smd_pkt_devp->ch_lock);
 	spin_lock_irqsave(&smd_pkt_devp->pa_spinlock, flags);
 	if (smd_pkt_devp->poll_mode &&
@@ -772,6 +871,30 @@ static void ch_notify(void *priv, unsigned event)
 	}
 }
 
+
+//zte jiangfeng add
+// this function shall change accrod with smd_ch_name[]
+unsigned char is_qmi_channel(char* channel_name)
+{
+	unsigned char data_channel = 0;
+	if(strstr(channel_name,"DATA"))
+	{
+		data_channel	=	*(channel_name+4) - 0x30;
+		if(*(channel_name+6)	==	'_')
+		{
+			data_channel = data_channel*10 + (*(channel_name+5)-0x30);
+		}
+		//printk("channel name: %s, data channel %d\n", channel_name,data_channel);
+
+		if((data_channel> 4 && data_channel<10)	|| (data_channel> 11 && data_channel<18)
+			|| (data_channel> 22 && data_channel<32)	|| data_channel==40)
+		{
+			return 1;
+		}
+	}
+	return 0;
+}
+//zte jiangfeng add, end
 static int smd_pkt_dummy_probe(struct platform_device *pdev)
 {
 	struct smd_pkt_dev *smd_pkt_devp;

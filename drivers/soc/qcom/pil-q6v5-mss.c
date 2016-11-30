@@ -121,6 +121,9 @@ static int modem_shutdown(const struct subsys_desc *subsys, bool force_stop)
 	}
 
 	pil_shutdown(&drv->q6->desc);
+	//add by ruijiagui 20160630
+	//assign sdlog mem to linux to avoid crash when modem subsystem restart
+	pil_assign_sdlog_mem_back_to_linux(&drv->q6->desc);
 
 	return 0;
 }

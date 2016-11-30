@@ -110,6 +110,35 @@ TRACE_EVENT(sched_enq_deq_task,
 			)
 );
 
+#ifdef CONFIG_TASKSTATS
+TRACE_EVENT(sched_delay_wait_memory_io,
+        TP_PROTO(struct task_struct *p),
+        TP_ARGS(p),
+        TP_STRUCT__entry(
+                __field(pid_t, pid)
+                __field(unsigned long long, delay)
+        ),
+        TP_fast_assign(
+                __entry->pid = p->pid;
+                __entry->delay = p->delays->freepages_delay;
+        ),
+        TP_printk("process [%u] alloc memory io delay %llu nsec", __entry->pid, __entry->delay)
+);
+
+TRACE_EVENT(sched_delay_wait_swap_io,
+        TP_PROTO(struct task_struct *p),
+        TP_ARGS(p),
+        TP_STRUCT__entry(
+                __field(pid_t, pid)
+                __field(unsigned long long, delay)
+        ),
+        TP_fast_assign(
+                __entry->pid = p->pid;
+                __entry->delay = p->delays->swapin_delay;
+        ),
+        TP_printk("process [%u] swap io delay %llu nsec", __entry->pid, __entry->delay)
+);
+#endif
 #ifdef CONFIG_SCHED_HMP
 
 TRACE_EVENT(sched_task_load,
@@ -241,6 +270,70 @@ DEFINE_EVENT(sched_cpu_load, sched_cpu_load_cgroup,
 	TP_PROTO(struct rq *rq, int idle, u64 irqload, unsigned int power_cost, int temp),
 	TP_ARGS(rq, idle, irqload, power_cost, temp)
 );
+#ifdef CONFIG_TASKSTATS
+TRACE_EVENT(sched_iowait_summary,
+
+        TP_PROTO(unsigned int pid, long long delta, long long delta1),
+
+        TP_ARGS(pid, delta, delta1),
+
+        TP_STRUCT__entry(
+                __field(unsigned int, pid                       )
+                __field(long long, delta                        )
+                __field(long long, delta1                       )
+        ),
+
+        TP_fast_assign(
+                __entry->pid = pid;
+                __entry->delta = delta;
+                __entry->delta1 = delta1;
+        ),
+
+        TP_printk("task[%u] iowait %llu ms within %llu ms", __entry->pid, __entry->delta, __entry->delta1)
+);
+
+TRACE_EVENT(sched_cpuwait_summary,
+
+        TP_PROTO(unsigned int pid, long long delta, unsigned long long cpuwait_count),
+
+        TP_ARGS(pid, delta, cpuwait_count),
+
+        TP_STRUCT__entry(
+                __field(unsigned int, pid                       )
+                __field(long long, delta                        )
+                __field(unsigned long long, cpuwait_count                       )
+        ),
+
+        TP_fast_assign(
+                __entry->pid = pid;
+                __entry->delta = delta;
+                __entry->cpuwait_count = cpuwait_count;
+        ),
+
+        TP_printk("task[%u] cpuwait %llu ms [300ms] %llu times", __entry->pid, __entry->delta, __entry->cpuwait_count)
+);
+
+TRACE_EVENT(sched_cpuusage_summary,
+
+        TP_PROTO(unsigned int pid, u32 uid, u64 cpuusage ),
+
+        TP_ARGS(pid, uid, cpuusage),
+
+        TP_STRUCT__entry(
+                __field(unsigned int, pid                       )
+                __field(u32, uid                        )
+                __field(u64, cpuusage                   )
+        ),
+
+        TP_fast_assign(
+                __entry->uid = uid;
+                __entry->pid = pid;
+                __entry->cpuusage = cpuusage;
+        ),
+
+        TP_printk("task[%u] uid=%u cpu-usage %llu ms ", __entry->pid, __entry->uid,  __entry->cpuusage)
+);
+#endif
 
 TRACE_EVENT(sched_set_boost,
 

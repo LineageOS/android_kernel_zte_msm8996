@@ -15,8 +15,32 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/pinctrl/pinctrl.h>
-
 #include "pinctrl-msm.h"
+
+#include <linux/delay.h>
+#include <linux/err.h>
+#include <linux/io.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/pinctrl/machine.h>
+#include <linux/pinctrl/pinctrl.h>
+#include <linux/pinctrl/pinmux.h>
+#include <linux/pinctrl/pinconf.h>
+#include <linux/pinctrl/pinconf-generic.h>
+#include <linux/slab.h>
+#include <linux/gpio.h>
+#include <linux/interrupt.h>
+#include <linux/spinlock.h>
+#include <linux/reboot.h>
+#include <linux/irqchip/msm-mpm-irq.h>
+#include "../core.h"
+#include "../pinconf.h"
+#include "pinctrl-msm.h"
+#include "../pinctrl-utils.h"
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
+#include <linux/slab.h>
 
 #define FUNCTION(fname)			                \
 	[msm_mux_##fname] = {		                \
@@ -1951,3 +1975,277 @@ module_exit(msm8996_pinctrl_exit);
 MODULE_DESCRIPTION("Qualcomm msm8996 pinctrl driver");
 MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(of, msm8996_pinctrl_of_match);
+
+//zte_pm 20160119 add for zte_gpio
+#ifndef ZTE_GPIO_DEBUG
+#define ZTE_GPIO_DEBUG
+#endif
+#ifdef ZTE_GPIO_DEBUG
+struct gpio_chip *chip_debug;
+
+extern unsigned gpio_func_show_pm(int *id,struct gpio_chip *chip);
+extern unsigned gpio_level_show_pm(int *id,struct gpio_chip *chip);
+extern unsigned gpio_level_store_pm(int *id,struct gpio_chip *chip,unsigned values);  //ZTE_PM
+extern unsigned gpio_pull_show_pm(int *id,struct gpio_chip *chip);
+extern unsigned gpio_drv_show_pm(int *id,struct gpio_chip *chip);
+extern unsigned gpio_direction_show_pm(int *id,struct gpio_chip *chip);
+extern unsigned gpio_int_enable_show_pm(int *id,struct gpio_chip *chip);
+extern unsigned gpio_int_owner_show_pm(int *id,struct gpio_chip *chip);
+extern unsigned gpio_int_dect_show_pm(int *id,struct gpio_chip *chip);
+
+extern unsigned gpio_direction_store_pm(int *id,struct gpio_chip *chip,unsigned values);
+extern unsigned gpio_drv_store_pm(int *id,struct gpio_chip *chip,unsigned values);
+
+int msm_dump_gpios(struct seq_file *m, int curr_len, char *gpio_buffer){
+
+       unsigned int i, func_sel, pull, drv, len,direction,level;
+       char list_gpio[100];
+       char *title_msg = "------------ MSM GPIO -------------";
+
+       if (m) {
+           seq_printf(m, "%s\n", title_msg);
+       } else {
+           pr_info("%s\n", title_msg);
+           curr_len += sprintf(gpio_buffer + curr_len,
+           "%s\n", title_msg);
+       }
+
+       for (i = 0; i < chip_debug->ngpio; i++){
+           memset(list_gpio, 0 , sizeof(list_gpio));
+           len = 0;
+           len += sprintf(list_gpio + len, "GPIO[%3d]: ", i);
+
+           func_sel =  gpio_func_show_pm(&i,chip_debug);
+           len += sprintf(list_gpio + len, "[FS]0x%x, ", func_sel);
+
+           level = gpio_level_show_pm(&i,chip_debug);          
+           direction = gpio_direction_show_pm(&i,chip_debug);
+           if(direction)
+               len += sprintf(list_gpio + len, "[DIR]OUT, [VAL]%s ",level ? "HIGH" : " LOW");
+           else
+               len += sprintf(list_gpio + len, "[DIR] IN, [VAL]%s ",level ? "HIGH" : " LOW");
+   
+           pull = gpio_pull_show_pm(&i,chip_debug);
+           switch (pull) {
+           case 0x0:
+               len += sprintf(list_gpio + len, "[PULL]NO, ");
+               break;
+           case 0x1:
+               len += sprintf(list_gpio + len, "[PULL]PD, ");
+               break;
+           case 0x2:
+               len += sprintf(list_gpio + len, "[PULL]KP, ");
+               break;
+           case 0x3:
+               len += sprintf(list_gpio + len, "[PULL]PU, ");
+               break;
+           default:
+               break;
+           }
+
+           drv = gpio_drv_show_pm(&i,chip_debug);
+           len += sprintf(list_gpio + len, "[DRV]%2dmA, ", 2*(drv+1));
+
+       //zte need show
+       /*
+           extern unsigned gpio_int_enable_show_pm(int *id,struct gpio_chip *chip);
+           extern unsigned gpio_int_owner_show_pm(int *id,struct gpio_chip *chip);
+           extern unsigned gpio_int_dect_show_pm(int *id,struct gpio_chip *chip);
+           */
+
+           list_gpio[99] = '\0';
+           if (m) {
+               seq_printf(m, "%s\n", list_gpio);
+           } else {
+               pr_info("%s\n", list_gpio);
+               curr_len += sprintf(gpio_buffer + curr_len, "%s\n", list_gpio);
+           }
+       }
+
+       return curr_len;
+}
+static int gpio_func_get_8996(void *data, u64 *val){
+    *val = gpio_func_show_pm(data,chip_debug);
+	return 0;
+}
+static int gpio_level_get_8996(void *data, u64 *val){
+    *val = gpio_level_show_pm(data,chip_debug);
+	return 0;
+}
+static int gpio_level_set_8996(void *data, u64 val){
+    val = gpio_level_store_pm(data,chip_debug,val);
+	return 0;
+}
+static int gpio_pull_get_8996(void *data, u64 *val){
+    *val = gpio_pull_show_pm(data,chip_debug);
+	return 0;
+}
+static int gpio_drv_get_8996(void *data, u64 *val){
+    *val = gpio_drv_show_pm(data,chip_debug);
+	return 0;
+}
+
+static int gpio_direction_get_8996(void *data, u64 *val){
+    *val = gpio_direction_show_pm(data,chip_debug);
+	return 0;
+}
+static int gpio_int_enable_get_8996(void *data, u64 *val){
+    *val = gpio_int_enable_show_pm(data,chip_debug);
+	return 0;
+}
+static int gpio_int_owner_get_8996(void *data, u64 *val){
+    *val = gpio_int_owner_show_pm(data,chip_debug);
+	return 0;
+}
+static int gpio_int_dect_get_8996(void *data, u64 *val){
+    *val = gpio_int_dect_show_pm(data,chip_debug);
+	return 0;
+}
+
+//zte_pm_temp_begin 20160127
+static int gpio_drv_set_8996(void *data, u64 val){
+    val = gpio_drv_store_pm(data,chip_debug,val);
+	return 0;
+}
+static int gpio_direction_set_8996(void *data, u64 val){
+    val = gpio_direction_store_pm(data,chip_debug,val);
+	return 0;
+}
+//zte_pm_temp_end 20160127
+
+
+DEFINE_SIMPLE_ATTRIBUTE(gpio_direction_fops, gpio_direction_get_8996, gpio_direction_set_8996, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(gpio_level_fops, gpio_level_get_8996,gpio_level_set_8996, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(gpio_drv_fops, gpio_drv_get_8996,gpio_drv_set_8996, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(gpio_func_sel_fops, gpio_func_get_8996,NULL, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(gpio_pull_fops, gpio_pull_get_8996,NULL, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(gpio_int_enable_fops, gpio_int_enable_get_8996,NULL, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(gpio_int_owner_fops, gpio_int_owner_get_8996,NULL, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(gpio_int_dect_fops, gpio_int_dect_get_8996,NULL, "%llu\n");
+
+int pmic_dump_pins(struct seq_file *m, int curr_len, char *gpio_buffer);
+extern int print_gpio_buffer(struct seq_file *m);
+
+static int list_gpios_show(struct seq_file *m, void *unused)
+{
+	msm_dump_gpios(m, 0, NULL);
+	pmic_dump_pins(m, 0, NULL);
+	return 0;
+}
+
+static int list_sleep_gpios_show(struct seq_file *m, void *unused)
+{
+	print_gpio_buffer(m);
+	return 0;
+}
+
+static int list_gpios_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, list_gpios_show, inode->i_private);
+}
+
+static int list_sleep_gpios_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, list_sleep_gpios_show, inode->i_private);
+}
+
+static int list_sleep_gpios_release(struct inode *inode, struct file *file)
+{
+	//free_gpio_buffer();
+	return single_release(inode, file);
+}
+
+static const struct file_operations list_gpios_fops = {
+	.open		= list_gpios_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
+
+static const struct file_operations list_sleep_gpios_fops = {
+	.open		= list_sleep_gpios_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= list_sleep_gpios_release,
+};
+
+
+static struct dentry *debugfs_base;
+#define DEBUG_MAX_FNAME    8
+
+static int gpio_add_status(struct gpio_chip *chip,int id)
+{
+	unsigned int *index_p;
+	struct dentry *gpio_dir;
+	char name[DEBUG_MAX_FNAME];
+
+	index_p = kzalloc(sizeof(*index_p), GFP_KERNEL);
+	*index_p = id;
+	snprintf(name, DEBUG_MAX_FNAME-1, "%d", *index_p);    
+
+	gpio_dir = debugfs_create_dir(name, debugfs_base);
+	if (!gpio_dir)
+		return -ENOMEM;
+
+	if (!debugfs_create_file("direction", S_IRUGO | S_IWUSR, gpio_dir,index_p, &gpio_direction_fops))
+		goto error;
+
+	if (!debugfs_create_file("level", S_IRUGO | S_IWUSR, gpio_dir,index_p, &gpio_level_fops))
+		goto error;
+
+	if (!debugfs_create_file("drv_strength", S_IRUGO | S_IWUSR, gpio_dir,index_p, &gpio_drv_fops))
+		goto error;
+
+	if (!debugfs_create_file("func_sel", S_IRUGO | S_IWUSR, gpio_dir,index_p, &gpio_func_sel_fops))
+		goto error;
+
+	if (!debugfs_create_file("pull", S_IRUGO | S_IWUSR, gpio_dir,index_p, &gpio_pull_fops))
+		goto error;
+
+	if (!debugfs_create_file("int_enable", S_IRUGO, gpio_dir,index_p, &gpio_int_enable_fops))
+		goto error;
+
+	if (!debugfs_create_file("int_owner", S_IRUGO | S_IWUSR, gpio_dir,index_p, &gpio_int_owner_fops))
+		goto error;
+
+	if (!debugfs_create_file("int_dect_type", S_IRUGO, gpio_dir,index_p, &gpio_int_dect_fops))
+		goto error;
+
+	return 0;
+error:
+	debugfs_remove_recursive(gpio_dir);
+	return -ENOMEM;
+
+	return 0;
+}
+
+int  gpio_status_debug_init  (struct gpio_chip *chip)
+{
+	int i;
+	int err = 0;    
+    unsigned gpio = chip->base;
+
+    chip_debug=chip;
+
+	debugfs_base = debugfs_create_dir("zte_gpio", NULL);
+	if (!debugfs_base)
+		return -ENOMEM;
+
+	if (!debugfs_create_file("dump_gpios", S_IRUGO, debugfs_base,
+				NULL, &list_gpios_fops))				
+		return -ENOMEM;
+
+	if (!debugfs_create_file("dump_sleep_gpios", S_IRUGO, debugfs_base,
+				NULL, &list_sleep_gpios_fops))
+		return -ENOMEM;
+
+	for (i = 0; i < chip->ngpio; i++, gpio++){
+		err = gpio_add_status(chip ,i);
+    }
+
+	return err;
+}
+
+#endif
+//zte_pm 20160119 add for zte_gpio end
+

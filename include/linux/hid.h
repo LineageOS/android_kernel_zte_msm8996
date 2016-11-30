@@ -510,6 +510,10 @@ struct hid_device {							/* device report descriptor */
 	void *hidraw;
 	int minor;							/* Hiddev minor number */
 
+#ifdef CONFIG_HID_OVR
+	void *hidovr;
+#endif
+
 	int open;							/* is the device open by anyone? */
 	char name[128];							/* Device name */
 	char phys[64];							/* Device physical location */

@@ -550,6 +550,7 @@ struct mmc_host {
 		ktime_t rtime_drv;	   /* Rd time  MMC Host  */
 		ktime_t wtime_drv;	   /* Wr time  MMC Host  */
 		ktime_t start;
+		ktime_t last_check;
 	} perf;
 	bool perf_enable;
 #endif

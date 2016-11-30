@@ -624,7 +624,9 @@ struct inode {
 	};
 
 	__u32			i_generation;
-
+#ifdef CONFIG_TASK_IO_ACCOUNTING
+	unsigned long 		i_iopages;
+#endif
 #ifdef CONFIG_FSNOTIFY
 	__u32			i_fsnotify_mask; /* all events this inode cares about */
 	struct hlist_head	i_fsnotify_marks;

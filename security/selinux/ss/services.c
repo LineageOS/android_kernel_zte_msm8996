@@ -70,6 +70,19 @@
 #include "ebitmap.h"
 #include "audit.h"
 
+/*
+ * Postproc av permissions
+ *
+ * Postprocess av permissions for /sys/fs/selinux/access, i.e.
+ * remove 'allow adbd kernel:security setenforce',
+ * to fix cts issue of android.security.cts.SELinuxTest#testSELinuxPolicyFile
+ *
+ * by ZTE_BOOT_20151105
+ */
+#if defined(CONFIG_SECURITY_SELINUX_POLICYPROC)
+#include "policyproc.h"
+#endif /* CONFIG_SECURITY_SELINUX_POLICYPROC */
+
 int selinux_policycap_netpeer;
 int selinux_policycap_openperm;
 int selinux_policycap_alwaysnetwork;
@@ -1156,7 +1169,21 @@ void security_compute_av_user(u32 ssid,
 	}
 
 	context_struct_compute_av(scontext, tcontext, tclass, avd, NULL);
- out:
+
+/*
+ * Postproc av permissions
+ *
+ * Postprocess av permissions for /sys/fs/selinux/access, i.e.
+ * remove 'allow adbd kernel:security setenforce',
+ * to fix cts issue of android.security.cts.SELinuxTest#testSELinuxPolicyFile
+ *
+ * by ZTE_BOOT_20151105
+ */
+#if defined(CONFIG_SECURITY_SELINUX_POLICYPROC)
+	(void)pp_postproc_av_perms(&policydb, ssid, tsid, tclass, &avd->allowed);
+#endif /* CONFIG_SECURITY_SELINUX_POLICYPROC */
+
+out:
 	read_unlock(&policy_rwlock);
 	return;
 allow:

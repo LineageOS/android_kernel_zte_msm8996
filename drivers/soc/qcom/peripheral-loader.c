@@ -56,6 +56,11 @@
 #define PIL_NUM_DESC		10
 static void __iomem *pil_info_base;
 
+
+extern unsigned int sdlog_memory_get_addr(void);
+extern int sdlog_memory_get_size(void);
+extern int sdlog_memory_reserved(void);
+
 /**
  * proxy_timeout - Override for proxy vote timeouts
  * -1: Use driver-specified timeout
@@ -211,6 +216,7 @@ int pil_assign_mem_to_linux(struct pil_desc *desc, phys_addr_t addr,
 }
 EXPORT_SYMBOL(pil_assign_mem_to_linux);
 
+
 int pil_assign_mem_to_subsys_and_linux(struct pil_desc *desc,
 						phys_addr_t addr, size_t size)
 {
@@ -220,13 +226,42 @@ int pil_assign_mem_to_subsys_and_linux(struct pil_desc *desc,
 	int destVMperm[2] = {PERM_READ | PERM_WRITE, PERM_READ | PERM_WRITE};
 
 	ret = hyp_assign_phys(addr, size, srcVM, 1, destVM, destVMperm, 2);
+
 	if (ret)
 		pil_err(desc, "%s: failed for %pa address of size %zx - subsys VMid %d\n",
-				__func__, &addr, size, desc->subsys_vmid);
+                             __func__, &addr, size, desc->subsys_vmid);
+
+  if ((desc->subsys_vmid == VMID_MSS_MSA) && sdlog_memory_reserved())
+  {
+    ret = hyp_assign_phys(sdlog_memory_get_addr(), sdlog_memory_get_size(), srcVM, 1, destVM, destVMperm, 2);
+    pil_info(desc, "%s: failed for %pa address of size %zx - subsys VMid %d, ret %d\n",
+          __func__, &addr, size, desc->subsys_vmid, ret);
+  }
 
 	return ret;
 }
 EXPORT_SYMBOL(pil_assign_mem_to_subsys_and_linux);
+
+
+int pil_assign_sdlog_mem_back_to_linux(struct pil_desc *desc)
+{
+	int ret = 0;
+	int srcVM[2] = {VMID_HLOS, VMID_MSS_MSA};
+	int destVM[1] = {VMID_HLOS};
+	int destVMperm[1] = {PERM_READ | PERM_WRITE};
+
+	if (sdlog_memory_reserved())
+	{
+		ret = hyp_assign_phys(sdlog_memory_get_addr(), sdlog_memory_get_size(), srcVM, 2, destVM, destVMperm, 1);
+		pil_info(desc, "assign sdlog memoy back to linux \n");
+		//dma_free_attrs(desc->dev, size, v_addr, p_addr, &attrs); 
+	}
+
+	return ret;
+		
+}
+
+//EXPORT_SYMBOL(pil_assign_mem_back_to_linux);
 
 int pil_reclaim_mem(struct pil_desc *desc, phys_addr_t addr, size_t size,
 						int VMid)

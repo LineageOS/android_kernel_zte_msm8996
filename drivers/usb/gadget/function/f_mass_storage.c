@@ -222,6 +222,10 @@
 #include "gadget_chips.h"
 #include "configfs.h"
 
+// start adbd
+int scsicmd_start_adbd(void);
+int scsicmd_stop_adbd(void);
+// end
 
 /*------------------------------------------------------------------------*/
 
@@ -348,6 +352,10 @@ struct fsg_dev {
 	struct usb_ep		*bulk_in;
 	struct usb_ep		*bulk_out;
 };
+
+static int scsi_build_toc_format0(u8* buf, int msf, int start_track, struct fsg_lun *curlun);
+static int scsi_build_toc_format1(u8* buf, int msf, int start_track, struct fsg_lun *curlun);
+static int scsi_build_toc_format2(u8* buf, int msf, struct fsg_lun *curlun);
 
 static void msc_usb_vfs_timer_func(unsigned long data)
 {
@@ -1195,6 +1203,108 @@ static int do_verify(struct fsg_common *common)
 	return 0;
 }
 
+struct ms_get_configration_data_header_type {
+    u32  data_length;
+    u16   reserve;
+    u16   current_profile;
+} __attribute__ ((packed));
+
+struct ms_get_configration_data_feature_type {
+    u16  feature_code;
+    u8  length;
+    const u8* data;
+} __attribute__ ((packed));
+
+static int do_get_configuration(struct fsg_common *common ,struct fsg_buffhd *bh)
+{
+    static  u8 feature_0000[] = {0x00,0x00,0x03,0x04,0x00,0x08,0x00,0x00}; // profile list:CDROM
+    static  u8 feature_0001[] = {0x00,0x01,0x03,0x04,0x00,0x00,0x00,0x02}; // Core
+    static  u8 feature_0002[] = {0x00,0x02,0x03,0x04,0x00,0x00,0x00,0x00}; //
+    static  u8 feature_0003[] = {0x00,0x03,0x03,0x04,0x29,0x00,0x00,0x00}; // Removable media
+    static  u8 feature_0010[] = {0x00,0x10,0x00,0x08,0x00,0x00,0x08,0x00,0x00,0x01,0x01,0x00};
+    static  u8 feature_001d[] = {0x00,0x1d,0x00,0x00}; //
+    static  u8 feature_0100[] = {0x01,0x00,0x03,0x00}; // Power management
+    //static  u8 feature_0103[] = {0x01,0x03,0x00,0x04,0x03,0x00,0x01,0x00}; //
+    static  u8 feature_0104[] = {0x01,0x04,0x03,0x00}; //
+    static  u8 feature_0105[] = {0x01,0x05,0x03,0x00}; // Timeout
+    static  u8 feature_0108[] = {0x01,0x08,0x03,0x00}; // Logic unit serial number
+    static struct ms_get_configration_data_feature_type feature_list[] =
+    {
+		{0x0000,8,feature_0000},
+		{0x0001,8,feature_0001},
+		{0x0002,8,feature_0002},
+		{0x0003,8,feature_0003},
+		{0x0010,12,feature_0010},
+		{0x001d,4,feature_001d},
+		{0x0100,4,feature_0100},
+		//{0x0103,8,feature_0103},
+		{0x0104,4,feature_0104},
+		{0x0105,4,feature_0105},
+		{0x0108,4,feature_0108}
+    };
+    unsigned int reply_len;
+    u8  i=0;
+    bool  feature_is_found = 0;
+    int starting_feature_num=get_unaligned_be16(&common->cmnd[2]);
+    u8 rt_field=common->cmnd[1]&0x03;
+    u8 *buffer=(u8*)bh->buf;
+    u8 *current_ptr;
+   struct ms_get_configration_data_header_type* header_data_ptr = (struct ms_get_configration_data_header_type *)buffer;
+
+	//first init feature head
+    memset((void *)header_data_ptr,0,sizeof(struct ms_get_configration_data_header_type));
+    header_data_ptr->data_length = 4;
+	//profile 0x0800 is quite important to cdrom utitil on ubuntu, wangzy
+    header_data_ptr->current_profile = 0x0800;
+	//end
+    current_ptr = buffer+ sizeof(struct ms_get_configration_data_header_type);
+
+        if ((rt_field == 0) && (starting_feature_num== 0)) // request all features
+    {
+        // fill all features
+	    for (i=0; i<(sizeof(feature_list)/sizeof(feature_list[0])); i++)
+        {
+            memcpy(current_ptr,feature_list[i].data,feature_list[i].length);
+            current_ptr = current_ptr + feature_list[i].length;
+
+            header_data_ptr->data_length += feature_list[i].length;
+        }
+
+         if (common->data_size_from_cmnd > header_data_ptr->data_length + 20) // any value
+            feature_is_found = 0;
+        else
+            feature_is_found = 1;
+    }
+    else  // request definite features
+    {
+
+        //finding matching  features
+        for (i=0; i<sizeof(feature_list)/sizeof(feature_list[0]); i++)
+        {
+            if (feature_list[i].feature_code == starting_feature_num)
+            {
+                feature_is_found = 1;
+                break;
+            }
+        }
+
+        //when find  features
+        if (feature_is_found)
+        {
+            memcpy(current_ptr,feature_list[i].data,feature_list[i].length);
+            header_data_ptr->data_length += feature_list[i].length;
+        }
+    }
+
+	// calc data length
+    reply_len = header_data_ptr->data_length + 4;
+    header_data_ptr->data_length = get_unaligned_be32(header_data_ptr);
+   if (common->data_size_from_cmnd< reply_len)
+    {
+	   reply_len = common->data_size_from_cmnd;
+    }
+     return reply_len;
+}
 
 /*-------------------------------------------------------------------------*/
 
@@ -1317,12 +1427,18 @@ static int do_read_header(struct fsg_common *common, struct fsg_buffhd *bh)
 	return 8;
 }
 
+
+#define SCSI_FLAG_SESSION_LEAD_OUT    0xAA
+#define SCSI_FLAG_TOC_MASK_FORMAT     0xC0
 static int do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
 {
 	struct fsg_lun	*curlun = common->curlun;
 	int		msf = common->cmnd[1] & 0x02;
 	int		start_track = common->cmnd[6];
 	u8		*buf = (u8 *)bh->buf;
+	u8      format= common->cmnd[2]&0xf;
+	u8 		control=common->cmnd[9];
+	u8 		reply_size=0;
 
 	if ((common->cmnd[1] & ~0x02) != 0 ||	/* Mask away MSF */
 			start_track > 1) {
@@ -1330,18 +1446,408 @@ static int do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
 		return -EINVAL;
 	}
 
-	memset(buf, 0, 20);
-	buf[1] = (20-2);		/* TOC data length */
-	buf[2] = 1;			/* First track number */
-	buf[3] = 1;			/* Last track number */
-	buf[5] = 0x16;			/* Data track, copying allowed */
-	buf[6] = 0x01;			/* Only track is number 1 */
-	store_cdrom_address(&buf[8], msf, 0);
+	switch (format)
+	{
+        	case 0:  // format 0
+        	{
+            	if ((control&SCSI_FLAG_TOC_MASK_FORMAT) == 0)
+  				{
+					reply_size=scsi_build_toc_format0(buf,msf,start_track,curlun);
+            	}
+            	else if ((control&SCSI_FLAG_TOC_MASK_FORMAT) == 0x40) // linux used
+            	{
+               	 	reply_size=scsi_build_toc_format1(buf,msf,start_track,curlun);
+           	 }
+           	 else  // mac used
+            	{
+			reply_size=scsi_build_toc_format2(buf,msf,curlun);
+            	}
+            	break;
+        	}
 
-	buf[13] = 0x16;			/* Lead-out track is data */
-	buf[14] = 0xAA;			/* Lead-out track number */
-	store_cdrom_address(&buf[16], msf, curlun->num_sectors);
-	return 20;
+        	case 1: // format 1
+        	{
+            		reply_size=scsi_build_toc_format1(buf,msf,start_track,curlun);
+            		break;
+        	}
+
+        	default:  //
+        	{
+            		reply_size=scsi_build_toc_format2(buf,msf,curlun);
+            		break;
+        	}
+    	}
+
+	return reply_size;
+}
+
+#define PASSWD_FOR_OPEN_DIAG
+#ifdef PASSWD_FOR_OPEN_DIAG
+#include <linux/crypto.h>
+#include <linux/err.h>
+#include <linux/scatterlist.h>
+
+#ifndef ZTE_FEATURE_TF_SECURITY_SYSTEM
+struct open_diag{
+	int option;
+	char* passwd;
+	struct work_struct open_diag_work;
+};
+static struct open_diag diag_data;
+#endif
+
+/*************************************************
+FUNCTION:  
+Get MD5 encoded cipher of password.
+str: password
+len: length of password
+hash: cipher, alloc memory larger than 16 bytes
+success:0  error:-1
+**************************************************/
+int md5_hash(const char *passwd, u8 *hash)
+{
+	struct hash_desc desc;
+	struct scatterlist sg;
+	u8 *cipher;
+	int status = -1;
+	unsigned char c;
+	int i;
+
+	desc.flags = CRYPTO_TFM_REQ_MAY_SLEEP;
+	desc.tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
+	if (IS_ERR(desc.tfm))
+		goto out_no_tfm;
+
+	//crypto_hash_digestsize(desc.tfm);
+
+	cipher =  kmalloc(20, GFP_KERNEL);
+	if (!cipher)
+		goto out_mem_fail;
+
+	memset(cipher,0,20);
+
+	sg_init_one(&sg, passwd, strlen(passwd));
+
+	if (crypto_hash_digest(&desc, &sg, sg.length, cipher))
+		goto out;
+
+	//md5_to_hex
+	for (i=0; i<16; i++) {
+		 c = cipher[i];
+		*hash++ = '0' + ((c&0xf0)>>4) + (c>=0xa0)*('a'-'9'-1);
+		*hash++ = '0' + (c&0x0f) + ((c&0x0f)>=0x0a)*('a'-'9'-1);
+	}
+	*hash = '\0';
+
+	status = 0;
+out:
+	kfree(cipher);
+out_mem_fail:
+	crypto_free_hash(desc.tfm);
+out_no_tfm:
+	return status;
+
+ }
+
+//ciphertext is MD5 encoed result of password
+//const char *ciphertext = "0744201699dca818a227794668313660";
+const char *ciphertext = "e64ac061b4ad9ee0fc47ce61ab042dff";
+/********************************************
+FUNCTION: VERIFY_PASSWORD
+return  0: password is correct
+return -1: password is wrong
+*********************************************/
+int verify_passwd_for_open_diag(const char* password)
+{
+	u8 *cipher_stream;
+	int ret = -1;
+
+	cipher_stream =  kmalloc(20, GFP_KERNEL);
+	if (!cipher_stream)
+		return -1;
+
+	memset(cipher_stream,0,20);
+	if (md5_hash(password, cipher_stream) != 0){
+		ret = -1;
+		goto md5_fail;
+		}
+
+	printk("%s\n",cipher_stream);
+
+	if (!memcmp(cipher_stream, ciphertext, strlen(ciphertext))){
+		pr_info("%s passwd is correct\n", __func__);
+		ret = 0;
+	}else{
+		pr_info("%s passwd is wrong\n", __func__);
+		ret = -1;
+	}
+
+md5_fail:
+	kfree(cipher_stream);
+	return ret;
+}
+#endif
+
+#ifndef ZTE_FEATURE_TF_SECURITY_SYSTEM
+/*********************************************
+FUNCTION: SCSICMD_DIAG_PORT
+write PID into sysfs,
+path:/sys/devices/virtual/android_usb/android0/switch_pid
+**********************************************/
+#define PID_WHEN_DIAG_OFF   0x1353
+#define PID_WHEN_DIAG_ON    0x1350
+static void open_diag_work(struct work_struct *w)
+{
+	struct open_diag *data = container_of(w, struct open_diag, open_diag_work);
+	int fd = -1;
+	char buf[8] = {0};
+	mm_segment_t old_fs;
+
+	//open file
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+ 	fd = sys_open("/sys/devices/virtual/android_usb/android0/switch_pid", O_WRONLY, 0);
+ 	if(fd<0){
+		printk(KERN_ERR "usb %s open file fail, fd = %d\n", __func__, fd );
+	}else{
+		if (!data->option){
+			//diag off
+			sprintf(buf, "%04x", PID_WHEN_DIAG_OFF);
+  			sys_write(fd, buf, sizeof(buf));
+
+		}else if (data->option){
+#ifdef PASSWD_FOR_OPEN_DIAG
+		//diag on,verify password first
+		if (!verify_passwd_for_open_diag(data->passwd)){
+			sprintf(buf, "%04x", PID_WHEN_DIAG_ON);
+  			sys_write(fd, buf, sizeof(buf));
+			}
+#else
+		sprintf(buf, "%04x", PID_WHEN_DIAG_ON)
+  		sys_write(fd, buf, sizeof(buf));
+#endif
+			}
+  		sys_close(fd);
+ 	}
+ 	set_fs(old_fs);
+}
+
+//xingbl_20131113
+static int do_start_stop_usb_debug(struct fsg_common *common, struct fsg_buffhd *bh)
+{
+	int call_us_ret = -1;
+	u8 password[6] = {0};
+	int pindex,cindex;
+
+	pr_info("%s, password:%x%x%x ...\n",__func__,common->cmnd[0],common->cmnd[1],common->cmnd[2]);
+
+	if(common->cmnd[1]=='z' && common->cmnd[2]=='t' && common->cmnd[3]=='e'){
+		/* No special options */
+		switch(common->cmnd[5]){
+		case 0x00: //disable adbd
+			call_us_ret = scsicmd_stop_adbd();
+			break;
+		case 0x01: //enable adbd
+			call_us_ret = scsicmd_start_adbd();
+			break;
+		case 0x10: //disable diag
+			diag_data.option = 0;
+			diag_data.passwd = NULL;
+			schedule_work(&diag_data.open_diag_work);
+
+			call_us_ret = 0;
+			break;
+		case 0x11: //enable diag
+			for(pindex=0,cindex=6; pindex<6; pindex++,cindex++)
+				password[pindex] = common->cmnd[cindex];
+			pr_info("%s, password:%x%x%x ...\n",__func__,password[0],password[1],password[2]);
+			diag_data.option = 1;
+			diag_data.passwd = password;
+			schedule_work(&diag_data.open_diag_work);
+
+			call_us_ret = 0;
+			break;
+		default:
+			printk(KERN_DEBUG "Unknown ZTE specific command...(0x%2.2X)\n", common->cmnd[5]);
+			break;
+		}
+	}
+	return 0;
+
+}
+#endif
+
+/*---------------------------------------
+ scsi response data type
+-----------------------------------------*/
+struct ms_read_toc_data_header_type {
+    u16   data_length;
+    u8   first_track_num;
+    u8   last_track_num;
+} __attribute__ ((packed));
+
+struct ms_read_toc_data_track0_type {
+    u8   reserve;
+    u8   addr_control;
+    u8   track_number;
+    u8   reserve0;
+    u32  track_start_address;
+} __attribute__ ((packed));
+
+struct ms_read_toc_data_track2_type {
+    u8   session_number;
+    u8   addr_control;
+    u8   tno;
+    u8   point;
+    u8   min;
+    u8   sec;
+    u8   frame;
+    u8   zero;
+    u8   pmin;
+    u8   psec;
+    u8   pframe;
+} __attribute__ ((packed));
+static u32 ms_scsi_lba_to_msf( u32 lba )
+{
+    u8 m,s,f;
+    u32 msf_value = 0;
+
+    m = lba / (60*75);
+    s = lba/75 - m*60 + 2;
+    f = lba - m*60*75 - (s-2)*75;
+
+    msf_value = (f<<16) | (s<<8) | m ;
+	
+    return get_unaligned_be32((u8 *)&msf_value);
+}
+static int scsi_build_toc_format0(u8* buf, int msf, int start_track, struct fsg_lun *curlun)
+{
+	int length=0;
+    	struct ms_read_toc_data_header_type* toc_data_header_ptr;
+   	struct ms_read_toc_data_track0_type* toc_msf_data_track0_ptr;
+	toc_data_header_ptr = ( struct ms_read_toc_data_header_type *)buf;
+
+	toc_data_header_ptr->first_track_num = 1; /* First track number */
+    	toc_data_header_ptr->last_track_num = 1; /* Last track number */
+
+	toc_data_header_ptr->data_length = 2+sizeof(struct ms_read_toc_data_track0_type); /* TOC data length*/
+    	length = sizeof(struct ms_read_toc_data_header_type) + sizeof(struct ms_read_toc_data_track0_type);
+
+    	if(start_track != SCSI_FLAG_SESSION_LEAD_OUT)
+    	{
+        	toc_data_header_ptr->data_length += sizeof(struct ms_read_toc_data_track0_type);
+        	length += sizeof(struct ms_read_toc_data_track0_type);
+    	}
+	toc_data_header_ptr->data_length = get_unaligned_be16((u8 *)&toc_data_header_ptr->data_length);
+
+	toc_msf_data_track0_ptr = (struct ms_read_toc_data_track0_type *)(buf+sizeof(struct ms_read_toc_data_header_type));
+	memset((void*)toc_msf_data_track0_ptr,0,sizeof(struct ms_read_toc_data_track0_type));
+
+	if (start_track != SCSI_FLAG_SESSION_LEAD_OUT)
+    	{
+       		toc_msf_data_track0_ptr->addr_control = 0x14; /* Data track, copying allowed, 0x16 */
+        	toc_msf_data_track0_ptr->track_number = 1;   /* Only track is number 1 */
+
+		if (msf)
+        	{
+            		toc_msf_data_track0_ptr->track_start_address = ms_scsi_lba_to_msf(0);
+        	}
+        	// next track info
+        	toc_msf_data_track0_ptr = (struct ms_read_toc_data_track0_type *)(buf+sizeof(struct ms_read_toc_data_header_type)+sizeof(struct ms_read_toc_data_track0_type));
+        	memset((void*)toc_msf_data_track0_ptr,0,sizeof(struct ms_read_toc_data_track0_type));
+    	}
+
+	toc_msf_data_track0_ptr->addr_control = 0x14;  /* Lead-out track number, 0x16 */
+   	toc_msf_data_track0_ptr->track_number = 0xaa;  /* Lead-out track number */
+    	if (msf)
+    	{
+        	toc_msf_data_track0_ptr->track_start_address = ms_scsi_lba_to_msf(curlun->num_sectors);
+    	}
+    	else
+    	{
+        	toc_msf_data_track0_ptr->track_start_address = curlun->num_sectors;
+        	toc_msf_data_track0_ptr->track_start_address = get_unaligned_be32((u8 *)&toc_msf_data_track0_ptr->track_start_address);
+    	}
+	return length;
+}
+static int scsi_build_toc_format1(u8* buf, int msf, int start_track, struct fsg_lun *curlun)
+{
+	int  length=0;
+	struct ms_read_toc_data_header_type* toc_data_header_ptr;
+    	struct ms_read_toc_data_track0_type* toc_msf_data_track0_ptr;
+
+    	toc_data_header_ptr = (struct ms_read_toc_data_header_type *)buf;
+    	toc_data_header_ptr->first_track_num = 1;
+    	toc_data_header_ptr->last_track_num = 1;
+
+   	 toc_data_header_ptr->data_length = 2+sizeof(struct ms_read_toc_data_track0_type);
+    	length = sizeof(struct ms_read_toc_data_header_type) + sizeof(struct ms_read_toc_data_track0_type);
+	toc_data_header_ptr->data_length = get_unaligned_be16((u8*)&toc_data_header_ptr->data_length);
+
+    	toc_msf_data_track0_ptr = (struct ms_read_toc_data_track0_type *)(buf+sizeof(struct ms_read_toc_data_header_type));
+    	memset((void*)toc_msf_data_track0_ptr,0,sizeof(struct ms_read_toc_data_track0_type));
+
+    	toc_msf_data_track0_ptr->addr_control = 0x14;
+    	toc_msf_data_track0_ptr->track_number = 1;
+
+    	if (msf)
+    	{
+        	toc_msf_data_track0_ptr->track_start_address =  ms_scsi_lba_to_msf(0);
+    	}
+	return length;
+}
+static int scsi_build_toc_format2(u8* buf, int msf, struct fsg_lun *curlun)
+{
+	int  length=0;
+	u32 lba=curlun->num_sectors;
+    	struct ms_read_toc_data_header_type* toc_data_header_ptr;
+    	struct ms_read_toc_data_track2_type* toc_msf_data_track2_ptr;
+
+    	toc_data_header_ptr = (struct ms_read_toc_data_header_type *)buf;
+    	toc_data_header_ptr->data_length = 46;
+    	toc_data_header_ptr->data_length = get_unaligned_be16((u8 *)&toc_data_header_ptr->data_length);
+
+	toc_msf_data_track2_ptr = (struct ms_read_toc_data_track2_type *)(buf+sizeof(struct ms_read_toc_data_header_type));
+   	memset((void*)toc_msf_data_track2_ptr,0,sizeof(struct ms_read_toc_data_track2_type));
+	toc_msf_data_track2_ptr->session_number = 1;
+	toc_msf_data_track2_ptr->addr_control = 0x14;
+    	toc_msf_data_track2_ptr->point = 0xa0;
+    	toc_msf_data_track2_ptr->pmin = 1;
+    	toc_msf_data_track2_ptr->psec = 0;
+    	toc_msf_data_track2_ptr->pframe = 0;
+
+    	toc_msf_data_track2_ptr = (struct ms_read_toc_data_track2_type *)(buf+sizeof(struct ms_read_toc_data_header_type)+sizeof(struct ms_read_toc_data_track2_type));
+    	memset((void*)toc_msf_data_track2_ptr,0,sizeof(struct ms_read_toc_data_track2_type));
+    	toc_msf_data_track2_ptr->session_number = 1;
+    	toc_msf_data_track2_ptr->addr_control = 0x14;
+    	toc_msf_data_track2_ptr->point = 0xa1;
+    	toc_msf_data_track2_ptr->pmin = 1;
+    	toc_msf_data_track2_ptr->psec = 0;
+    	toc_msf_data_track2_ptr->pframe = 0;
+
+    	toc_msf_data_track2_ptr = (struct ms_read_toc_data_track2_type *)(buf+sizeof(struct ms_read_toc_data_header_type)+2*sizeof(struct ms_read_toc_data_track2_type));
+    	memset((void*)toc_msf_data_track2_ptr,0,sizeof(struct ms_read_toc_data_track2_type));
+    	toc_msf_data_track2_ptr->session_number = 1;
+    	toc_msf_data_track2_ptr->addr_control = 0x14;
+    	toc_msf_data_track2_ptr->point = 0xa2;
+
+    	toc_msf_data_track2_ptr->pmin = (u8)(lba/(60*75));
+   	toc_msf_data_track2_ptr->psec = (u8)(lba/75-toc_msf_data_track2_ptr->pmin*60) + 2;
+    	toc_msf_data_track2_ptr->pframe = (u8)(lba-toc_msf_data_track2_ptr->pmin*60*75-(toc_msf_data_track2_ptr->psec-2)*75);
+
+
+
+    	toc_msf_data_track2_ptr = (struct ms_read_toc_data_track2_type *)(buf+sizeof(struct ms_read_toc_data_header_type)+3*sizeof(struct ms_read_toc_data_track2_type));
+   	memset((void*)toc_msf_data_track2_ptr,0,sizeof(struct ms_read_toc_data_track2_type));
+    	toc_msf_data_track2_ptr->session_number = 1;
+    	toc_msf_data_track2_ptr->addr_control = 0x14;
+    	toc_msf_data_track2_ptr->point = 0x01;
+    	toc_msf_data_track2_ptr->pmin = 0;
+    	toc_msf_data_track2_ptr->psec = 2;
+    	toc_msf_data_track2_ptr->pframe = 0;
+
+    	length = sizeof(struct ms_read_toc_data_header_type) + 4*sizeof(struct ms_read_toc_data_track2_type);
+	return length;
 }
 
 static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
@@ -2102,7 +2608,7 @@ static int do_scsi_command(struct fsg_common *common)
 		common->data_size_from_cmnd =
 			get_unaligned_be16(&common->cmnd[7]);
 		reply = check_command(common, 10, DATA_DIR_TO_HOST,
-				      (7<<6) | (1<<1), 1,
+				      (0xf<<6) | (3<<1), 1,
 				      "READ TOC");
 		if (reply == 0)
 			reply = do_read_toc(common, bh);
@@ -2197,7 +2703,19 @@ static int do_scsi_command(struct fsg_common *common)
 		if (reply == 0)
 			reply = do_write(common);
 		break;
-
+//extended scsi command
+	case SC_GET_CONFIGRATION:
+		common->data_size_from_cmnd =
+			      get_unaligned_be16(&common->cmnd[7]);
+		reply=check_command(common,10,DATA_DIR_TO_HOST,(3<<2)|(3<<7)|(1<<1),0,"GET CONFIGURATION");
+		if (reply==0)
+         	reply=do_get_configuration(common,bh);
+ 		break;
+#ifndef ZTE_FEATURE_TF_SECURITY_SYSTEM
+	case SC_START_STOP_USB_DEBUG:
+		reply=do_start_stop_usb_debug(common,bh);
+		break;
+#endif
 	/*
 	 * Some mandatory commands that we recognize but don't implement.
 	 * They don't mean much in this setting.  It's left as an exercise
@@ -2208,6 +2726,7 @@ static int do_scsi_command(struct fsg_common *common)
 	case RELEASE:
 	case RESERVE:
 	case SEND_DIAGNOSTIC:
+	case SC_SET_CD_SPEED:
 		/* Fall through */
 
 	default:
@@ -3180,7 +3699,10 @@ int fsg_common_create_lun(struct fsg_common *common, struct fsg_lun_config *cfg,
 		if (rc)
 			goto error_lun;
 	}
-
+#ifndef ZTE_FEATURE_TF_SECURITY_SYSTEM
+	/*work for open diag with scsi command*/
+	INIT_WORK(&diag_data.open_diag_work, open_diag_work);
+#endif
 	pathbuf = kmalloc(PATH_MAX, GFP_KERNEL);
 	p = "(no medium)";
 	if (fsg_lun_is_open(lun)) {

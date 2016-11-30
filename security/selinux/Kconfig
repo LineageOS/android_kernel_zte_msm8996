@@ -131,3 +131,13 @@ config SECURITY_SELINUX_POLICYDB_VERSION_MAX_VALUE
 	  installed under /etc/selinux/$SELINUXTYPE/policy, where
 	  SELINUXTYPE is defined in your /etc/selinux/config.
 
+#
+# Preproc/postproc policy as binary image
+# by ZTE_BOOT_20151105
+#
+config SECURITY_SELINUX_POLICYPROC
+	bool "NSA SELinux policy preprocess/postprocess"
+	depends on SECURITY_SELINUX
+	default n
+	help
+	  This option preprocesses/postprocesses policy as binary image.

@@ -82,6 +82,12 @@ enum msm_vfe_frame_skip_pattern {
 	EVERY_6FRAME,
 	EVERY_7FRAME,
 	EVERY_8FRAME,
+/*
+  * by ZTE_YCM_20150820 yi.changming 400187-3
+  */
+// --->
+	EVERY_10FRAME,
+// <---400187-3
 	EVERY_16FRAME,
 	EVERY_32FRAME,
 	SKIP_ALL,

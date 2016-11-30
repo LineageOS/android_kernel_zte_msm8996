@@ -468,6 +468,7 @@ static ssize_t autosleep_store(struct kobject *kobj,
 	    && strcmp(buf, "off") && strcmp(buf, "off\n"))
 		return -EINVAL;
 
+	pr_info("ZTE_PM %s state= %d { %s } \n ",__func__,state,state != PM_SUSPEND_ON ? "sleep" : "wakeup");
 	error = pm_autosleep_set_state(state);
 	return error ? error : n;
 }

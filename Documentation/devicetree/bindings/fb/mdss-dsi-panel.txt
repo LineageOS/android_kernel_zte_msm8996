@@ -410,6 +410,10 @@ Optional properties:
 					binding above.
 - qcom,config-select:			Optional property to select default configuration.
 - qcom,panel-allow-phy-poweroff:	A boolean property indicates that panel allows to turn off the phy power
+									supply during idle screen. A panel should able to handle the dsi lanes
+									in floating state(not LP00 or LP11) to turn on this property. Software
+									turns off PHY pmic power supply, phy ldo and DSI Lane ldo during
+									idle screen (footswitch control off) when this property is enabled.
 					supply during idle screen. A panel should able to handle the dsi lanes
 					in floating state(not LP00 or LP11) to turn on this property. Software
 					turns off PHY pmic power supply, phy ldo and DSI Lane ldo during

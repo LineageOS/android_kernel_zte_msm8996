@@ -144,8 +144,8 @@ static const struct dev_pm_ops slimbus_pm = {
 	.suspend = slim_pm_suspend,
 	.resume = slim_pm_resume,
 	SET_RUNTIME_PM_OPS(
-		pm_generic_suspend,
-		pm_generic_resume,
+		pm_generic_runtime_suspend,
+		pm_generic_runtime_resume,
 		NULL
 		)
 };

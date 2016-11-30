@@ -2011,6 +2011,11 @@ __acquires(&pool->lock)
 
 	lock_map_acquire_read(&pwq->wq->lockdep_map);
 	lock_map_acquire(&lockdep_map);
+	{
+                char buffer[128];
+                sprint_symbol(buffer, (unsigned long) worker->current_func);
+                strncpy(current->comm, buffer, 15);
+        }
 	trace_workqueue_execute_start(work);
 	worker->current_func(work);
 	/*

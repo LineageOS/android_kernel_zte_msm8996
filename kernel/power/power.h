@@ -231,10 +231,17 @@ enum {
 
 extern int pm_test_level;
 
+extern void suspend_sys_sync_queue(void);
+extern int suspend_sys_sync_wait(void);
+
 #ifdef CONFIG_SUSPEND_FREEZER
 static inline int suspend_freeze_processes(void)
 {
 	int error;
+
+	error = suspend_sys_sync_wait();
+	if (error)
+		return error;
 
 	error = freeze_processes();
 	/*

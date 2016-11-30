@@ -32,6 +32,9 @@ struct task_io_accounting {
 	 * written to disk.
 	 */
 	u64 write_bytes;
+	
+	u64 last_read_bytes;
+	u64 last_write_bytes;
 
 	/*
 	 * A task can cause "negative" IO too.  If this task truncates some

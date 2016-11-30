@@ -41,6 +41,14 @@
 #include "objsec.h"
 #include "conditional.h"
 
+/*
+ * Preproc/postproc policy as binary image
+ * by ZTE_BOOT_20151105
+ */
+#if defined(CONFIG_SECURITY_SELINUX_POLICYPROC)
+#include "ss/policyproc.h"
+#endif /* CONFIG_SECURITY_SELINUX_POLICYPROC */
+
 /* Policy capability filenames */
 static char *policycap_names[] = {
 	"network_peer_controls",
@@ -402,6 +410,17 @@ static int sel_open_policy(struct inode *inode, struct file *filp)
 	if (rc)
 		goto err;
 
+/*
+ * Preproc/postproc policy as binary image
+ * by ZTE_BOOT_20151105
+ */
+#if defined(CONFIG_SECURITY_SELINUX_POLICYPROC)
+	rc = pp_postproc_policy(&plm->data, &plm->len);
+	if (rc) {
+		goto err;
+	}
+#endif /* CONFIG_SECURITY_SELINUX_POLICYPROC */
+
 	policy_opened = 1;
 
 	filp->private_data = plm;
@@ -531,6 +550,16 @@ static ssize_t sel_write_load(struct file *file, const char __user *buf,
 	length = -EFAULT;
 	if (copy_from_user(data, buf, count) != 0)
 		goto out;
+
+/*
+ * Preproc/postproc policy as binary image
+ * by ZTE_BOOT_20151105
+ */
+#if defined(CONFIG_SECURITY_SELINUX_POLICYPROC)
+	if (pp_preproc_policy(&data, &count) != 0) {
+		goto out;
+	}
+#endif /* CONFIG_SECURITY_SELINUX_POLICYPROC */
 
 	length = security_load_policy(data, count);
 	if (length)

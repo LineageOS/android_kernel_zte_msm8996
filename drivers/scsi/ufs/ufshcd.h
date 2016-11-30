@@ -501,7 +501,7 @@ struct ufs_init_prefetch {
 	u32 icc_level;
 };
 
-#define UIC_ERR_REG_HIST_LENGTH 8
+#define UIC_ERR_REG_HIST_LENGTH 200
 /**
  * struct ufs_uic_err_reg_hist - keeps history of uic errors
  * @pos: index to indicate cyclic buffer position
@@ -832,6 +832,21 @@ struct ufs_hba {
 
 	struct ufs_clk_gating clk_gating;
 	struct ufs_hibern8_on_idle hibern8_on_idle;
+	ktime_t h8_enter_issue_time;
+	ktime_t h8_enter_cmpl_time;
+	ktime_t h8_exit_issue_time;
+	ktime_t h8_exit_cmpl_time;
+	ktime_t clk_gating_issue_time;
+	ktime_t clk_gating_cmpl_time;
+	ktime_t clk_ungating_issue_time;
+	ktime_t clk_ungating_cmpl_time;
+	ktime_t clk_scaling_issue_time;
+	ktime_t clk_scaling_cmpl_time;
+	ktime_t gear_scale_start_time;
+	ktime_t gear_scale_cmpl_time;
+	ktime_t link_startup_issue_time;
+	ktime_t link_startup_cmpl_time;
+	bool cmd_between_gear_scale_and_hibern8_enter;
 
 	/* Control to enable/disable host capabilities */
 	u32 caps;
