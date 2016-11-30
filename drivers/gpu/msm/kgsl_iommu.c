@@ -243,8 +243,8 @@ static int _iommu_map_sync_pc(struct kgsl_pagetable *pt,
 	_unlock_if_secure_mmu(device, memdesc, pt->mmu);
 
 	if (ret) {
-		KGSL_CORE_ERR("map err: %p, 0x%016llX, 0x%llx, 0x%x, %d\n",
-			iommu_pt->domain, gpuaddr, size, flags, ret);
+		KGSL_CORE_ERR("map err: 0x%016llX, 0x%llx, 0x%x, %d\n",
+			gpuaddr, size, flags, ret);
 		return -ENODEV;
 	}
 
@@ -272,8 +272,8 @@ static int _iommu_unmap_sync_pc(struct kgsl_pagetable *pt,
 	_unlock_if_secure_mmu(device, memdesc, pt->mmu);
 
 	if (unmapped != size) {
-		KGSL_CORE_ERR("unmap err: %p, 0x%016llx, 0x%llx, %zd\n",
-			iommu_pt->domain, addr, size, unmapped);
+		KGSL_CORE_ERR("unmap err: 0x%016llx, 0x%llx, %zd\n",
+			addr, size, unmapped);
 		return -ENODEV;
 	}
 
@@ -303,8 +303,8 @@ static int _iommu_map_sg_sync_pc(struct kgsl_pagetable *pt,
 	_unlock_if_secure_mmu(device, memdesc, pt->mmu);
 
 	if (mapped == 0) {
-		KGSL_CORE_ERR("map err: %p, 0x%016llX, %d, %x, %zd\n",
-			iommu_pt->domain, addr, memdesc->sgt->nents,
+		KGSL_CORE_ERR("map err: 0x%016llX, %d, %x, %zd\n",
+			addr, memdesc->sgt->nents,
 			flags, mapped);
 		return  -ENODEV;
 	}
@@ -1342,6 +1342,7 @@ kgsl_iommu_map(struct kgsl_pagetable *pt,
 	uint64_t addr = memdesc->gpuaddr;
 	uint64_t size = memdesc->size;
 	unsigned int flags;
+	struct sg_table *sgt = NULL;
 
 	BUG_ON(NULL == pt->priv);
 
@@ -1354,13 +1355,33 @@ kgsl_iommu_map(struct kgsl_pagetable *pt,
 	if (memdesc->priv & KGSL_MEMDESC_PRIVILEGED)
 		flags |= IOMMU_PRIV;
 
+	/*
+	 * For paged memory allocated through kgsl, memdesc->pages is not NULL.
+	 * Allocate sgt here just for its map operation. Contiguous memory
+	 * already has its sgt, so no need to allocate it here.
+	 */
+	if (memdesc->pages != NULL) {
+		sgt = kgsl_alloc_sgt_from_pages(memdesc);
+		memdesc->sgt = sgt;
+	}
+
+	if (IS_ERR(sgt))
+		return PTR_ERR(sgt);
+
 	ret = _iommu_map_sg_sync_pc(pt, addr, memdesc, flags);
+
 	if (ret)
-		return ret;
+		goto done;
 
 	ret = _iommu_map_guard_page(pt, memdesc, addr + size, flags);
 	if (ret)
 		_iommu_unmap_sync_pc(pt, memdesc, addr, size);
+
+done:
+	if (memdesc->pages != NULL) {
+		kgsl_free_sgt(sgt);
+		memdesc->sgt = NULL;
+	}
 
 	return ret;
 }

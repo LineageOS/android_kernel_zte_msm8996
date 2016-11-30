@@ -548,6 +548,24 @@ static void ssr_work_func(struct work_struct *work)
 }
 
 /**
+ * deferred_close_ack() - Generate a deferred channel close ack
+ * @work:	The channel close ack work to generate.
+ */
+static void deferred_close_ack(struct work_struct *work)
+{
+	struct channel_work *ch_work;
+	struct channel *ch;
+
+	ch_work = container_of(work, struct channel_work, work);
+	ch = ch_work->ch;
+	mutex_lock(&ch->edge->rx_cmd_lock);
+	ch->edge->xprt_if.glink_core_if_ptr->rx_cmd_ch_close_ack(
+				&ch->edge->xprt_if, ch->lcid);
+	mutex_unlock(&ch->edge->rx_cmd_lock);
+	kfree(ch_work);
+}
+
+/**
  * process_tx_done() - process a tx done task
  * @work:	The tx done task to process.
  */
@@ -686,6 +704,7 @@ static void process_reopen_event(struct work_struct *work)
 		mutex_unlock(&einfo->rx_cmd_lock);
 	}
 	if (ch->local_legacy) {
+		ch->local_legacy = false;
 		mutex_lock(&einfo->rx_cmd_lock);
 		einfo->xprt_if.glink_core_if_ptr->rx_cmd_ch_close_ack(
 								&einfo->xprt_if,
@@ -877,6 +896,7 @@ static void smd_data_ch_close(struct channel *ch)
 {
 	struct intent_info *intent;
 	unsigned long flags;
+	struct channel_work *ch_work;
 
 	SMDXPRT_INFO(ch->edge, "%s Closing SMD channel lcid %u\n",
 			__func__, ch->lcid);
@@ -891,15 +911,16 @@ static void smd_data_ch_close(struct channel *ch)
 		smd_close(ch->smd_ch);
 		ch->smd_ch = NULL;
 	} else if (ch->local_legacy) {
-		mutex_lock(&ch->edge->rx_cmd_lock);
-		ch->edge->xprt_if.glink_core_if_ptr->rx_cmd_ch_close_ack(
-							&ch->edge->xprt_if,
-							ch->lcid);
-		mutex_unlock(&ch->edge->rx_cmd_lock);
+		ch_work = kzalloc(sizeof(*ch_work), GFP_KERNEL);
+		ch->local_legacy = false;
+		if (ch_work) {
+			ch_work->ch = ch;
+			INIT_WORK(&ch_work->work, deferred_close_ack);
+			queue_work(ch->wq, &ch_work->work);
+		}
 	}
 	mutex_unlock(&ch->ch_probe_lock);
 
-	ch->local_legacy = false;
 
 	spin_lock_irqsave(&ch->intents_lock, flags);
 	while (!list_empty(&ch->intents)) {

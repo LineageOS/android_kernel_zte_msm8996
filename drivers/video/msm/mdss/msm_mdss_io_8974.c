@@ -427,7 +427,7 @@ static void mdss_dsi_ctrl_phy_reset(struct mdss_dsi_ctrl_pdata *ctrl)
 	wmb();	/* maek sure reset cleared */
 }
 
-void mdss_dsi_phy_sw_reset(struct mdss_dsi_ctrl_pdata *ctrl)
+static void mdss_dsi_phy_sw_reset_sub(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
 	struct dsi_shared_data *sdata;
@@ -484,7 +484,39 @@ void mdss_dsi_phy_sw_reset(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	}
 	mutex_unlock(&sdata->phy_reg_lock);
+}
 
+void mdss_dsi_phy_sw_reset(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
+	struct dsi_shared_data *sdata;
+
+	if (ctrl == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return;
+	}
+
+	sdata = ctrl->shared_data;
+
+	/*
+	 * When operating in split display mode, make sure that the PHY reset
+	 * is only done from the clock master. This will ensure that the PLL is
+	 * off when PHY reset is called.
+	 */
+	if (mdss_dsi_is_ctrl_clk_slave(ctrl))
+		return;
+
+	mdss_dsi_phy_sw_reset_sub(ctrl);
+
+	if (mdss_dsi_is_ctrl_clk_master(ctrl)) {
+		sctrl = mdss_dsi_get_ctrl_clk_slave();
+		if (sctrl)
+			mdss_dsi_phy_sw_reset_sub(sctrl);
+		else
+			pr_warn("%s: unable to get slave ctrl\n", __func__);
+	}
+
+	/* All other quirks go here */
 	if ((sdata->hw_rev == MDSS_DSI_HW_REV_103) &&
 		!mdss_dsi_is_hw_config_dual(sdata) &&
 		mdss_dsi_is_right_ctrl(ctrl)) {
@@ -883,8 +915,11 @@ static void mdss_dsi_8996_phy_power_off(
 {
 	int ln;
 	void __iomem *base;
+	u32 data;
 
-	MIPI_OUTP(ctrl->phy_io.base + DSIPHY_CMN_CTRL_0, 0x7f);
+	/* Turn off PLL power */
+	data = MIPI_INP(ctrl->phy_io.base + DSIPHY_CMN_CTRL_0);
+	MIPI_OUTP(ctrl->phy_io.base + DSIPHY_CMN_CTRL_0, data & ~BIT(7));
 
 	/* 4 lanes + clk lane configuration */
 	for (ln = 0; ln < 5; ln++) {
@@ -940,6 +975,7 @@ static void mdss_dsi_8996_phy_power_on(
 	void __iomem *base;
 	struct mdss_dsi_phy_ctrl *pd;
 	char *ip;
+	u32 data;
 
 	pd = &(((ctrl->panel_data).panel_info.mipi).dsi_phy_db);
 
@@ -959,6 +995,10 @@ static void mdss_dsi_8996_phy_power_on(
 	}
 
 	mdss_dsi_8996_phy_regulator_enable(ctrl);
+
+	/* Turn on PLL power */
+	data = MIPI_INP(ctrl->phy_io.base + DSIPHY_CMN_CTRL_0);
+	MIPI_OUTP(ctrl->phy_io.base + DSIPHY_CMN_CTRL_0, data | BIT(7));
 }
 
 static void mdss_dsi_phy_power_on(
@@ -1062,6 +1102,7 @@ static void mdss_dsi_8996_phy_config(struct mdss_dsi_ctrl_pdata *ctrl)
 			mdss_dsi_8996_pll_source_standalone(ctrl);
 	}
 
+	MIPI_OUTP(ctrl->phy_io.base + DSIPHY_CMN_CTRL_0, 0x7f);
 	wmb(); /* make sure registers committed */
 }
 
@@ -1177,10 +1218,34 @@ void mdss_dsi_phy_disable(struct mdss_dsi_ctrl_pdata *ctrl)
 	wmb();
 }
 
-void mdss_dsi_phy_init(struct mdss_dsi_ctrl_pdata *ctrl)
+static void mdss_dsi_phy_init_sub(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	mdss_dsi_phy_regulator_ctrl(ctrl, true);
 	mdss_dsi_phy_ctrl(ctrl, true);
+}
+
+void mdss_dsi_phy_init(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
+
+	/*
+	 * When operating in split display mode, make sure that both the PHY
+	 * blocks are initialized together prior to the PLL being enabled. This
+	 * is achieved by calling the phy_init function for the clk_slave from
+	 * the clock_master.
+	 */
+	if (mdss_dsi_is_ctrl_clk_slave(ctrl))
+		return;
+
+	mdss_dsi_phy_init_sub(ctrl);
+
+	if (mdss_dsi_is_ctrl_clk_master(ctrl)) {
+		sctrl = mdss_dsi_get_ctrl_clk_slave();
+		if (sctrl)
+			mdss_dsi_phy_init_sub(sctrl);
+		else
+			pr_warn("%s: unable to get slave ctrl\n", __func__);
+	}
 }
 
 void mdss_dsi_core_clk_deinit(struct device *dev, struct dsi_shared_data *sdata)
@@ -2222,18 +2287,8 @@ int mdss_dsi_post_clkoff_cb(void *priv,
 		pdata = &ctrl->panel_data;
 
 		for (i = DSI_MAX_PM - 1; i >= DSI_CORE_PM; i--) {
-			/*
-			 * if DSI state is active
-			 * 1. allow to turn off the core power module.
-			 * 2. allow to turn off phy power module if it is
-			 * turned off
-			 *
-			 * allow to turn off all power modules if DSI is not
-			 * active
-			 */
 			if ((ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE) &&
-				(i != DSI_CORE_PM) &&
-				(ctrl->phy_power_off && (i != DSI_PHY_PM)))
+				(i != DSI_CORE_PM))
 				continue;
 			rc = msm_dss_enable_vreg(
 				sdata->power_data[i].vreg_config,
@@ -2278,15 +2333,12 @@ int mdss_dsi_pre_clkon_cb(void *priv,
 		 * 3.> CTRL_PM need to be enabled/disabled
 		 *     only during unblank/blank. Their state should
 		 *     not be changed during static screen.
-		 * 4.> PHY_PM can be turned enabled/disabled
-		 *     if phy regulators are enabled/disabled.
 		 */
 		pr_debug("%s: Enable DSI core power\n", __func__);
 		for (i = DSI_CORE_PM; i < DSI_MAX_PM; i++) {
 			if ((ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE) &&
 				(!pdata->panel_info.cont_splash_enabled) &&
-				(i != DSI_CORE_PM) &&
-				(ctrl->phy_power_off && (i != DSI_PHY_PM)))
+				(i != DSI_CORE_PM))
 				continue;
 			rc = msm_dss_enable_vreg(
 				sdata->power_data[i].vreg_config,
