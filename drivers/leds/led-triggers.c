@@ -255,14 +255,29 @@ void led_trigger_event(struct led_trigger *trig,
 			enum led_brightness brightness)
 {
 	struct led_classdev *led_cdev;
-
+	struct list_head *entry;
 	if (!trig)
 		return;
-
+/*
+  * by ZTE_YCM_20151102 yi.changming 400091-3
+  */
+// --->
+#if 0
 	read_lock(&trig->leddev_list_lock);
 	list_for_each_entry(led_cdev, &trig->led_cdevs, trig_list)
 		led_set_brightness(led_cdev, brightness);
 	read_unlock(&trig->leddev_list_lock);
+#else
+	read_lock(&trig->leddev_list_lock);
+	list_for_each(entry, &trig->led_cdevs) {
+		led_cdev = list_entry(entry, struct led_classdev, trig_list);
+		read_unlock(&trig->leddev_list_lock);
+		led_set_brightness(led_cdev, brightness);
+		read_lock(&trig->leddev_list_lock);
+	}
+	read_unlock(&trig->leddev_list_lock);
+#endif
+// <---400091-3
 }
 EXPORT_SYMBOL_GPL(led_trigger_event);
 

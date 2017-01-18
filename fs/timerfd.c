@@ -473,6 +473,14 @@ static int do_timerfd_settime(int ufd, int flags,
 	/*
 	 * Re-program the timer to the new value ...
 	 */
+
+	/*ZTE ++++*/
+	/*log to confirm whose alarm from hardware to kernel*/
+	if (isalarm(ctx) && (new->it_interval.tv_sec > 0))
+		pr_info("ZTE_ALARM set alarm at %ld s(elapsed time), interval %ld s\n",
+		new->it_value.tv_sec, new->it_interval.tv_sec);
+	/*ZTE ----*/
+
 	ret = timerfd_setup(ctx, flags, new);
 
 	spin_unlock_irq(&ctx->wqh.lock);

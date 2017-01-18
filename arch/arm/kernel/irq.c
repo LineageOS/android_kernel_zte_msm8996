@@ -45,6 +45,43 @@
 
 unsigned long irq_err_count;
 
+/*ZTE ++++*/
+int zte_smd_wakeup = 0;
+void print_irq_info(int i)
+{
+	struct irqaction *action;
+	struct irq_desc *zte_irq_desc;
+	unsigned long flags;
+
+	zte_irq_desc = irq_to_desc(i);
+	if (zte_irq_desc) {
+		raw_spin_lock_irqsave(&zte_irq_desc->lock, flags);
+		action = zte_irq_desc->action;
+		if (!action)
+			goto unlock;
+
+		pr_err("[IRQ] IRQ-NUM=%d\n", i);
+		pr_err("	chip->name=%10s\n", zte_irq_desc->irq_data.chip->name ? : "-");
+		pr_err("	action->name=%s\n", action->name);
+
+		/*
+		*notes:adb shell cat /proc/interrupts | grep smd
+		*note: zte change smd-dev to smd-modem 20150304
+		*/
+		if (!strcmp(action->name, "qcom,smd-modem"))
+			zte_smd_wakeup = 1;
+
+		for (action = action->next; action; action = action->next)
+			pr_err("	action->name=%s\n", action->name);
+
+unlock:
+		raw_spin_unlock_irqrestore(&zte_irq_desc->lock, flags);
+	   } else {
+			pr_err("[IRQ] error in dump irq info for irq %d\n", i);
+	}
+}
+/*ZTE ----*/
+
 int arch_show_interrupts(struct seq_file *p, int prec)
 {
 #ifdef CONFIG_FIQ
@@ -82,7 +119,7 @@ void set_irq_flags(unsigned int irq, unsigned int iflags)
 	unsigned long clr = 0, set = IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOAUTOEN;
 
 	if (irq >= nr_irqs) {
-		printk(KERN_ERR "Trying to set irq flags for IRQ%d\n", irq);
+		pr_err("Trying to set irq flags for IRQ%d\n", irq);
 		return;
 	}
 

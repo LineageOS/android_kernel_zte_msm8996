@@ -59,6 +59,14 @@ struct msm_sensor_fn_t {
 	int (*sensor_config32)(struct msm_sensor_ctrl_t *, void __user *);
 #endif
 	int (*sensor_power_down)(struct msm_sensor_ctrl_t *);
+ /*
+  * recovery camera preview after camera sensor is died
+  *
+  * by ZTE_YCM_20160530 yi.changming 400267
+  */
+// --->
+	int (*sensor_power_reset)(struct msm_sensor_ctrl_t *);
+// <---400267
 	int (*sensor_power_up)(struct msm_sensor_ctrl_t *);
 	int (*sensor_match_id)(struct msm_sensor_ctrl_t *);
 };

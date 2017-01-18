@@ -196,6 +196,8 @@ error:
 
 static void allocate_buf_for_compression(void)
 {
+/*FIX by ZTE_BOOT: Disable compression for oops/panic log */
+#ifndef CONFIG_ZTE_RAM_CONSOLE
 	size_t size;
 	size_t cmpr;
 
@@ -234,7 +236,7 @@ static void allocate_buf_for_compression(void)
 		pr_err("No memory for uncompressed data; skipping compression\n");
 		stream.workspace = NULL;
 	}
-
+#endif
 }
 
 /*

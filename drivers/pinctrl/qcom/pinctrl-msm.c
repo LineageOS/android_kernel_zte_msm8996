@@ -34,10 +34,55 @@
 #include "../pinconf.h"
 #include "pinctrl-msm.h"
 #include "../pinctrl-utils.h"
-
+/*ZTE ++++*/
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
+#include <linux/slab.h>
+/*ZTE ----*/
 #define MAX_NR_GPIO 300
 #define PS_HOLD_OFFSET 0x820
 #define TLMM_EBI2_EMMC_GPIO_CFG 0x111000
+
+
+/*ZTE ++++notes: print which GPIO wakeup system */
+#include <linux/syscore_ops.h>
+#include <linux/workqueue.h>
+#define NE_GPIO_TO_SHOW 5
+static int show_gpio_mesc = 20;
+static bool need_to_show_gpio = false;
+static int index_show_int = 0;
+static int irq_pin_to_show[NE_GPIO_TO_SHOW] = {0, 0, 0, 0, 0};
+static void show_gpio_interrupts_by_work(struct work_struct *work);
+static DECLARE_DELAYED_WORK(show_gpio_interrupts, show_gpio_interrupts_by_work);
+
+static void show_gpio_interrupts_by_work(struct work_struct *work)
+{
+	struct irq_desc *desc;
+	const char *name = "null";
+	int i = 0;
+
+	for (i = 0; i < NE_GPIO_TO_SHOW; i++) {
+		if (irq_pin_to_show[i] != 0) {
+			desc = irq_to_desc(irq_pin_to_show[i]);
+			if (desc == NULL)
+				name = "stray irq";
+			else if (desc->action && desc->action->name)
+				name = desc->action->name;
+
+			pr_err("%s:ZTE_PM_IRQ %d triggered %s\n", __func__, irq_pin_to_show[i], name);
+
+			{
+				/*ZTE add log*/
+				extern void print_irq_info(int i);
+				print_irq_info(irq_pin_to_show[i]);
+			}
+			irq_pin_to_show[i] = 0;
+			index_show_int = 0;
+		}
+	}
+	need_to_show_gpio = false;
+}
+/*ZTE ----*/
 
 /**
  * struct msm_pinctrl - state for a pinctrl-msm device
@@ -497,6 +542,160 @@ static void msm_gpio_free(struct gpio_chip *chip, unsigned offset)
 #ifdef CONFIG_DEBUG_FS
 #include <linux/seq_file.h>
 
+/*ZTE_PM ++++ GPIO*/
+unsigned gpio_func_show_pm(int *id,struct gpio_chip *chip)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	unsigned func;
+	u32 ctl_reg;
+
+	g = &pctrl->soc->groups[*id];
+	ctl_reg = readl(pctrl->regs + g->ctl_reg);
+	func = (ctl_reg >> g->mux_bit) & 7;
+	return func;
+}
+unsigned gpio_direction_show_pm(int *id,struct gpio_chip *chip)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	int is_out;
+	u32 ctl_reg;
+
+	g = &pctrl->soc->groups[*id];
+	ctl_reg = readl(pctrl->regs + g->ctl_reg);
+	is_out = !!(ctl_reg & BIT(g->oe_bit));
+
+	return is_out;
+}
+
+unsigned gpio_direction_store_pm(int *id,struct gpio_chip *chip,u32 value)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	unsigned long flags;
+	u32 val;
+	g = &pctrl->soc->groups[*id];
+
+	spin_lock_irqsave(&pctrl->lock, flags);
+	val = readl(pctrl->regs + g->ctl_reg);
+	if (value) { /*out*/
+		val |= BIT(g->oe_bit);
+	} else { /*in*/
+		val &= ~BIT(g->oe_bit);
+	}
+	writel(val, pctrl->regs + g->ctl_reg);
+	spin_unlock_irqrestore(&pctrl->lock, flags);
+
+	return 0;
+}
+
+
+unsigned gpio_pull_show_pm(int *id,struct gpio_chip *chip)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	int pull;
+	u32 ctl_reg;
+
+	g = &pctrl->soc->groups[*id];
+	ctl_reg = readl(pctrl->regs + g->ctl_reg);
+	pull = (ctl_reg >> g->pull_bit) & 3;
+
+	return pull;
+}
+
+unsigned gpio_drv_show_pm(int *id,struct gpio_chip *chip)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	int drive;
+	u32 ctl_reg;
+
+	g = &pctrl->soc->groups[*id];
+	ctl_reg = readl(pctrl->regs + g->ctl_reg);
+	drive = (ctl_reg >> g->drv_bit) & 7;
+
+	return drive;
+}
+
+unsigned gpio_level_show_pm(int *id,struct gpio_chip *chip)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	int level,is_out;
+	u32 ctl_reg,io_reg;
+
+	g = &pctrl->soc->groups[*id];
+	ctl_reg = readl(pctrl->regs + g->ctl_reg);
+	io_reg = readl(pctrl->regs + g->io_reg);
+
+	is_out = !!(ctl_reg & BIT(g->oe_bit));
+	if(is_out)
+		level = (io_reg >> g->out_bit) & 1;
+	else
+		level = (io_reg >> g->in_bit) & 1;
+
+	return level;
+}
+
+unsigned gpio_level_store_pm(int *id,struct gpio_chip *chip, u32 value)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	u32 val;
+	unsigned long flags;
+
+	g = &pctrl->soc->groups[*id];
+	spin_lock_irqsave(&pctrl->lock, flags);
+	val = readl(pctrl->regs + g->io_reg);
+	if (value)
+		val |= BIT(g->out_bit);
+	else
+		val &= ~BIT(g->out_bit);
+	writel(val, pctrl->regs + g->io_reg);
+	spin_unlock_irqrestore(&pctrl->lock, flags);
+	return 0;
+}
+
+unsigned gpio_int_enable_show_pm(int *id,struct gpio_chip *chip)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	int enable;
+	u32 intr_cfg_reg;
+
+	g = &pctrl->soc->groups[*id];
+	intr_cfg_reg = readl(pctrl->regs + g->intr_cfg_reg);
+	enable = (intr_cfg_reg >> g->intr_enable_bit) & 1;
+
+	return enable;
+}
+
+unsigned gpio_int_dect_show_pm(int *id,struct gpio_chip *chip)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = container_of(chip, struct msm_pinctrl, chip);
+	int dect;
+	u32 intr_cfg_reg;
+
+	g = &pctrl->soc->groups[*id];
+	intr_cfg_reg = readl(pctrl->regs + g->intr_cfg_reg);
+	dect = (intr_cfg_reg >> g->intr_detection_bit) & 3;
+
+	return dect;
+}
+
+unsigned gpio_int_owner_show_pm(int *id,struct gpio_chip *chip)
+{
+	return 123;
+}
+unsigned gpio_drv_store_pm(int *id,struct gpio_chip *chip, u32 values)
+{
+	return 123;
+}
+
+
 static void msm_gpio_dbg_show_one(struct seq_file *s,
 				  struct pinctrl_dev *pctldev,
 				  struct gpio_chip *chip,
@@ -509,7 +708,8 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	int is_out;
 	int drive;
 	int pull;
-	u32 ctl_reg;
+	u32 ctl_reg, io_reg;
+	int level;
 
 	static const char * const pulls[] = {
 		"no pull",
@@ -526,9 +726,16 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	drive = (ctl_reg >> g->drv_bit) & 7;
 	pull = (ctl_reg >> g->pull_bit) & 3;
 
-	seq_printf(s, " %-8s: %-3s %d", g->name, is_out ? "out" : "in", func);
-	seq_printf(s, " %dmA", msm_regval_to_drive(drive));
-	seq_printf(s, " %s", pulls[pull]);
+	io_reg = readl(pctrl->regs + g->io_reg);
+	if(is_out)
+		level = (io_reg >> g->out_bit) & 1;
+	else
+		level = (io_reg >> g->in_bit) & 1;
+
+	seq_printf(s, " %-8s: [dir]%-3s  [funs]%2d", g->name, is_out ? "out" : "in", func);
+	seq_printf(s, " [drv]%3dmA", msm_regval_to_drive(drive));
+	seq_printf(s, " [level]%2d", level);
+	seq_printf(s, " [pull]%s", pulls[pull]);
 }
 
 static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
@@ -555,6 +762,7 @@ static struct gpio_chip msm_gpio_template = {
 	.free             = msm_gpio_free,
 	.dbg_show         = msm_gpio_dbg_show,
 };
+/*ZTE_PM ----  GPIO*/
 
 /* For dual-edge interrupts in software, since some hardware has no
  * such support:
@@ -819,6 +1027,15 @@ static void msm_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 		val = readl(pctrl->regs + g->intr_status_reg);
 		if (val & BIT(g->intr_status_bit)) {
 			irq_pin = irq_find_mapping(gc->irqdomain, i);
+
+			/*ZTE ++++ notes:show which GPIO wakeup system*/
+			if (need_to_show_gpio) {
+				irq_pin_to_show[index_show_int] = irq_pin;
+				index_show_int++;
+				index_show_int = index_show_int % NE_GPIO_TO_SHOW;
+			}
+			/*ZTE ----*/
+
 			generic_handle_irq(irq_pin);
 			handled++;
 		}
@@ -931,6 +1148,26 @@ static void msm_pinctrl_ebi2_emmc_enable(struct msm_pinctrl *pctrl,
 	writel_relaxed(val, pctrl->regs + TLMM_EBI2_EMMC_GPIO_CFG);
 }
 
+/*ZTE ++++ notes:show which GPIO wakeup system  */
+/* Power management core operations */
+static int msm_tlmm_gp_irq_suspend(void)
+{
+	memset(irq_pin_to_show, 0, sizeof(irq_pin_to_show));
+	return 0;
+}
+
+static void msm_tlmm_gp_irq_resume(void)
+{
+	need_to_show_gpio = true;
+	schedule_delayed_work(&show_gpio_interrupts, (msecs_to_jiffies(show_gpio_mesc)));
+}
+
+static struct syscore_ops msm_tlmm_irq_syscore_ops = {
+	.suspend = msm_tlmm_gp_irq_suspend,
+	.resume = msm_tlmm_gp_irq_resume,
+};
+/*ZTE ----*/
+
 #ifdef CONFIG_PM
 static int msm_pinctrl_suspend(void)
 {
@@ -976,6 +1213,10 @@ static struct syscore_ops msm_pinctrl_pm_ops = {
 	.suspend = msm_pinctrl_suspend,
 	.resume = msm_pinctrl_resume,
 };
+
+/*ZTE_PM ++++ GPIO*/
+extern int  gpio_status_debug_init  (struct gpio_chip *chip);
+/*ZTE_PM ----  GPIO*/
 
 int msm_pinctrl_probe(struct platform_device *pdev,
 		      const struct msm_pinctrl_soc_data *soc_data)
@@ -1032,8 +1273,13 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 	pctrl->irq_chip_extn = &mpm_pinctrl_extn;
 	platform_set_drvdata(pdev, pctrl);
 
-	register_syscore_ops(&msm_pinctrl_pm_ops);
 	dev_dbg(&pdev->dev, "Probed Qualcomm pinctrl driver\n");
+
+	/*ZTE_PM ++++ GPIO*/
+	register_syscore_ops(&msm_tlmm_irq_syscore_ops);
+	pr_info("ZTE_PM_IRQ INT number will be showed if device is waked up by GPIOs\n");
+	gpio_status_debug_init(&pctrl->chip);
+	/*ZTE_PM ----  GPIO*/
 
 	return 0;
 }

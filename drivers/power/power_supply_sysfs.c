@@ -246,6 +246,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(restricted_charging),
 	POWER_SUPPLY_ATTR(current_capability),
 	POWER_SUPPLY_ATTR(typec_mode),
+	POWER_SUPPLY_ATTR(shipmode),  /*ZTE add shipmode*/
 	POWER_SUPPLY_ATTR(allow_hvdcp3),
 	POWER_SUPPLY_ATTR(max_pulse_allowed),
 	POWER_SUPPLY_ATTR(soc_reporting_ready),

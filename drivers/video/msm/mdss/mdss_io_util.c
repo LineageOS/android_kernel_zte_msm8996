@@ -213,8 +213,10 @@ EXPORT_SYMBOL(msm_dss_config_vreg);
 
 int msm_dss_enable_vreg(struct dss_vreg *in_vreg, int num_vreg, int enable)
 {
+
 	int i = 0, rc = 0;
 	bool need_sleep;
+
 	if (enable) {
 		for (i = 0; i < num_vreg; i++) {
 			rc = PTR_RET(in_vreg[i].vreg);
@@ -277,8 +279,8 @@ vreg_set_opt_mode_fail:
 			usleep_range(in_vreg[i].post_off_sleep * 1000,
 				in_vreg[i].post_off_sleep * 1000);
 	}
+return rc;
 
-	return rc;
 } /* msm_dss_enable_vreg */
 EXPORT_SYMBOL(msm_dss_enable_vreg);
 

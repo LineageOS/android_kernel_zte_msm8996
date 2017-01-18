@@ -33,6 +33,9 @@ struct task_io_accounting {
 	 */
 	u64 write_bytes;
 
+	u64 last_rb;
+	u64 last_wb;
+
 	/*
 	 * A task can cause "negative" IO too.  If this task truncates some
 	 * dirty pagecache, some IO which another task has been accounted for

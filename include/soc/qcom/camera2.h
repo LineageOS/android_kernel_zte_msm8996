@@ -43,6 +43,12 @@ enum msm_bus_perf_setting {
 
 struct msm_camera_slave_info {
 	uint16_t sensor_slave_addr;
+/*
+  * by ZTE_YCM_20140909 yi.changming 400006
+  */
+// --->
+	uint16_t sensor_bakeup_slave_addr;
+// --->400006
 	uint16_t sensor_id_reg_addr;
 	uint16_t sensor_id;
 	uint16_t sensor_id_mask;
@@ -103,6 +109,7 @@ struct msm_camera_power_ctrl_t {
 	struct msm_camera_gpio_conf *gpio_conf;
 	struct camera_vreg_t *cam_vreg;
 	int num_vreg;
+	int ois_en_gpio;
 	struct msm_camera_i2c_conf *i2c_conf;
 	struct clk **clk_ptr;
 	struct msm_cam_clk_info *clk_info;
@@ -146,6 +153,16 @@ struct msm_camera_sensor_board_info {
 	const char *sensor_name;
 	const char *eeprom_name;
 	const char *actuator_name;
+ /*
+  * by ZTE_YCM_20140728 yi.changming 400015
+  */
+// --->
+	const char *sensor_module_name;
+	const char *chromtix_lib_name;
+	const char *default_chromtix_lib_name;
+	uint32_t eeprom_checksum;
+	uint32_t eeprom_valid_flag;
+// <---400015
 	const char *ois_name;
 	struct msm_camera_slave_info *slave_info;
 	struct msm_camera_csi_lane_params *csi_lane_params;

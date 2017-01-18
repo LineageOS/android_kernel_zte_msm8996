@@ -76,6 +76,13 @@ struct msm_rpmstats_kobj_attr {
 };
 
 static struct dentry *heap_dent;
+/* add by ZTE show vdd_min and sleep clk++++ */
+static struct msm_rpmstats_platform_data *rpm_data = NULL;
+static unsigned long long vmin_count = 0;
+extern void debug_suspend_enabled(void);
+extern void debug_suspend_disable(void);
+/* add add by ZTE show vdd_min and sleep clk end */
+
 
 static inline u64 get_time_in_sec(u64 counter)
 {
@@ -356,6 +363,64 @@ static const struct file_operations msm_rpmheap_fops = {
 	.release  = single_release,
 	.llseek   = no_llseek,
 };
+/* add add by ZTE show vdd_min and sleep clk ++++ */
+void pm_show_rpm_stats(void)
+{
+	struct msm_rpmstats_private_data powerdebug = {0};
+	struct msm_rpmstats_private_data *prvdata = NULL;
+	struct msm_rpmstats_platform_data *pdata = NULL;
+	static char buf[300] = {0};
+	char *temp = NULL;
+	unsigned long long count = 0;
+
+	pdata = rpm_data;
+	prvdata = &powerdebug;
+
+	prvdata->reg_base = ioremap_nocache(pdata->phys_addr_base,
+					pdata->phys_size);
+	if (!prvdata->reg_base) {
+		kfree(prvdata);
+		pr_err("%s: ERROR could not ioremap start=%pa, len=%u\n",
+			__func__, &pdata->phys_addr_base,
+			pdata->phys_size);
+		return;
+	}
+
+	prvdata->read_idx = prvdata->num_records =  prvdata->len = 0;
+	prvdata->platform_data = pdata;
+	if (pdata->version == 2)
+		prvdata->num_records = 2;
+
+	if (prvdata->platform_data->version == 1) {
+		if (!prvdata->num_records)
+			prvdata->num_records =
+				readl_relaxed(prvdata->reg_base);
+	}
+
+	if (prvdata->read_idx < prvdata->num_records) {
+		if (prvdata->platform_data->version == 1)
+			prvdata->len = msm_rpmstats_copy_stats(prvdata);
+		else if (prvdata->platform_data->version == 2)
+			prvdata->len = msm_rpmstats_copy_stats_v2(
+					prvdata);
+	}
+	snprintf(buf, prvdata->len, prvdata->buf);
+	temp = strnstr(buf, "vmin\n\t count:", prvdata->len);
+	iounmap(prvdata->reg_base);
+	if (sscanf(temp+strlen("vmin\n\t count:"), "%llu\n", &count) == 1) {
+		if (vmin_count != count) {
+			pr_info("count : last %llu now %llu\nenter vdd min success\n", vmin_count, count);
+			vmin_count = count;
+			debug_suspend_disable();
+		} else {
+			pr_info("count : last %llu now %llu\n enter vdd min failed\n", vmin_count, count);
+			debug_suspend_enabled();
+		}
+	} else {
+		pr_err("%s: ERROR could not get vdd_min count\n", __func__);
+	}
+}
+/* add add by ZTE show vdd_min and sleep clk end */
 
 static ssize_t rpmstats_show(struct kobject *kobj,
 			struct kobj_attribute *attr, char *buf)
@@ -524,7 +589,9 @@ static int msm_rpmstats_probe(struct platform_device *pdev)
 		}
 		pdata->heap_phys_addrbase = res->start;
 	}
-
+	/* add by ZTE show vdd_min and sleep clk end ++++ */
+	rpm_data = pdata;
+	/* add end */
 	msm_rpmstats_create_sysfs(pdata);
 
 	platform_set_drvdata(pdev, dent);

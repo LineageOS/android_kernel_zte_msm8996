@@ -36,6 +36,9 @@ static int try_to_freeze_tasks(bool user_only)
 	unsigned int elapsed_msecs;
 	bool wakeup = false;
 	int sleep_usecs = USEC_PER_MSEC;
+	/*added by zte for freeze failed problem ++++*/
+	unsigned int freezecount = 0;
+	/*added by zte for freeze failed problem ----*/
 #ifdef CONFIG_PM_SLEEP
 	char suspend_abort[MAX_SUSPEND_ABORT_LEN];
 #endif
@@ -54,8 +57,15 @@ static int try_to_freeze_tasks(bool user_only)
 			if (p == current || !freeze_task(p))
 				continue;
 
-			if (!freezer_should_skip(p))
+			if (!freezer_should_skip(p)) {
 				todo++;
+				/*added by zte for freeze failed problem ++++*/
+				freezecount++;
+				if (!(freezecount % 500))
+					pr_err("PM: total task freeze failed %d times, pid %d refusing to freeze\n",
+						p->pid, freezecount);
+				/*added by zte for freeze failed problem ----*/
+			}
 		}
 		read_unlock(&tasklist_lock);
 

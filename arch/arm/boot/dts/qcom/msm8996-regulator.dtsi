@@ -259,9 +259,9 @@
 	rpm-regulator-ldoa17 {
 		status = "okay";
 		pm8994_l17: regulator-l17 {
-			regulator-min-microvolt = <2500000>;
-			regulator-max-microvolt = <2500000>;
-			qcom,init-voltage = <2500000>;
+			regulator-min-microvolt = <2900000>; //yichangming
+			regulator-max-microvolt = <2900000>;//yichangming
+			qcom,init-voltage = <2900000>;//yichangming
 			status = "okay";
 		};
 	};

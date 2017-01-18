@@ -40,6 +40,12 @@ struct msm_camera_sensor_slave_info32 {
 	struct msm_sensor_power_setting_array32 power_setting_array;
 	uint8_t  is_init_params_valid;
 	struct msm_sensor_init_params sensor_init_params;
+/*
+  * by ZTE_YCM_20140909 yi.changming 400006
+  */
+// --->
+	uint16_t bakeup_slave_addr;
+// --->400006
 	enum msm_sensor_output_format_t output_format;
 };
 

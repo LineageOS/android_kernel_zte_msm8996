@@ -32,6 +32,7 @@
 #include <linux/task_work.h>
 
 #include "sched.h"
+#include <linux/cred.h>
 #include <trace/events/sched.h>
 
 /*
@@ -67,6 +68,8 @@ enum sched_tunable_scaling sysctl_sched_tunable_scaling
  */
 unsigned int sysctl_sched_min_granularity = 750000ULL;
 unsigned int normalized_sysctl_sched_min_granularity = 750000ULL;
+
+unsigned long one_second = 1000000000;
 
 /*
  * is kept at sysctl_sched_latency / sysctl_sched_min_granularity
@@ -725,6 +728,33 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	curr->vruntime += calc_delta_fair(delta_exec, curr);
 	update_min_vruntime(cfs_rq);
 
+#ifdef CONFIG_TASK_DELAY_ACCT
+	if (tracing_is_disabled() == false && entity_is_task(curr)) {
+		struct task_struct *parent = task_of(curr)->group_leader;
+		unsigned long delta = 0;
+
+		parent->se.statistics.cpuusage_summary += delta_exec;
+
+		delta = parent->se.statistics.cpuusage_summary -
+			parent->se.statistics.last_cpuusage_sum;
+
+		if (delta > one_second) {
+			const struct cred *cred;
+			uid_t uid = 0;
+
+			rcu_read_lock();
+			cred = __task_cred(parent);
+			if (cred != NULL)
+				uid = cred->uid.val;
+			rcu_read_unlock();
+			trace_sched_cpuusage_summary(parent, uid,
+				parent->se.statistics.cpuusage_summary>>20);
+			parent->se.statistics.last_cpuusage_sum =
+				parent->se.statistics.cpuusage_summary;
+		}
+	}
+#endif
+
 	if (entity_is_task(curr)) {
 		struct task_struct *curtask = task_of(curr);
 
@@ -766,6 +796,50 @@ static void update_stats_enqueue(struct cfs_rq *cfs_rq, struct sched_entity *se,
 		update_stats_wait_start(cfs_rq, se, migrating);
 }
 
+#ifdef CONFIG_TASK_DELAY_ACCT
+static void
+log_cpuwait(struct cfs_rq *cfs_rq, struct sched_entity *se)
+{
+	u64 delta1, delta2, sum;
+	struct task_struct *tsk = task_of(se);
+	struct task_struct *leader = task_of(se)->group_leader;
+
+	if (tracing_is_disabled() == true)
+		return;
+
+	delta1 = (se->statistics.wait_sum -
+		se->statistics.last_cpuwait_sum)>>20;
+	delta2 = (rq_of(cfs_rq)->clock -
+		se->statistics.last_cpuwait_timestamp)>>20;
+	sum = (se->statistics.wait_sum)>>20;
+
+	/* if last 100ms cpuwait is happen within 300ms , long it*/
+	if (tsk && delta1 > 100) {
+		if (3*delta1 > (delta2)) {
+			struct task_struct *p;
+			const struct cred *cred;
+			uid_t uid = 0;
+
+			if (leader)
+				p = leader;
+			else
+				p = tsk;
+			rcu_read_lock();
+			cred = __task_cred(p);
+			if (cred != NULL)
+				uid = cred->uid.val;
+			rcu_read_unlock();
+			trace_sched_cpuwait_summary(p, uid, delta1,
+				delta2, sum);
+		}
+		schedstat_set(se->statistics.last_cpuwait_sum,
+			se->statistics.wait_sum);
+		schedstat_set(se->statistics.last_cpuwait_timestamp,
+			rq_of(cfs_rq)->clock);
+	}
+}
+#endif
+
 static void
 update_stats_wait_end(struct cfs_rq *cfs_rq, struct sched_entity *se,
 		      bool migrating)
@@ -786,6 +860,9 @@ update_stats_wait_end(struct cfs_rq *cfs_rq, struct sched_entity *se,
 	if (entity_is_task(se)) {
 		trace_sched_stat_wait(task_of(se),
 			rq_clock(rq_of(cfs_rq)) - se->statistics.wait_start);
+#ifdef CONFIG_TASK_DELAY_ACCT
+		log_cpuwait(cfs_rq, se);
+#endif
 	}
 #endif
 	schedstat_set(se->statistics.wait_start, 0);
@@ -4675,6 +4752,30 @@ static inline void dec_throttled_cfs_rq_hmp_stats(struct hmp_sched_stats *stats,
 
 #endif /* CONFIG_SCHED_HMP */
 
+#ifdef CONFIG_TASK_DELAY_ACCT
+static void log_iowait(struct cfs_rq *cfs_rq, struct sched_entity *se,
+				struct task_struct *tsk)
+{
+	u64 delta2 = 0;
+
+	if (tracing_is_disabled() == true)
+		return;
+
+	delta2 = se->statistics.iowait_sum - se->statistics.last_iowait_sum;
+	/* if last 100ms iowait happen within 300ms , log it */
+	if (delta2 > one_second/10) {
+		u64 delta1 = rq_of(cfs_rq)->clock -
+			se->statistics.last_iowait_timestamp;
+		if (3*delta2 > delta1)
+			trace_sched_iowait_summary(tsk, delta2>>20,
+				delta1>>20,
+				se->statistics.iowait_sum>>20);
+		se->statistics.last_iowait_sum = se->statistics.iowait_sum;
+		se->statistics.last_iowait_timestamp = rq_of(cfs_rq)->clock;
+	}
+}
+#endif
+
 static void enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 #ifdef CONFIG_SCHEDSTATS
@@ -4717,6 +4818,9 @@ static void enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 				se->statistics.iowait_sum += delta;
 				se->statistics.iowait_count++;
 				trace_sched_stat_iowait(tsk, delta);
+#ifdef CONFIG_TASK_DELAY_ACCT
+				log_iowait(cfs_rq, se, tsk);
+#endif
 			}
 
 			trace_sched_stat_blocked(tsk, delta);

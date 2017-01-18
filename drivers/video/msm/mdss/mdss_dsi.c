@@ -295,6 +295,8 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
 		pr_debug("reset disable: pinctrl not enabled\n");
 
+	mdss_dsi_panel_3v_power(pdata, 0);//zte 
+
 	ret = msm_dss_enable_vreg(
 		ctrl_pdata->panel_power_data.vreg_config,
 		ctrl_pdata->panel_power_data.num_vreg, 0);
@@ -328,6 +330,8 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 		return ret;
 	}
 
+	mdss_dsi_panel_3v_power(pdata, 1);//zte
+	
 	/*
 	 * If continuous splash screen feature is enabled, then we need to
 	 * request all the GPIOs that have already been configured in the
@@ -1184,7 +1188,7 @@ panel_power_ctrl:
 	/* Initialize Max Packet size for DCS reads */
 	ctrl_pdata->cur_max_pkt_size = 0;
 end:
-	pr_debug("%s-:\n", __func__);
+	printk("%s-:\n", __func__);
 
 	return ret;
 }
@@ -1337,8 +1341,9 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	if (mdss_panel_is_power_on(cur_power_state)) {
 		pr_debug("%s: dsi_on from panel low power state\n", __func__);
 		goto end;
-	}
+	}	
 
+	
 	ret = mdss_dsi_set_clk_src(ctrl_pdata);
 	if (ret) {
 		pr_err("%s: failed to set clk src. rc=%d\n", __func__, ret);
@@ -1399,7 +1404,7 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 				  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_OFF);
 
 end:
-	pr_debug("%s-:\n", __func__);
+	printk("LCD %s-:\n", __func__);
 	return ret;
 }
 
@@ -1526,6 +1531,11 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 			enable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
 
+	/*zte,esd interrupt mode 0205  start */
+	if (mdss_dsi_is_gpio_interrupt_esd(ctrl_pdata))
+		enable_irq(gpio_to_irq(ctrl_pdata->lcd_esd_interrupt_gpio));
+	/*zte,esd interrupt mode 0205  end */
+
 	ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
 
 error:
@@ -1600,6 +1610,11 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 		}
 		mdss_dsi_set_tear_off(ctrl_pdata);
 	}
+
+	/*zte,esd interrupt mode 0205  start */
+	if (mdss_dsi_is_gpio_interrupt_esd(ctrl_pdata))
+		disable_irq(gpio_to_irq(ctrl_pdata->lcd_esd_interrupt_gpio));
+	/*zte,esd interrupt mode 0205  end */
 
 	if (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT) {
 		if (!pdata->panel_info.dynamic_switch_pending) {
@@ -3162,6 +3177,19 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		goto error_shadow_clk_deinit;
 	}
 
+	/*zte,esd interrupt mode 0205  start */
+	if (mdss_dsi_is_gpio_interrupt_esd(ctrl_pdata)) {
+		rc = devm_request_irq(&pdev->dev,
+			gpio_to_irq(ctrl_pdata->lcd_esd_interrupt_gpio),
+			esd_gpio_interrupt_handler, IRQF_TRIGGER_RISING,
+			"ESD_GPIO_INTERRUPT", ctrl_pdata);
+		if (rc)
+			pr_err("LCD ESD GPIO INTERRUPT request_irq failed.\n");
+
+		disable_irq(gpio_to_irq(ctrl_pdata->lcd_esd_interrupt_gpio));
+	}
+	/*zte,esd interrupt mode 0205  end */
+
 	ctrl_pdata->workq = create_workqueue("mdss_dsi_dba");
 	if (!ctrl_pdata->workq) {
 		pr_err("%s: Error creating workqueue\n", __func__);
@@ -4017,7 +4045,21 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 
 	pinfo->panel_max_fps = mdss_panel_get_framerate(pinfo);
 	pinfo->panel_max_vtotal = mdss_panel_get_vtotal(pinfo);
-
+	
+	ctrl_pdata->lcd_3v_vsp_en_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"zte,lcd-3v-vsp-enable-gpio", 0);	
+	if (!gpio_is_valid(ctrl_pdata->lcd_3v_vsp_en_gpio)) {
+		pr_err("%s:%d, qcom,lcd-3v-vsp-enable-gpio not specified\n",
+						__func__, __LINE__);
+	} else {
+		printk("LCD %s:, qcom,lcd-3v-vsp-enable-gpio found!\n",__func__);
+		rc = gpio_request(ctrl_pdata->lcd_3v_vsp_en_gpio, "lcd_3v_vsp_en_gpio");
+		if (rc) {
+			pr_err("request lcd_3v_vsp_en_gpio failed, rc=%d\n",
+			       rc);
+		}
+	}
+	
 	rc = mdss_dsi_parse_gpio_params(ctrl_pdev, ctrl_pdata);
 	if (rc) {
 		pr_err("%s: failed to parse gpio params, rc=%d\n",

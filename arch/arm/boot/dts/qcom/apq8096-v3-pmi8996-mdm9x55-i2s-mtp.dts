@@ -112,6 +112,8 @@
 	};
 };
 
+// ZTE_chenjun
+#if 0
 &soc {
 	sound {
 		status = "disabled";
@@ -277,3 +279,4 @@
 		};
 	};
 };
+#endif

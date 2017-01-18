@@ -11,6 +11,7 @@
 #include <linux/pm_wakeup.h>
 
 #include "power.h"
+#include <linux/fb.h>/*ZTE*/
 
 static suspend_state_t autosleep_state;
 static struct workqueue_struct *autosleep_wq;
@@ -86,6 +87,17 @@ void pm_autosleep_unlock(void)
 	mutex_unlock(&autosleep_lock);
 }
 
+/*ZTE ++++ */
+#ifndef LCD_ON_TIME_ZTE
+#define LCD_ON_TIME_ZTE
+#endif
+
+#ifdef LCD_ON_TIME_ZTE
+/*notes:resume_or_earlysuspend? lateresume : earlysuspend*/
+extern void zte_update_lateresume_to_earlysuspend_time(bool resume_or_earlysuspend);
+#endif
+/*ZTE ---- */
+
 int pm_autosleep_set_state(suspend_state_t state)
 {
 
@@ -113,8 +125,46 @@ int pm_autosleep_set_state(suspend_state_t state)
 	return 0;
 }
 
+/*ZTE ++++ */
+#ifdef LCD_ON_TIME_ZTE
+static int lcd_fb_callback(struct notifier_block *nfb,
+				 unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	int *blank;
+
+	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
+		blank = evdata->data;
+		/*pr_info("[PM] %s enter , blank=%d\n", __func__, *blank);*/
+
+		if (*blank == FB_BLANK_UNBLANK) {
+			/*notes:update resume time,
+			indicate the LCD will turn on.*/
+			zte_update_lateresume_to_earlysuspend_time(true);
+		} else if ((*blank == FB_BLANK_POWERDOWN) || (*blank == FB_BLANK_NORMAL)) {
+			/*notes:update suspend time,
+			indicate the LCD will turn off.*/
+			zte_update_lateresume_to_earlysuspend_time(false);
+		}
+	}
+	return 0;
+}
+
+static struct notifier_block __refdata lcd_fb_notifier = {
+	.notifier_call = lcd_fb_callback,
+};
+#endif
+/*ZTE ---- */
+
 int __init pm_autosleep_init(void)
 {
+
+/*ZTE ++++ */
+#ifdef LCD_ON_TIME_ZTE
+	fb_register_client(&lcd_fb_notifier);
+#endif
+/*ZTE ---- */
+
 	autosleep_ws = wakeup_source_register("autosleep");
 	if (!autosleep_ws)
 		return -ENOMEM;

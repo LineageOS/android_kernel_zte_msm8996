@@ -1,0 +1,3 @@
+header-y += ak496x_registers.h
+header-y += ak4960_registers.h
+header-y += ak4961_registers.h

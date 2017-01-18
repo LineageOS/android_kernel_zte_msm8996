@@ -184,8 +184,12 @@ static int lmk_vmpressure_notifier(struct notifier_block *nb,
 		 * Since vmpressure has improved, reset shift_adj to avoid
 		 * false adaptive LMK trigger.
 		 */
+		other_file = global_page_state(NR_FILE_PAGES) + zcache_pages() -
+			global_page_state(NR_SHMEM) -
+			total_swapcache_pages();
 		trace_almk_vmpressure(pressure, other_free, other_file);
-		atomic_set(&shift_adj, 0);
+		if (other_file > vmpressure_file_min)
+			atomic_set(&shift_adj, 0);
 	}
 
 	return 0;

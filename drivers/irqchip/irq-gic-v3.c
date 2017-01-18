@@ -362,6 +362,10 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 	unsigned int i;
 	u32 enabled;
 	u32 pending[32];
+	/*added by ZTE show wakeup irq++++*/
+	u32 irqenabled[32];
+	unsigned int count = 0;
+	/*added by ZTE show wakeup irq----*/
 	void __iomem *base = gic_data_dist_base(gic);
 
 	if (!msm_show_resume_irq_mask)
@@ -369,6 +373,9 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 
 	for (i = 0; i * 32 < gic->irq_nr; i++) {
 		enabled = readl_relaxed(base + GICD_ICENABLER + i * 4);
+		/* added by ZTE show wakeup irq++++ */
+		irqenabled[i] = enabled;
+		/* added by ZTE show wakeup irq---- */
 		pending[i] = readl_relaxed(base + GICD_ISPENDR + i * 4);
 		pending[i] &= enabled;
 	}
@@ -386,7 +393,42 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 			name = desc->action->name;
 
 		pr_warn("%s: %d triggered %s\n", __func__, irq, name);
+		/*ZTE++++ show resume irq detail info*/
+		{
+			extern void print_irq_info(int i);
+			print_irq_info(irq);
+		}
+		/*ZTE----*/
+		/*added by ZTE show wakeup irq++++*/
+		count++;
+		/* added by ZTE show wakeup irq---- */
 	}
+	/*added by ZTE show wakeup irq----*/
+	if (count < 2) {
+		pr_warn("only rpm wake up system, need to show enable wakeup irq\n");
+		for (i = find_first_bit((unsigned long *)irqenabled, gic->irq_nr);
+		     i < gic->irq_nr;
+		     i = find_next_bit((unsigned long *)irqenabled, gic->irq_nr, i+1)) {
+			unsigned int irq = irq_find_mapping(gic->domain, i);
+			struct irq_desc *desc = irq_to_desc(irq);
+			const char *name = "null";
+
+			if (desc == NULL)
+				name = "stray irq";
+			else if (desc->action && desc->action->name)
+				name = desc->action->name;
+			if ((desc != NULL) && (desc->wake_depth > 0))
+				pr_warn("%s: %d enable wake, %s wake_depth is  %d\n",
+				__func__, irq, name, desc->wake_depth);
+			}
+	}
+	/* added by ZTE show wakeup irq---- */
+	/*added by ZTE show  show vdd_min and sleep clk++++*/
+	{
+		extern void pm_show_rpm_stats(void);
+		pm_show_rpm_stats();
+	}
+       /*added by ZTE  show vdd_min and sleep clk end*/
 }
 
 static void gic_resume_one(struct gic_chip_data *gic)

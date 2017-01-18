@@ -408,6 +408,8 @@
 #define CHG_ITERM_700MA				0x14
 
 #define ADC_TM_WARM_COOL_THR_ENABLE		ADC_TM_HIGH_LOW_THR_ENABLE
+/*zte defined parameters add here*/
+extern int smb1351_is_good;
 
 enum reason {
 	USER	= BIT(0),
@@ -2401,6 +2403,16 @@ static int smb1351_parallel_set_chg_present(struct smb1351_charger *chip,
 	int rc;
 	u8 reg, mask = 0;
 
+	/* Check if SMB1351 is present */
+	rc = smb1351_read_reg(chip, CHG_REVISION_REG, &reg);
+	if (rc) {
+		smb1351_is_good = 0;
+		pr_info("Failed to detect smb1351-parallel-charger version \n");
+	}
+	else{
+		smb1351_is_good = 1;
+		pr_info("smb1351_is_good=%d ,ZTE get SMB135X version =%d successful.\n",smb1351_is_good,reg);
+	}
 	pr_debug("set slave present = %d\n", present);
 	if (present == chip->parallel_charger_present) {
 		pr_debug("present %d -> %d, skipping\n",

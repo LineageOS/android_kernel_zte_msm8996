@@ -209,6 +209,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_RESTRICTED_CHARGING,
 	POWER_SUPPLY_PROP_CURRENT_CAPABILITY,
 	POWER_SUPPLY_PROP_TYPEC_MODE,
+	POWER_SUPPLY_PROP_SHIPMODE, /*zte add shipmode*/
 	POWER_SUPPLY_PROP_ALLOW_HVDCP3,
 	POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED,
 	POWER_SUPPLY_PROP_SOC_REPORTING_READY,
@@ -437,5 +438,9 @@ static inline bool power_supply_is_watt_property(enum power_supply_property psp)
 
 	return 0;
 }
+
+#ifdef CONFIG_USB_HD3SS3220
+extern void interfere_id_irq_from_usb(int enable);
+#endif
 
 #endif /* __LINUX_POWER_SUPPLY_H__ */

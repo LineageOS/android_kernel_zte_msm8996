@@ -1164,7 +1164,9 @@ static int post_pkt_to_port(struct msm_ipc_port *port_ptr,
 	}
 
 	mutex_lock(&port_ptr->port_rx_q_lock_lhc3);
-	__pm_stay_awake(port_ptr->port_rx_ws);
+	/* ZTE change ipc lock as 2 min timeout wakelock. */
+	__pm_wakeup_event(port_ptr->port_rx_ws, 2 * 60 * MSEC_PER_SEC);
+	/* __pm_stay_awake(port_ptr->port_rx_ws); */
 	list_add_tail(&temp_pkt->list, &port_ptr->port_rx_q);
 	wake_up(&port_ptr->port_rx_wait_q);
 	notify = port_ptr->notify;
@@ -1322,6 +1324,7 @@ struct msm_ipc_port *msm_ipc_router_create_raw_port(void *endpoint,
 		 "ipc%08x_%s",
 		 port_ptr->this_port.port_id,
 		 current->comm);
+	pr_info("[PM-IPC] register ipc%08x_%s\n", port_ptr->this_port.port_id, current->comm);
 	port_ptr->port_rx_ws = wakeup_source_register(port_ptr->rx_ws_name);
 	if (!port_ptr->port_rx_ws) {
 		kfree(port_ptr);

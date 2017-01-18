@@ -1,0 +1,8 @@
+menu "AK4490 HEADPHONE chip"
+
+config SND_SOC_AK4490
+	bool "AK4490"  
+	---help---
+	  Add ak4490 configuration
+
+endmenu

@@ -602,6 +602,35 @@ int qpnpint_unregister_controller(struct device_node *node)
 }
 EXPORT_SYMBOL(qpnpint_unregister_controller);
 
+/*ZTE ++++*/
+int qpnpint_get_irq(struct spmi_controller *spmi_ctrl, struct qpnp_irq_spec *spec)
+{
+	struct irq_domain *domain;
+	unsigned long hwirq, busno;
+	int irq;
+
+	if (!spec || !spmi_ctrl)
+		return -EINVAL;
+
+	pr_debug("spec slave = %u per = %u irq = %u\n", spec->slave, spec->per, spec->irq);
+
+	busno = spmi_ctrl->nr;
+	if (busno >= QPNPINT_MAX_BUSSES)
+		return -EINVAL;
+
+	hwirq = qpnpint_encode_hwirq(spec);
+	if (hwirq < 0) {
+		pr_err("invalid irq spec passed\n");
+		return -EINVAL;
+	}
+
+	domain = chip_lookup[busno]->domain;
+	irq = irq_find_mapping(domain, hwirq);
+
+	return irq;
+}
+/*ZTE ----*/
+
 static int __qpnpint_handle_irq(struct spmi_controller *spmi_ctrl,
 		       struct qpnp_irq_spec *spec,
 		       bool show)

@@ -1355,6 +1355,19 @@ config WCD9320_CODEC
 	  The WCD9320 codec support either I2C/I2S or Slimbus for
 	  control and data exchnage with master processor.
 
+config AK4961_CODEC
+	tristate "AK4961 Codec"
+	select SLIMBUS
+	select MFD_CORE
+	select SND_SOC_AK4961
+	default n
+	help
+	  Enables the AK49XX codec core driver. The core driver provides
+	  read/write capability to registers which are part of the
+	  AK4961 core and gives the ability to use the AK4961 codec.
+	  The AK4961 codec support either SPI/I2S or Slimbus for
+	  control and data exchnage with master processor.
+
 config WCD9330_CODEC
 	tristate "WCD9330 Codec"
 	select SLIMBUS

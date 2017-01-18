@@ -1,0 +1,131 @@
+/*
+ * Copyright (c) 2015 The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* For Reference
+ * GPIO_ACTIVE_HIGH = (0 << 0)
+ * GPIO_ACTIVE_LOW  = (1 << 0)
+ * GPIO_OPEN_DRAIN  = (1 << 1)
+ * GPIO_OPEN_SOURCE = (1 << 2)
+ */
+
+/* Segment 1: Type-C Chips main DTS config */
+&i2c_7 {
+
+	/* TI HD3SS3220 chip */
+	hd3ss3220@47 { /* slave id 0x67(ADDR Pin:H) or 0x47(ADDR Pin:L) */
+		compatible = "ti,hd3ss3220";
+		reg = <0x47>;
+
+		/* PM GPIO ( 14 ) Irq Line */
+		hd3ss,irq_gpio = <&pm8994_gpios 14 0x2>;
+
+		/* PM MPP ( 05 ) EN_CC/MUX */
+		hd3ss,en_cc_gpio = <&pm8994_mpps 5 0x0>;
+		/* PM MPP ( 07 ) Re-drive */
+		hd3ss,re_drv_gpio = <&pm8994_mpps 7 0x0>;
+
+		/* PMI GPIO ( 08 ) vreg 5V */
+		hd3ss,vreg_5v_gpio = <&pmi8994_gpios 8 0x0>;
+		/* PMI GPIO ( 09 ) vreg 3V3 */
+		hd3ss,vreg_3v3_gpio = <&pmi8994_gpios 9 0x0>;
+	};
+
+	/* Pericom PI5USB302 chip */
+	pi5usb302@16 { /* slave id 0x2d(ADDR Pin:H) or 0x0d(ADDR Pin:L) */
+		compatible = "pericom,pi5usb302";
+		reg = <0x0d>;
+
+		/* PM GPIO ( 14 ) Irq Line */
+		pi5usb,irq_gpio = <&pm8994_gpios 14 0x2>;
+
+		/* PM MPP ( 05 ) EN_CC/MUX */
+		pi5usb,en_cc_gpio = <&pm8994_mpps 5 0x0>;
+		/* PM MPP ( 07 ) Re-drive */
+		pi5usb,re_drv_gpio = <&pm8994_mpps 7 0x0>;
+
+		/* PMI GPIO ( 08 ) vreg 5V */
+		pi5usb,vreg_5v_gpio = <&pmi8994_gpios 8 0x0>;
+		/* PMI GPIO ( 09 ) vreg 3V3 */
+		pi5usb,vreg_3v3_gpio = <&pmi8994_gpios 9 0x0>;
+	};
+
+};
+
+/* Segment 2: Type-C related PM MPP config */
+&pm8994_mpps {
+
+	mpp@a400 { /* MPP 5 */
+		/* type-c cc en and 3.0 mux enable */
+		qcom,mode = <1>;		/* Digital output */
+		qcom,output-type = <0>;	/* CMOS logic */
+		qcom,vin-sel = <2>;		/* QPNP_PIN_VIN0 */
+		qcom,src-sel = <0>;		/* QPNP_PIN_SEL_FUNC_CONSTANT */
+		qcom,invert = <1>;		/* MPP Enable */
+		qcom,master-en = <1>;	/* Enable */
+		status = "okay";
+	};
+
+	mpp@a600 { /* MPP 7 */
+		/* type-c ssusb re-drive enable */
+		qcom,mode = <1>;		/* Digital output */
+		qcom,output-type = <0>;	/* CMOS logic */
+		qcom,vin-sel = <2>;		/* QPNP_PIN_VIN0 */
+		qcom,src-sel = <0>;		/* QPNP_PIN_SEL_FUNC_CONSTANT */
+		qcom,invert = <1>;		/* MPP Enable */
+		qcom,master-en = <1>;	/* Enable */
+		status = "okay";
+	};
+
+};
+
+/* Segment 3: Type-C related PM GPIO config */
+&pm8994_gpios {
+
+	gpio@cd00 { /* GPIO 14 */
+		/* TYPEC_INT_N CC Interrupt*/
+		qcom,mode = <0>;	/* Digital input */
+		qcom,pull = <5>;	/* No Pull */
+		qcom,vin-sel = <2>;
+		qcom,master-en = <1>;	/* Enable */
+		status = "okay";
+		};
+
+};
+
+/* Segment 4: Type-C related PMI GPIO config */
+&pmi8994_gpios {
+
+	gpio@c700 { /* GPIO 8 */
+		/* CC VCONN VREG 5V */
+		qcom,mode = <1>;		/* Digital output */
+		qcom,output-type = <0>;	/* MOS logic */
+		qcom,invert = <1>;		/* Output high initially */
+		qcom,vin-sel = <0>;		/* VPH_PWR */
+		qcom,src-sel = <0>;
+		qcom,master-en = <1>;	/* Enable */
+		status = "okay";
+		};
+
+	gpio@c800 { /* GPIO 9 */
+		/* CC Chip VREG 3V3 */
+		qcom,mode = <1>;		/* Digital output */
+		qcom,output-type = <0>;	/* MOS logic */
+		qcom,invert = <1>;		/* Output high */
+		qcom,vin-sel = <0>;		/* VPH_PWR */
+		qcom,src-sel = <0>;
+		qcom,master-en = <1>;	/* Enable */
+		status = "okay";
+		};
+
+};
+

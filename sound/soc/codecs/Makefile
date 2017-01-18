@@ -29,6 +29,7 @@ snd-soc-ak4554-objs := ak4554.o
 snd-soc-ak4641-objs := ak4641.o
 snd-soc-ak4642-objs := ak4642.o
 snd-soc-ak4671-objs := ak4671.o
+snd-soc-ak4961-objs := ak4961.o ak4961-tables.o
 snd-soc-ak5386-objs := ak5386.o
 snd-soc-arizona-objs := arizona.o
 snd-soc-cq93vc-objs := cq93vc.o
@@ -221,6 +222,7 @@ obj-$(CONFIG_SND_SOC_AK4554)	+= snd-soc-ak4554.o
 obj-$(CONFIG_SND_SOC_AK4641)	+= snd-soc-ak4641.o
 obj-$(CONFIG_SND_SOC_AK4642)	+= snd-soc-ak4642.o
 obj-$(CONFIG_SND_SOC_AK4671)	+= snd-soc-ak4671.o
+obj-$(CONFIG_SND_SOC_AK4961)	+= snd-soc-ak4961.o
 obj-$(CONFIG_SND_SOC_AK5386)	+= snd-soc-ak5386.o
 obj-$(CONFIG_SND_SOC_ALC5623)    += snd-soc-alc5623.o
 obj-$(CONFIG_SND_SOC_ALC5632)	+= snd-soc-alc5632.o
@@ -376,3 +378,6 @@ obj-$(CONFIG_SND_SOC_MSM_STUB)  += snd-soc-msm-stub.o
 # Amp
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o
 obj-$(CONFIG_SND_SOC_TPA6130A2)	+= snd-soc-tpa6130a2.o
+# akm-sungang support ak4490 chip begin
+obj-$(CONFIG_SND_SOC_AK4490)     += ak4490/
+# akm-sungang end

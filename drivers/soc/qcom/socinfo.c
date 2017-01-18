@@ -600,6 +600,148 @@ static struct socinfo_v0_1 dummy_socinfo = {
 	.version = 1,
 };
 
+#ifdef CONFIG_ZTE_BOOT_MODE
+static int __init bootmode_init(char *mode)
+{
+        int boot_mode = 0;
+
+        if (!strncmp(mode, ANDROID_BOOT_MODE_NORMAL, strlen(ANDROID_BOOT_MODE_NORMAL)))
+        {
+                boot_mode = ENUM_BOOT_MODE_NORMAL;
+                pr_err("KERENEL:boot_mode:NORMAL\n");
+        }
+        else if (!strncmp(mode, ANDROID_BOOT_MODE_FTM, strlen(ANDROID_BOOT_MODE_FTM)))
+        {
+                boot_mode = ENUM_BOOT_MODE_FTM;
+                pr_err("KERENEL:boot_mode:FTM\n");
+        }
+        else if (!strncmp(mode, ANDROID_BOOT_MODE_RECOVERY, strlen(ANDROID_BOOT_MODE_RECOVERY)))
+        {
+                boot_mode = ENUM_BOOT_MODE_RECOVERY;
+                pr_err("KERENEL:boot_mode:RECOVERY\n");
+        }
+        else if (!strncmp(mode, ANDROID_BOOT_MODE_FFBM, strlen(ANDROID_BOOT_MODE_FFBM)))
+        {
+                boot_mode = ENUM_BOOT_MODE_FFBM;
+                pr_err("KERENEL:boot_mode:FFBM\n");
+        }
+        else if (!strncmp(mode, ANDROID_BOOT_MODE_CHARGER, strlen(ANDROID_BOOT_MODE_CHARGER)))
+        {
+                boot_mode = ENUM_BOOT_MODE_CHARGER;
+                pr_err("KERENEL:boot_mode:CHARGER\n");
+        }
+
+        else
+        {
+                boot_mode = ENUM_BOOT_MODE_NORMAL;
+                pr_err("KERENEL:boot_mode:DEFAULT NORMAL\n");
+        }
+
+        socinfo_set_boot_mode(boot_mode);
+
+        return 0;
+}
+__setup(ANDROID_BOOT_MODE, bootmode_init);
+
+///lkej add code for pv version
+#define SOCINFO_CMDLINE_PV_FLAG "androidboot.pv-version="
+#define SOCINFO_CMDLINE_PV_VERSION   "1"
+#define SOCINFO_CMDLINE_NON_PV_VERSION      "0"
+static int __init zte_pv_flag_init(char *ver)
+{
+        int is_pv_ver = 0;
+
+        if (!strncmp(ver, SOCINFO_CMDLINE_PV_VERSION, strlen(SOCINFO_CMDLINE_PV_VERSION)))
+        {
+                is_pv_ver = 1;
+        }
+        printk(KERN_ERR "pv flag: %d ", is_pv_ver);
+        socinfo_set_pv_flag(is_pv_ver);
+        return 0;
+}
+__setup(SOCINFO_CMDLINE_PV_FLAG, zte_pv_flag_init);
+
+#define SOCINFO_CMDLINE_FP_HW               "androidboot.fingerprinthw="
+#define SOCINFO_CMDLINE_FP_HW_SYNAFP        "synafp"
+#define SOCINFO_CMDLINE_FP_HW_GOODIX        "goodix"
+static int __init zte_fingerprint_hw_init(char *ver)
+{
+	int fp_hw = FINGERPRINT_HW_UNKOWN;
+
+	if (!strncmp(ver, SOCINFO_CMDLINE_FP_HW_SYNAFP, strlen(SOCINFO_CMDLINE_FP_HW_SYNAFP)))
+	{
+		fp_hw = FINGERPRINT_HW_SYNAFP;
+	}
+	else if (!strncmp(ver, SOCINFO_CMDLINE_FP_HW_GOODIX, strlen(SOCINFO_CMDLINE_FP_HW_GOODIX)))
+	{
+		fp_hw = FINGERPRINT_HW_GOODIX;
+	}
+	printk(KERN_ERR "boot_stats fingerprint_hw: %d ", fp_hw);
+	socinfo_set_fp_hw(fp_hw);
+	return 0;
+}
+__setup(SOCINFO_CMDLINE_FP_HW, zte_fingerprint_hw_init);
+
+static int g_boot_mode = 0;
+
+void socinfo_set_boot_mode(int boot_mode)
+{
+        g_boot_mode = boot_mode;
+}
+
+int socinfo_get_ftm_flag(void)
+{
+    return g_boot_mode == ENUM_BOOT_MODE_FTM ? 1 : 0;
+}
+EXPORT_SYMBOL(socinfo_get_ftm_flag);
+
+int socinfo_get_recovery_flag(void)
+{
+    return g_boot_mode == ENUM_BOOT_MODE_RECOVERY ? 1 : 0;
+}
+EXPORT_SYMBOL(socinfo_get_recovery_flag);
+
+int socinfo_get_ffbm_flag(void)
+{
+    return g_boot_mode == ENUM_BOOT_MODE_FFBM ? 1 : 0;
+}
+EXPORT_SYMBOL(socinfo_get_ffbm_flag);
+
+int socinfo_get_charger_flag(void)
+{
+    return g_boot_mode == ENUM_BOOT_MODE_CHARGER ? 1 : 0;
+}
+EXPORT_SYMBOL(socinfo_get_charger_flag);
+
+//zte_pm_20151126 add  for pv version // boot add
+static int pv_flag = 0;
+
+void socinfo_set_pv_flag(int val)
+{
+	pv_flag = val;
+}
+
+int socinfo_get_pv_flag(void)
+{
+    return pv_flag;
+}
+EXPORT_SYMBOL(socinfo_get_pv_flag);
+
+//ZTE fingerprint hw setting
+static int fingprint_hw_type = -1;
+void socinfo_set_fp_hw(int val)
+{
+    fingprint_hw_type = val;
+}
+
+int socinfo_get_fp_hw(void)
+{
+    return fingprint_hw_type;
+}
+EXPORT_SYMBOL(socinfo_get_fp_hw);
+
+#endif
+
 uint32_t socinfo_get_id(void)
 {
 	return (socinfo) ? socinfo->v0_1.id : 0;

@@ -94,6 +94,7 @@
 		status = "disabled";
 	};
 
+// ZTE_chenjun
 	spi_9: spi@75B7000 { /* BLSP2 QUP3 */
 		compatible = "qcom,spi-qup-v2";
 		#address-cells = <1>;
@@ -105,6 +106,7 @@
 		interrupts = <0 103 0>, <0 239 0>;
 		spi-max-frequency = <19200000>;
 		qcom,infinite-mode = <0>;
+		qcom,use-bam;
 		qcom,ver-reg-exists;
 
 		qcom,bam-consumer-pipe-index = <16>;
@@ -117,7 +119,12 @@
 		clock-names = "iface_clk", "core_clk";
 		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
 			 <&clock_gcc clk_gcc_blsp2_qup3_spi_apps_clk>;
-		status = "disabled";
+		spi_ak4961@0{
+				compatible = "qcom,ak4961-spi";
+				reg=<0>;
+				spi-max-frequency = <9600000>;
+		};
+
 	};
 
 	spi_10: spi@75B8000 { /* BLSP2 QUP4 */

@@ -75,6 +75,7 @@ enum msm_sensor_power_seq_type_t {
 	SENSOR_CLK,
 	SENSOR_GPIO,
 	SENSOR_VREG,
+	SENSOR_PMIC,
 	SENSOR_I2C_MUX,
 	SENSOR_I2C,
 };
@@ -95,6 +96,12 @@ enum msm_camera_i2c_data_type {
 	MSM_CAMERA_I2C_SET_WORD_MASK,
 	MSM_CAMERA_I2C_UNSET_WORD_MASK,
 	MSM_CAMERA_I2C_SET_BYTE_WRITE_MASK_DATA,
+/*
+  * by ZTE_YCM_20151102 yi.changming 400050-1
+  */
+// --->
+	MSM_CAMERA_I2C_NO_DATA,
+// <---400050-1
 	MSM_CAMERA_I2C_DATA_TYPE_MAX,
 };
 
@@ -114,6 +121,12 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_MAX,
 };
 
+enum msm_sensor_power_seq_gpio_pmic_t {
+	SENSOR_PMIC_GPIO_OIS,
+	SENSOR_PMIC_GPIO_CUSTOM1,
+	SENSOR_PMIC_GPIO_CUSTOM2,
+	SENSOR_PMIC_GPIO_MAX,
+};
 enum msm_ir_cut_filter_gpio_t {
 	IR_CUT_FILTER_GPIO_P = 0,
 	IR_CUT_FILTER_GPIO_M,
@@ -299,6 +312,12 @@ struct msm_camera_sensor_slave_info {
 	struct msm_sensor_power_setting_array power_setting_array;
 	unsigned char  is_init_params_valid;
 	struct msm_sensor_init_params sensor_init_params;
+/*
+  * by ZTE_YCM_20140909 yi.changming 400006
+  */
+// --->
+	uint16_t bakeup_slave_addr;
+// --->400006
 	enum msm_sensor_output_format_t output_format;
 };
 

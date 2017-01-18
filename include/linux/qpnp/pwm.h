@@ -141,6 +141,7 @@ struct lut_params {
 	int lut_pause_lo;
 	int ramp_step_ms;
 	int flags;
+	int blink_value;//zte_led 20150212 add for 2 blink-period function
 };
 
 int pwm_lut_config(struct pwm_device *pwm, int period_us,

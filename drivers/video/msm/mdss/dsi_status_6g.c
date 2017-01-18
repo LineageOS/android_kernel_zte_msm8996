@@ -93,6 +93,22 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 		return;
 	}
 
+/*zte,esd interrupt mode 0205  start */
+	if (pstatus_data->mfd->panel_power_state == MDSS_PANEL_POWER_ON) {
+		if (ctrl_pdata->lcd_esd_panel_error_flag > 0) {
+			pr_err("LCD %s: ESD Error Flag(Interrupt Mode) :%d ,Pane Reset Now!\n",
+							__func__, ctrl_pdata->lcd_esd_panel_error_flag);
+			ctrl_pdata->lcd_esd_panel_error_flag = 0;
+			goto status_dead;
+		} else {
+			pr_debug("LCD %s: ESD Check! Flag = %d ,Panel State OK!\n",
+							__func__, ctrl_pdata->lcd_esd_panel_error_flag);
+			schedule_delayed_work(&pstatus_data->check_status, msecs_to_jiffies(interval));
+			return ;/* do not read other regs.*/
+		}
+	}
+/*zte,esd interrupt mode 0205  start */
+
 	if (!pdata->panel_info.esd_rdy) {
 		pr_debug("%s: unblank not complete, reschedule check status\n",
 			__func__);

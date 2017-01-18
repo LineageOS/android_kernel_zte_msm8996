@@ -54,4 +54,9 @@
 extern __be32 in_aton(const char *str);
 extern int in4_pton(const char *src, int srclen, u8 *dst, int delim, const char **end);
 extern int in6_pton(const char *src, int srclen, u8 *dst, int delim, const char **end);
+/*ZTE_LC_TCP_DEBUG, 20130116 start*/
+#define	INT16SZ		(16)
+#define	IN6ADDRSZ	(2)
+extern const char *inet_ntop(int, const void *, char *, size_t);
+/*ZTE_LC_TCP_DEBUG, 20130116 end*/
 #endif	/* _LINUX_INET_H */

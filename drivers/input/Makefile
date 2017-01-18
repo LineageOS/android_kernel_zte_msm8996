@@ -28,3 +28,12 @@ obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
 obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 
+obj-$(CONFIG_FINGERPRINT_SYNA_VFS) += fingerprint/synaptics_vfs/
+obj-$(CONFIG_FINGERPRINT_FPC) += fingerprint/fpc/
+#obj-$(CONFIG_FINGERPRINT_GOODIX_GF3118M) += fingerprint/goodix/
+ifeq ($(ZTE_FINGERPRINT_MODE_318),true)
+obj-$(CONFIG_FINGERPRINT_GOODIX_GF3118M) += fingerprint/goodix/
+endif
+ifeq ($(ZTE_FINGERPRINT_MODE_3238),true)
+obj-$(CONFIG_FINGERPRINT_GOODIX_GF3238M) += fingerprint/gf3238_kernel/
+endif

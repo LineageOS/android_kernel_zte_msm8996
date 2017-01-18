@@ -1049,7 +1049,7 @@ static int mdss_mdp_cmd_intf_callback(void *data, int event)
 		 * if we are going to suspended or pp split is not enabled,
 		 * just return
 		 */
-		if (ctx->intf_stopped || !is_pingpong_split(ctx->ctl->mfd))
+		if (ctx->intf_stopped)
 			return -EINVAL;
 		atomic_inc(&ctx->rdptr_cnt);
 
@@ -1870,6 +1870,29 @@ int mdss_mdp_cmd_reconfigure_splash_done(struct mdss_mdp_ctl *ctl,
 	return ret;
 }
 
+static int __mdss_mdp_wait4pingpong(struct mdss_mdp_cmd_ctx *ctx)
+{
+	int rc = 0;
+	s64 expected_time = ktime_to_ms(ktime_get()) + KOFF_TIMEOUT_MS;
+	s64 time;
+
+	do {
+		rc = wait_event_timeout(ctx->pp_waitq,
+		atomic_read(&ctx->koff_cnt) == 0,
+		KOFF_TIMEOUT);
+		time = ktime_to_ms(ktime_get());
+
+		MDSS_XLOG(rc, time, expected_time, atomic_read(&ctx->koff_cnt));
+		/*
+		* If we time out, counter is valid and time is less,
+		* wait again.
+		*/
+	} while (atomic_read(&ctx->koff_cnt) && (rc == 0) &&
+	(time < expected_time));
+
+	return rc;
+}
+
 static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 {
 	struct mdss_mdp_cmd_ctx *ctx;
@@ -1891,9 +1914,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 	pr_debug("%s: intf_num=%d ctx=%pK koff_cnt=%d\n", __func__,
 			ctl->intf_num, ctx, atomic_read(&ctx->koff_cnt));
 
-	rc = wait_event_timeout(ctx->pp_waitq,
-			atomic_read(&ctx->koff_cnt) == 0,
-			KOFF_TIMEOUT);
+	rc = __mdss_mdp_wait4pingpong(ctx);
 
 	trace_mdp_cmd_wait_pingpong(ctl->num,
 				atomic_read(&ctx->koff_cnt));
@@ -3018,6 +3039,11 @@ int mdss_mdp_cmd_stop(struct mdss_mdp_ctl *ctl, int panel_power_state)
 			ctx->intf_stopped = 0;
 			if (sctx)
 				sctx->intf_stopped = 0;
+			/*
+			 * Tearcheck was disabled while entering LP2 state.
+			 * Enable it back to allow updates in LP1 state.
+			 */
+			mdss_mdp_tearcheck_enable(ctl, true);
 			/*
 			 * Tearcheck was disabled while entering LP2 state.
 			 * Enable it back to allow updates in LP1 state.

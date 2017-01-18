@@ -431,8 +431,17 @@ struct mdss_dsi_ctrl_pdata {
 	int rst_gpio;
 	int disp_en_gpio;
 	int bklt_en_gpio;
+	/*zte,esd interrupt mode 0205  start */
+	int lcd_esd_interrupt_gpio;
+	int lcd_esd_panel_error_flag;
+	/*zte,esd interrupt mode 0205  end */
+	int lcd_3v_vsp_en_gpio;
 	int mode_gpio;
 	int bklt_ctrl;	/* backlight ctrl */
+	/*zte,for acl and hbm  20161224 start */
+	int current_acl_level;
+	int current_hbm_level;
+	/*zte,for acl and hbm  20161224 end */
 	bool pwm_pmi;
 	int pwm_period;
 	int pwm_pmic_gpio;
@@ -504,6 +513,7 @@ struct mdss_dsi_ctrl_pdata {
 	char dlane_swap;	/* data lane swap */
 	bool is_phyreg_enabled;
 	bool burst_mode_enabled;
+	bool is_cmdlist_from_mdp;
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
@@ -587,6 +597,9 @@ int mdss_dsi_wait_for_lane_idle(struct mdss_dsi_ctrl_pdata *ctrl);
 
 irqreturn_t mdss_dsi_isr(int irq, void *ptr);
 irqreturn_t hw_vsync_handler(int irq, void *data);
+/*zte,esd interrupt mode 0205  start */
+irqreturn_t esd_gpio_interrupt_handler(int irq, void *data);
+/*zte,esd interrupt mode 0205  end */
 void mdss_dsi_irq_handler_config(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 
 void mdss_dsi_set_tx_power_mode(int mode, struct mdss_panel_data *pdata);
@@ -617,6 +630,7 @@ int mdss_dsi_post_clkon_cb(void *priv,
 int mdss_dsi_pre_clkon_cb(void *priv,
 			  enum mdss_dsi_clk_type clk_type,
 			  enum mdss_dsi_clk_state new_state);
+void mdss_dsi_panel_3v_power(struct mdss_panel_data *pdata, int enable);
 int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable);
 void mdss_dsi_phy_disable(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_cmd_test_pattern(struct mdss_dsi_ctrl_pdata *ctrl);
@@ -836,6 +850,14 @@ static inline bool mdss_dsi_is_te_based_esd(struct mdss_dsi_ctrl_pdata *ctrl)
 		gpio_is_valid(ctrl->disp_te_gpio) &&
 		mdss_dsi_is_left_ctrl(ctrl);
 }
+
+/*zte,esd interrupt mode 0205  start */
+static inline bool mdss_dsi_is_gpio_interrupt_esd(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	return gpio_is_valid(ctrl->lcd_esd_interrupt_gpio) &&
+		mdss_dsi_is_left_ctrl(ctrl);
+}
+/*zte,esd interrupt mode 0205 end */
 
 static inline struct mdss_dsi_ctrl_pdata *mdss_dsi_get_ctrl_clk_master(void)
 {

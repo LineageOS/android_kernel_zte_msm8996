@@ -1,0 +1,3 @@
+config INPUT_SYNA_VFS
+	tristate "synaptics vfs driver"
+	default n

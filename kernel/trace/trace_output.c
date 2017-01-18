@@ -8,6 +8,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/ftrace.h>
+#include <linux/rtc.h>
 
 #include "trace_output.h"
 
@@ -594,10 +595,24 @@ int trace_print_context(struct trace_iterator *iter)
 	}
 
 	if (iter->iter_flags & TRACE_FILE_TIME_IN_NS) {
-		t = ns2usecs(iter->ts);
-		usec_rem = do_div(t, USEC_PER_SEC);
-		secs = (unsigned long)t;
-		return trace_seq_printf(s, " %5lu.%06lu: ", secs, usec_rem);
+		if (trace_flags & TRACE_ITER_ABSTIME) {
+			struct timespec zte_ts = current_kernel_time();
+			struct rtc_time tm;
+			u64 ts = zte_ts.tv_sec;
+
+			ts -= 60*sys_tz.tz_minuteswest;
+			rtc_time_to_tm(ts, &tm);
+
+			return trace_seq_printf(s, " [%02d:%02d:%02d.%03d]  ",
+				tm.tm_hour, tm.tm_min, tm.tm_sec,
+				(int)(zte_ts.tv_nsec / NSEC_PER_MSEC));
+		} else {
+			t = ns2usecs(iter->ts);
+			usec_rem = do_div(t, USEC_PER_SEC);
+			secs = (unsigned long)t;
+			return trace_seq_printf(s, " %5lu.%06lu: ",
+				secs, usec_rem);
+		}
 	} else
 		return trace_seq_printf(s, " %12llu: ", iter->ts);
 }

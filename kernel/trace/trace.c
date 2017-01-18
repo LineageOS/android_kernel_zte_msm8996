@@ -818,6 +818,7 @@ static const char *trace_options[] = {
 	"markers",
 	"function-trace",
 	"print-tgid",
+	"abstime",
 	NULL
 };
 

@@ -44,7 +44,7 @@
 #include <soc/qcom/smem.h>
 #include <soc/qcom/subsystem_notif.h>
 #include <soc/qcom/subsystem_restart.h>
-
+#include <soc/qcom/socinfo.h>/*ZTE add*/
 #include "smd_private.h"
 #include "smem_private.h"
 
@@ -559,12 +559,12 @@ static struct edge_to_pid edge_to_pids[] = {
 	[SMD_MODEM_WCNSS] = {SMD_MODEM, SMD_WCNSS},
 	[SMD_QDSP_WCNSS] = {SMD_Q6, SMD_WCNSS},
 	[SMD_DSPS_WCNSS] = {SMD_DSPS, SMD_WCNSS},
-	[SMD_APPS_Q6FW] = {SMD_APPS, SMD_MODEM_Q6_FW},
+	[SMD_APPS_Q6FW] = {SMD_APPS, SMD_MODEM_Q6_FW, "q6fw"},/*ZTE*/
 	[SMD_MODEM_Q6FW] = {SMD_MODEM, SMD_MODEM_Q6_FW},
 	[SMD_QDSP_Q6FW] = {SMD_Q6, SMD_MODEM_Q6_FW},
 	[SMD_DSPS_Q6FW] = {SMD_DSPS, SMD_MODEM_Q6_FW},
 	[SMD_WCNSS_Q6FW] = {SMD_WCNSS, SMD_MODEM_Q6_FW},
-	[SMD_APPS_RPM] = {SMD_APPS, SMD_RPM},
+	[SMD_APPS_RPM] = {SMD_APPS, SMD_RPM, "rpm"},/*ZTE*/
 	[SMD_MODEM_RPM] = {SMD_MODEM, SMD_RPM},
 	[SMD_QDSP_RPM] = {SMD_Q6, SMD_RPM},
 	[SMD_WCNSS_RPM] = {SMD_WCNSS, SMD_RPM},
@@ -1350,6 +1350,15 @@ static void handle_smd_irq_closing_list(void)
 	spin_unlock_irqrestore(&smd_lock, flags);
 }
 
+/*ZTE ++++ */
+extern int zte_smd_wakeup;
+int zte_qmi_data_wakeup	= 0;
+int zte_qmi_state_change_wakeup	= 0;
+extern unsigned char is_qmi_channel(char *channel_name);
+int not_rpm_smd	= 0;
+int rpm_smd_logged = 0;
+/*ZTE ---- */
+
 static void handle_smd_irq(struct remote_proc_info *r_info,
 		void (*notify)(smd_channel_t *ch))
 {
@@ -1384,6 +1393,24 @@ static void handle_smd_irq(struct remote_proc_info *r_info,
 		if (tmp != ch->last_state) {
 			SMD_POWER_INFO("SMD ch%d '%s' State change %d->%d\n",
 					ch->n, ch->name, ch->last_state, tmp);
+
+			/*ZTE ++++ notes:SMD wakeup reason*/
+			if (zte_smd_wakeup &&
+					(ch->type != SMD_APPS_RPM || (ch->type == SMD_APPS_RPM && !rpm_smd_logged))) {
+				const char *subsys = smd_edge_to_subsystem(ch->type);
+
+				pr_info("zte_smd_wakeup: %s wakeup app, SMD ch%d\n", subsys, ch->n);
+				pr_info("zte:'%s' state change %d->%d\n", ch->name, ch->last_state, tmp);
+				if (is_qmi_channel(ch->name))
+					zte_qmi_state_change_wakeup = 1;
+
+				if (ch->type != SMD_APPS_RPM)
+					not_rpm_smd = 1;
+				else
+					rpm_smd_logged = 1;
+			}
+			/*ZTE ---- */
+
 			smd_state_change(ch, ch->last_state, tmp);
 			state_change = 1;
 		}
@@ -1401,14 +1428,54 @@ static void handle_smd_irq(struct remote_proc_info *r_info,
 				ch->half_ch->get_tail(ch->recv),
 				ch->half_ch->get_head(ch->recv)
 				);
+
+			/*ZTE ++++ notes:SMD wakeup reason*/
+			if (zte_smd_wakeup &&
+					(ch->type != SMD_APPS_RPM || (ch->type == SMD_APPS_RPM && !rpm_smd_logged))) {
+				const char *subsys = smd_edge_to_subsystem(ch->type);
+
+				pr_info("zte:%s wakeup app, SMD ch %d '%s' Data event\n", subsys, ch->n, ch->name);
+				if (is_qmi_channel(ch->name))
+					zte_qmi_data_wakeup = 1;
+
+				if (ch->type != SMD_APPS_RPM)
+					not_rpm_smd = 1;
+				else
+					rpm_smd_logged = 1;
+			}
+			/*ZTE ---- */
+
 			ch->notify(ch->priv, SMD_EVENT_DATA);
 		}
 		if (ch_flags & 0x4 && !state_change) {
 			SMD_POWER_INFO("SMD ch%d '%s' State update\n",
 					ch->n, ch->name);
+
+			/*ZTE ++++ notes:SMD wakeup reason*/
+			if (zte_smd_wakeup &&
+					(ch->type != SMD_APPS_RPM || (ch->type == SMD_APPS_RPM && !rpm_smd_logged))) {
+				const char *subsys = smd_edge_to_subsystem(ch->type);
+
+				pr_info("zte:%s wakeup app, SMD ch %d '%s' State update\n", subsys, ch->n, ch->name);
+				if (ch->type != SMD_APPS_RPM)
+					not_rpm_smd = 1;
+				else
+					rpm_smd_logged = 1;
+			}
+			/*ZTE ---- */
+
 			ch->notify(ch->priv, SMD_EVENT_STATUS);
 		}
 	}
+
+	/*ZTE ++++ notes:SMD wakeup reason*/
+	if (not_rpm_smd) {
+		zte_smd_wakeup = 0;
+		rpm_smd_logged = 0;
+	}
+	not_rpm_smd = 0;
+	/*ZTE ---- */
+
 	spin_unlock_irqrestore(&smd_lock, flags);
 	do_smd_probe(r_info->remote_pid);
 }
@@ -1865,9 +1932,15 @@ struct smd_channel *smd_get_channel(const char *name, uint32_t type)
 	return NULL;
 }
 
-int smd_named_open_on_edge(const char *name, uint32_t edge,
-			   smd_channel_t **_ch,
-			   void *priv, void (*notify)(void *, unsigned))
+/*ZTE ++++ */
+int smd_named_open_on_edge(const char *name, uint32_t edge, smd_channel_t **_ch,
+									void *priv, void (*notify)(void *, unsigned))
+/*
+int smd_named_open_on_edge_zte(const char *name, uint32_t edge,smd_channel_t **_ch,
+			void *priv, void (*notify)(void *, unsigned), const char* func, int line)
+*/
+/*ZTE ---- */
+
 {
 	struct smd_channel *ch;
 	unsigned long flags;
@@ -1961,7 +2034,23 @@ int smd_named_open_on_edge(const char *name, uint32_t edge,
 
 	return 0;
 }
+/*ZTE ++++ */
 EXPORT_SYMBOL(smd_named_open_on_edge);
+
+int smd_open(const char *name, smd_channel_t **_ch, void *priv, void (*notify)(void *, unsigned))
+{
+	return smd_named_open_on_edge(name, SMD_APPS_MODEM, _ch, priv, notify);
+}
+EXPORT_SYMBOL(smd_open);
+/*
+EXPORT_SYMBOL(smd_named_open_on_edge_zte);
+int smd_open_zte(const char *name, smd_channel_t **_ch,
+		void *priv, void (*notify)(void *, unsigned), const char* func, int line) {
+	return smd_named_open_on_edge_zte(name, SMD_APPS_MODEM, _ch, priv, notify, func,line);
+}
+EXPORT_SYMBOL(smd_open_zte);
+*/
+/*ZTE ---- */
 
 int smd_close(smd_channel_t *ch)
 {

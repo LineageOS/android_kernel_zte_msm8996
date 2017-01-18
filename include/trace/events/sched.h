@@ -15,7 +15,7 @@ struct rq;
 struct group_cpu_time;
 struct migration_sum_data;
 extern const char *task_event_names[];
-
+extern bool tracing_is_disabled(void);
 /*
  * Tracepoint for calling kthread_stop, performed to end a kthread:
  */
@@ -123,6 +123,38 @@ TRACE_EVENT(sched_enq_deq_task,
 #endif
 			)
 );
+
+#ifdef CONFIG_TASK_DELAY_ACCT
+TRACE_EVENT(sched_delay_wait_memory_io,
+	TP_PROTO(struct task_struct *p),
+	TP_ARGS(p),
+	TP_STRUCT__entry(
+		__field(pid_t, pid)
+		__field(unsigned long long, delay)
+	),
+	TP_fast_assign(
+		__entry->pid = p->pid;
+		__entry->delay = p->delays->freepages_delay;
+	),
+	TP_printk("process [%u] alloc memory io delay %llu nsec",
+			__entry->pid, __entry->delay)
+);
+
+TRACE_EVENT(sched_delay_wait_swap_io,
+	TP_PROTO(struct task_struct *p),
+	TP_ARGS(p),
+	TP_STRUCT__entry(
+		__field(pid_t, pid)
+		__field(unsigned long long, delay)
+	),
+	TP_fast_assign(
+		__entry->pid = p->pid;
+		__entry->delay = p->delays->swapin_delay;
+	),
+	TP_printk("process [%u] swap io delay %llu nsec",
+		__entry->pid, __entry->delay)
+);
+#endif
 
 #ifdef CONFIG_SCHED_HMP
 
@@ -253,6 +285,7 @@ DEFINE_EVENT(sched_cpu_load, sched_cpu_load_cgroup,
 	TP_PROTO(struct rq *rq, int idle, u64 irqload, unsigned int power_cost, int temp),
 	TP_ARGS(rq, idle, irqload, power_cost, temp)
 );
+
 
 TRACE_EVENT(sched_set_boost,
 
@@ -1091,6 +1124,95 @@ DEFINE_EVENT(sched_stat_runtime, sched_stat_runtime,
 	     TP_PROTO(struct task_struct *tsk, u64 runtime, u64 vruntime),
 	     TP_ARGS(tsk, runtime, vruntime));
 
+#ifdef CONFIG_TASK_DELAY_ACCT
+DECLARE_EVENT_CLASS(sched_cpuwait_summary,
+
+	TP_PROTO(struct task_struct *tsk, uid_t uid, u64 delta,
+			u64 delta1, u64 delta2),
+
+	TP_ARGS(tsk, uid, delta, delta1, delta2),
+
+	TP_STRUCT__entry(
+		__field(pid_t, pid)
+		__field(uid_t, uid)
+		__field(u64, delta)
+		__field(u64, delta1)
+		__field(u64, delta2)
+	),
+
+	TP_fast_assign(
+		__entry->pid = tsk->pid;
+		__entry->uid = uid;
+		__entry->delta = delta;
+		__entry->delta1 = delta1;
+		__entry->delta2 = delta2;
+	),
+
+	TP_printk("task[%d] uid=%u cpuwait %llu ms within %llu ms - [%llu]ms",
+		__entry->pid, (u32)__entry->uid,  __entry->delta,
+		__entry->delta1, __entry->delta2)
+);
+
+DEFINE_EVENT(sched_cpuwait_summary, sched_cpuwait_summary,
+	TP_PROTO(struct task_struct *p, uid_t uid, u64 delta,
+			u64 delta1, u64 delta2),
+	TP_ARGS(p, uid, delta, delta1, delta2));
+
+DECLARE_EVENT_CLASS(sched_cpuusage_summary,
+
+	TP_PROTO(struct task_struct *p, uid_t uid, u64 cpuusage),
+
+	TP_ARGS(p, uid, cpuusage),
+
+	TP_STRUCT__entry(
+		__field(pid_t, pid)
+		__field(u32, uid)
+		__field(u64, cpuusage)
+	),
+
+	TP_fast_assign(
+		__entry->pid = p->pid;
+		__entry->uid = uid;
+		__entry->cpuusage = cpuusage;
+	),
+
+	TP_printk("task[%d] uid=%u cpu-usage %llu ms ",
+		 __entry->pid, (u32)__entry->uid,  __entry->cpuusage)
+);
+
+DEFINE_EVENT(sched_cpuusage_summary, sched_cpuusage_summary,
+	TP_PROTO(struct task_struct *p, uid_t uid, u64 cpuusage),
+	TP_ARGS(p, uid, cpuusage));
+
+
+DECLARE_EVENT_CLASS(sched_iowait_summary,
+
+	TP_PROTO(struct task_struct *p, u64 delta, u64 delta1, u64 delta2),
+
+	TP_ARGS(p, delta, delta1, delta2),
+
+	TP_STRUCT__entry(
+		__field(pid_t, pid)
+		__field(u64, delta)
+		__field(u64, delta1)
+		__field(u64, delta2)
+	),
+
+	TP_fast_assign(
+		__entry->pid = p->pid;
+		__entry->delta = delta;
+		__entry->delta1 = delta1;
+		__entry->delta2 = delta2;
+	),
+
+	TP_printk("task[%d] iowait %llu ms within %llu ms - [%llu]ms",
+		__entry->pid, __entry->delta, __entry->delta1, __entry->delta2)
+);
+
+DEFINE_EVENT(sched_iowait_summary, sched_iowait_summary,
+	TP_PROTO(struct task_struct *p, u64 delta, u64 delta1, u64 delta2),
+	TP_ARGS(p, delta, delta1, delta2));
+#endif
 /*
  * Tracepoint for showing priority inheritance modifying a tasks
  * priority.

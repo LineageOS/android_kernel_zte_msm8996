@@ -620,6 +620,14 @@ static ssize_t mtp_read(struct file *fp, char __user *buf,
 	int ret = 0;
 
 	DBG(cdev, "mtp_read(%zu) state:%d\n", count, dev->state);
+	if (!dev) {
+		printk(KERN_ERR"usb,mtp_read failed! dev == NULL! \n");
+		return -EINVAL;
+	}
+	if (!dev->ep_out) {
+		printk(KERN_ERR"usb,mtp_read failed! dev->ep_out == NULL! \n");
+		return -EINVAL;
+	}
 
 	/* we will block until we're online */
 	DBG(cdev, "mtp_read: waiting for online state\n");

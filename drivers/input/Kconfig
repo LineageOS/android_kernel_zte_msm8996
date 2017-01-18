@@ -207,6 +207,16 @@ source "drivers/input/touchscreen/Kconfig"
 
 source "drivers/input/misc/Kconfig"
 
+#shilinfeng for fp 20150828
+source "drivers/input/fingerprint/synaptics_vfs/Kconfig"
+
+source "drivers/input/fingerprint/fpc/Kconfig"
+
+source "drivers/input/fingerprint/goodix/Kconfig"
+#wk10182671 add for gf3238
+source "drivers/input/fingerprint/gf3238_kernel/Kconfig"
+#wk10182671 end to add for gf3238
+
 endif
 
 menu "Hardware I/O ports"

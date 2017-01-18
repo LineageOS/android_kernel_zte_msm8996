@@ -470,6 +470,91 @@ static void ulpi_init(struct msm_otg *motg)
 	}
 }
 
+/* for usb eye diagram test */
+static int param_override_testing;
+static int param_override[] = {
+	-1, -1,
+	-1, -1,
+	-1, -1,
+	-1, -1,
+	-1};
+static void param_override_init(struct msm_otg *motg)
+{
+	/*struct msm_otg_platform_data *pdata = motg->pdata;*/
+	/*seq = pdata->phy_init_seq_override if need*/
+	int *seq = NULL;
+
+	if(param_override_testing) {
+		seq=param_override;
+		motg->pdata->phy_init_seq = param_override;
+	}
+
+	if (!seq){
+		dev_info(motg->phy.dev, "usb %s param_override_init is null, skip\n", __func__);
+		return;
+		}
+	while (seq[0] >= 0) {
+		dev_err(motg->phy.dev, "usb param_override_init: write 0x%02x to 0x%02x\n",
+				seq[0], seq[1]);
+		ulpi_write(&motg->phy, seq[0], seq[1]);
+		seq += 2;
+	}
+}
+
+static int diagram_param_write(const char *val, struct kernel_param *kp)
+{
+	int err, size, i=0;
+	char buf[256], *b;
+	char *value;
+	unsigned long tmp;
+	struct msm_otg *motg = the_msm_otg;
+	dev_info(motg->phy.dev, "usb diagram_param_write val = %s\n", val);
+
+	size=sizeof(param_override)-1;
+	strlcpy(buf, val, sizeof(buf));
+	b = strim(buf);
+	while (b) {
+		value = strsep(&b, ",");
+		if (value) {
+			err = strict_strtoul(value, 16, &tmp);
+			if (err) {
+				dev_err(motg->phy.dev, "%s strict_strtoul failed\n",__func__);
+				param_override_testing=0;
+				goto out;
+			}
+			if(i < size)
+				param_override[i]=(int)tmp;
+			i++;
+			if(!param_override_testing)
+				param_override_testing=1;
+			}
+		}
+	param_override_init(motg); //excute immediately
+out:
+	return strlen(val);
+}
+
+static int diagram_param_read(char *buf, struct kernel_param *kp)
+{
+	int i=0;
+	u32 reg[4]={0x80,0x81,0x82,0x83};
+	char *buff = buf;
+	struct msm_otg *motg = the_msm_otg;
+
+	for(i=0; i<4; i++){
+		buff += scnprintf(buff,PAGE_SIZE,
+			"REG[0x%02x]=0x%02x,", reg[i], ulpi_read(&motg->phy, reg[i]));
+		}
+	if (buff != buf)
+		*(buff-1) = '\n';
+	return buff - buf;
+
+}
+
+module_param_call(diagram_param, diagram_param_write, diagram_param_read,
+		  NULL, 0664);
+MODULE_PARM_DESC(diagram_param, "USB eye diagram_param");
+
 static int msm_otg_phy_clk_reset(struct msm_otg *motg)
 {
 	int ret;

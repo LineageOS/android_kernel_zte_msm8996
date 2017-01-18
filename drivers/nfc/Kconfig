@@ -82,3 +82,16 @@ config NFC_NQ
 	  This enables the NFC driver for NQx based devices.
 	  This is for i2c connected version. NCI protocol logic
 	  resides in the usermode and it has no other NFC dependencies.
+
+config PN5XX_NFC
+	tristate "NXP PN5XX based driver"
+	depends on I2C
+	select CRC_CCITT
+	default n
+	---help---
+	  NXP PN5XX driver based on I2C.
+	  This is a driver to provides I2C access to PN5xx NFC Controller devices
+
+	  To compile this driver as a module, choose m here. The module will
+	  be called pn5xx_i2c.
+	  Say N if unsure.

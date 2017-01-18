@@ -556,8 +556,12 @@ int alarm_start(struct alarm *alarm, ktime_t start)
 	struct alarm_base *base = &alarm_bases[alarm->type];
 	unsigned long flags;
 	int ret;
+	ktime_t relative_expiry_time;
 
 	spin_lock_irqsave(&base->lock, flags);
+	relative_expiry_time = ktime_sub(start, base->gettime());
+	pr_info("ZTE_ALARM set alarm %lld s later at %lld s in alarm_start...\n",
+		(ktime_to_ms(relative_expiry_time)/1000), (ktime_to_ms(base->gettime())/1000));
 	alarm->node.expires = start;
 	alarmtimer_enqueue(base, alarm);
 	ret = hrtimer_start(&alarm->timer, alarm->node.expires,

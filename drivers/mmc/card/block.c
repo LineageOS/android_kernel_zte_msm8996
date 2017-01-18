@@ -3620,8 +3620,19 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 		if (cmd_flags & REQ_SECURE &&
 			!(card->quirks & MMC_QUIRK_SEC_ERASE_TRIM_BROKEN))
 			ret = mmc_blk_issue_secdiscard_rq(mq, req);
-		else
-			ret = mmc_blk_issue_discard_rq(mq, req);
+		else {
+			/* add for kingston  128G can not mmc_blk_issue_discard_rq ,will be blocked */
+			if (NULL != card &&  0x41 == card->cid.manfid
+				&& card->cid.prod_name[0] == 'S'
+				&& card->cid.prod_name[1] == 'D'
+				&& card->cid.prod_name[2] == '1'
+				&& card->cid.prod_name[3] == '2'
+				&& card->cid.prod_name[4] == '8') {
+				ret = mmc_blk_issue_secdiscard_rq(mq, req);
+			} else {
+				ret = mmc_blk_issue_discard_rq(mq, req);
+			}
+		}
 	} else if (cmd_flags & (REQ_FLUSH | REQ_BARRIER)) {
 		/* complete ongoing async transfer before issuing flush */
 		if (card->host->areq)

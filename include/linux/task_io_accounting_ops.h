@@ -5,11 +5,16 @@
 #define __TASK_IO_ACCOUNTING_OPS_INCLUDED
 
 #include <linux/sched.h>
+#include <trace/events/mmc.h>
 
 #ifdef CONFIG_TASK_IO_ACCOUNTING
 static inline void task_io_account_read(size_t bytes)
 {
 	current->ioac.read_bytes += bytes;
+	if (current->ioac.read_bytes - current->ioac.last_rb > SZ_1M) {
+		trace_mmc_pid_blk_read_summary(current);
+		current->ioac.last_rb = current->ioac.read_bytes;
+	}
 }
 
 /*
@@ -24,6 +29,10 @@ static inline unsigned long task_io_get_inblock(const struct task_struct *p)
 static inline void task_io_account_write(size_t bytes)
 {
 	current->ioac.write_bytes += bytes;
+	if (current->ioac.write_bytes - current->ioac.last_wb > SZ_1M) {
+		trace_mmc_pid_blk_write_summary(current);
+		current->ioac.last_wb = current->ioac.write_bytes;
+	}
 }
 
 /*
@@ -51,6 +60,16 @@ static inline void task_blk_io_accounting_add(struct task_io_accounting *dst,
 	dst->read_bytes += src->read_bytes;
 	dst->write_bytes += src->write_bytes;
 	dst->cancelled_write_bytes += src->cancelled_write_bytes;
+
+	if (current->ioac.read_bytes - current->ioac.last_rb > SZ_1M) {
+		trace_mmc_pid_blk_read_summary(current);
+		current->ioac.last_rb = current->ioac.read_bytes;
+	}
+
+	if (current->ioac.write_bytes - current->ioac.last_wb > SZ_1M) {
+		trace_mmc_pid_blk_write_summary(current);
+		current->ioac.last_wb = current->ioac.write_bytes;
+	}
 }
 
 #else

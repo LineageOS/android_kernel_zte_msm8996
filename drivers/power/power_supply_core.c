@@ -320,7 +320,7 @@ static void power_supply_changed_work(struct work_struct *work)
 		spin_unlock_irqrestore(&psy->changed_lock, flags);
 		class_for_each_device(power_supply_class, NULL, psy,
 				      __power_supply_changed_work);
-		power_supply_update_leds(psy);
+		//power_supply_update_leds(psy);
 		atomic_notifier_call_chain(&power_supply_notifier,
 				PSY_EVENT_PROP_CHANGED, psy);
 		kobject_uevent(&psy->dev->kobj, KOBJ_CHANGE);
@@ -340,7 +340,7 @@ static void power_supply_changed_work(struct work_struct *work)
 void power_supply_changed(struct power_supply *psy)
 {
 	unsigned long flags;
-
+      // printk("[zte]psy change, func %s,line %d,psy name: %s\n",func, line,psy->name); //ZTE jiangfeng add
 	dev_dbg(psy->dev, "%s\n", __func__);
 
 	spin_lock_irqsave(&psy->changed_lock, flags);
