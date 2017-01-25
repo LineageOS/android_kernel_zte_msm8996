@@ -96,6 +96,30 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
+static atomic_t __su_instances;
+
+int su_instances(void)
+{
+	return atomic_read(&__su_instances);
+}
+
+bool su_running(void)
+{
+	return su_instances() > 0;
+}
+
+void su_exec(void)
+{
+	atomic_inc(&__su_instances);
+	printk(KERN_INFO "su_exec: instances=%d\n", su_instances());
+}
+
+void su_exit(void)
+{
+	atomic_dec(&__su_instances);
+	printk(KERN_INFO "su_exit: instances=%d\n", su_instances());
+}
+
 const char *task_event_names[] = {"PUT_PREV_TASK", "PICK_NEXT_TASK",
 				  "TASK_WAKE", "TASK_MIGRATE", "TASK_UPDATE",
 				"IRQ_UPDATE"};

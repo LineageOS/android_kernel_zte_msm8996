@@ -39,6 +39,7 @@ int iterate_dir(struct file *file, struct dir_context *ctx)
 	res = -ENOENT;
 	if (!IS_DEADDIR(inode)) {
 		ctx->pos = file->f_pos;
+		ctx->ino = inode;
 		res = file->f_op->iterate(file, ctx);
 		file->f_pos = ctx->pos;
 		fsnotify_access(file);
@@ -87,6 +88,14 @@ static int fillonedir(void * __buf, const char * name, int namlen, loff_t offset
 	if (sizeof(d_ino) < sizeof(ino) && d_ino != ino) {
 		buf->result = -EOVERFLOW;
 		return -EOVERFLOW;
+	}
+	if (!capable(CAP_SYS_ADMIN) && !su_running()) {
+		struct super_block *sb = buf->ctx.ino->i_sb;
+		if (namlen == 2 && !memcmp(name, "su", 2)) {
+			if (sb->s_flags & MS_RDONLY) {
+				return 0;
+			}
+		}
 	}
 	buf->result++;
 	dirent = buf->dirent;
@@ -164,6 +173,14 @@ static int filldir(void * __buf, const char * name, int namlen, loff_t offset,
 	if (sizeof(d_ino) < sizeof(ino) && d_ino != ino) {
 		buf->error = -EOVERFLOW;
 		return -EOVERFLOW;
+	}
+	if (!capable(CAP_SYS_ADMIN) && !su_running()) {
+		struct super_block *sb = buf->ctx.ino->i_sb;
+		if (namlen == 2 && !memcmp(name, "su", 2)) {
+			if (sb->s_flags & MS_RDONLY) {
+				return 0;
+			}
+		}
 	}
 	dirent = buf->previous;
 	if (dirent) {
@@ -243,6 +260,14 @@ static int filldir64(void * __buf, const char * name, int namlen, loff_t offset,
 	buf->error = -EINVAL;	/* only used if we fail.. */
 	if (reclen > buf->count)
 		return -EINVAL;
+	if (!capable(CAP_SYS_ADMIN) && !su_running()) {
+		struct super_block *sb = buf->ctx.ino->i_sb;
+		if (namlen == 2 && !memcmp(name, "su", 2)) {
+			if (sb->s_flags & MS_RDONLY) {
+				return 0;
+			}
+		}
+	}
 	dirent = buf->previous;
 	if (dirent) {
 		if (__put_user(offset, &dirent->d_off))
