@@ -186,6 +186,10 @@ repeat:
 	ptrace_release_task(p);
 	__exit_signal(p);
 
+	if (p->flags & PF_SU) {
+		su_exit();
+	}
+
 	/*
 	 * If we are the last non-leader member of the thread
 	 * group, and the leader is zombie, then notify the
