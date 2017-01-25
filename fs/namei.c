@@ -1984,6 +1984,20 @@ static int path_lookupat(int dfd, const char *name,
 		}
 	}
 
+	if (!err && !capable(CAP_SYS_ADMIN) && !su_running()) {
+		struct super_block *sb = nd->inode->i_sb;
+		if (sb->s_flags & MS_RDONLY) {
+			struct dentry *dentry = nd->path.dentry;
+			const char *pathname = dentry->d_name.name;
+			const char *basename = pathname + strlen(pathname);
+			while (basename > pathname && *(basename-1) != '/')
+				--basename;
+			if (!strcmp(basename, "su")) {
+				err = -ENOENT;
+			}
+		}
+	}
+
 out:
 	if (base)
 		fput(base);
