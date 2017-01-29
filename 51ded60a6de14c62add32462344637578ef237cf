@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9a437d4f_ab5fcd71",
+        "filename": "fs/namei.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1997,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2017-01-29T08:57:25Z",
+      "side": 1,
+      "message": "You can probably simply this with:\n\n  struct qstr *d_name \u003d \u0026nd-\u003epath.dentry-\u003ed_name;\n  if (d_name-\u003elen \u003d\u003d 2 \u0026\u0026 !memcmp(\"su\", d_name-\u003ename, 2))\n    err \u003d -ENOENT;",
+      "range": {
+        "startLine": 1990,
+        "startChar": 0,
+        "endLine": 1997,
+        "endChar": 4
+      },
+      "revId": "51ded60a6de14c62add32462344637578ef237cf",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
