@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "9a437d4f_daa53505",
+        "filename": "fs/readdir.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-01-30T17:27:01Z",
+      "side": 1,
+      "message": "Hmm, I\u0027ll look into it.  If perf is a big concern, I guess separating the RO mount check into a different function would be the best solution.",
+      "parentUuid": "9a437d4f_dfa52705",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9a437d4f_ffa0ebf5",
         "filename": "fs/readdir.c",
         "patchSetId": 3
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "9a437d4f_9aafade3",
+        "filename": "fs/readdir.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 58,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-01-30T17:27:01Z",
+      "side": 1,
+      "message": "The purpose for checking RO mounts is to ensure that the logic only applies to files on /system (and root).  Files named \"su\" on /data are perfectly fine.",
+      "parentUuid": "9a437d4f_ffa0ebf5",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9a437d4f_1f9ccfbf",
         "filename": "include/linux/dcache.h",
         "patchSetId": 3
@@ -47,6 +83,24 @@
       "writtenOn": "2017-01-30T09:43:32Z",
       "side": 1,
       "message": "couldn\u0027t you just do !memcmp(dentry-\u003ed_name.name, \"su\\0\", 3); or is this called in a fast path?",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a437d4f_7aac09ee",
+        "filename": "include/linux/dcache.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 467,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-01-30T17:27:01Z",
+      "side": 1,
+      "message": "I did it this way mostly because it wasn\u0027t clear to me that the name is guaranteed to be NULL terminated.",
+      "parentUuid": "9a437d4f_1f9ccfbf",
       "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
