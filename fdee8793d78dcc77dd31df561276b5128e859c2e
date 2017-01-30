@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9a437d4f_c5e2fa02",
+        "filename": "fs/readdir.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 100,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2017-01-30T22:22:23Z",
+      "side": 1,
+      "message": "I think that checking the value of romnt is less expensive than calling a function, so I would swap the two.",
+      "range": {
+        "startLine": 100,
+        "startChar": 5,
+        "endLine": 100,
+        "endChar": 46
+      },
+      "revId": "fdee8793d78dcc77dd31df561276b5128e859c2e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
