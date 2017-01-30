@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9a437d4f_dfa52705",
+        "filename": "fs/readdir.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-01-30T09:43:32Z",
+      "side": 1,
+      "message": "Maybe make this take a dir_context instead of an inode to save the struct access at all the callsites?",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a437d4f_ffa0ebf5",
+        "filename": "fs/readdir.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 58,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-01-30T09:43:32Z",
+      "side": 1,
+      "message": "Is this so we only protect while mounted R/O, or is there another purpose to this?",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a437d4f_1f9ccfbf",
+        "filename": "include/linux/dcache.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 467,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-01-30T09:43:32Z",
+      "side": 1,
+      "message": "couldn\u0027t you just do !memcmp(dentry-\u003ed_name.name, \"su\\0\", 3); or is this called in a fast path?",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
