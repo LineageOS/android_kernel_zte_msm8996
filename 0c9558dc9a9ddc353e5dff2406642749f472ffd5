@@ -72,6 +72,24 @@
     },
     {
       "key": {
+        "uuid": "9a437d4f_3ab6813e",
+        "filename": "fs/readdir.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 58,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2017-01-30T17:38:58Z",
+      "side": 1,
+      "message": "I have a different solution to solve this problem. I added an ioctl to flag directories that should hide su.",
+      "parentUuid": "9a437d4f_9aafade3",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9a437d4f_1f9ccfbf",
         "filename": "include/linux/dcache.h",
         "patchSetId": 3
@@ -101,6 +119,24 @@
       "side": 1,
       "message": "I did it this way mostly because it wasn\u0027t clear to me that the name is guaranteed to be NULL terminated.",
       "parentUuid": "9a437d4f_1f9ccfbf",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a437d4f_7a93e9a3",
+        "filename": "include/linux/dcache.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 467,
+      "author": {
+        "id": 13897
+      },
+      "writtenOn": "2017-01-30T17:38:58Z",
+      "side": 1,
+      "message": "The last time I added some printks to debug the code, there was some junk at the end of some names, so I\u0027d say they are not null terminated.",
+      "parentUuid": "9a437d4f_7aac09ee",
       "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
