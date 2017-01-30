@@ -37,6 +37,24 @@
     },
     {
       "key": {
+        "uuid": "9a437d4f_faeeb921",
+        "filename": "fs/readdir.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-01-30T17:44:18Z",
+      "side": 1,
+      "message": "Not necessarily perf, just seemed \u0027odd\u0027 to me passing the inode instead of the dir_context, with the possible added benefit of saving the addition offset of the field.",
+      "parentUuid": "9a437d4f_daa53505",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9a437d4f_ffa0ebf5",
         "filename": "fs/readdir.c",
         "patchSetId": 3
@@ -137,6 +155,24 @@
       "side": 1,
       "message": "The last time I added some printks to debug the code, there was some junk at the end of some names, so I\u0027d say they are not null terminated.",
       "parentUuid": "9a437d4f_7aac09ee",
+      "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a437d4f_3a8d617c",
+        "filename": "include/linux/dcache.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 467,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-01-30T17:44:18Z",
+      "side": 1,
+      "message": "Indeed, I completely forgot about that aspect of kernel file names.",
+      "parentUuid": "9a437d4f_7a93e9a3",
       "revId": "0c9558dc9a9ddc353e5dff2406642749f472ffd5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
