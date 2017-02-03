@@ -22,6 +22,30 @@
       "revId": "fdee8793d78dcc77dd31df561276b5128e859c2e",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7a288981_4e8d3331",
+        "filename": "fs/readdir.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 100,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-02-03T07:37:11Z",
+      "side": 1,
+      "message": "compiler will (likely) handle that optimization, and having it in this order makes more \u0027sense\u0027 to me.",
+      "parentUuid": "9a437d4f_c5e2fa02",
+      "range": {
+        "startLine": 100,
+        "startChar": 5,
+        "endLine": 100,
+        "endChar": 46
+      },
+      "revId": "fdee8793d78dcc77dd31df561276b5128e859c2e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
