@@ -68,9 +68,8 @@
 #include "pn5xx_i2c.h"
 
 /*#define pr_err NFC_DBG_MSG
-*#define pr_debug NFC_DBG_MSG
-*#define pr_warning NFC_DBG_MSG
-*/
+#define pr_debug NFC_DBG_MSG
+#define pr_warning NFC_DBG_MSG*/
 #define DBG_MODULE 1
 #if DBG_MODULE
 #define NFC_DBG_MSG(fmt, msg...) pr_err(" %s: "fmt, __func__, ##msg)
@@ -137,7 +136,7 @@ static struct proc_dir_entry *nfc_id_proc_file;
 
 static void create_nfc_info_proc_file(void)
 {
-	nfc_id_proc_file = proc_create("driver/nfc_id", S_IWUGO | S_IRUGO, NULL, &nfc_proc_fops);
+	nfc_id_proc_file = proc_create("driver/nfc_id", 0777, NULL, &nfc_proc_fops);
 	NFC_DBG_MSG("goes to create_nfc_info_proc_file\n");
 	if (nfc_id_proc_file) {
 	} else{
@@ -223,8 +222,7 @@ static ssize_t pn5xx_dev_read(struct file *filp, char __user *buf,
 	mutex_unlock(&pn5xx_dev->read_mutex);
 
     /* pn5xx seems to be slow in handling I2C read requests
-     * so add 1ms delay after recv operation
-	 */
+     * so add 1ms delay after recv operation */
 	udelay(1000);
 
 	if (ret < 0) {
@@ -240,11 +238,10 @@ static ssize_t pn5xx_dev_read(struct file *filp, char __user *buf,
 		return -EFAULT;
 	}
 	/*printk("NFCC->DH:");
-	*for(i = 0; i < ret; i++){
-	*	printk(" %02X", tmp[i]);
-	*}
-	*printk("\n");
-	*/
+	for(i = 0; i < ret; i++){
+		printk(" %02X", tmp[i]);
+	}
+	printk("\n");*/
 
 	return ret;
 
@@ -271,12 +268,11 @@ static ssize_t pn5xx_dev_write(struct file *filp, const char __user *buf,
 	}
 
 	/*printk("%s : writing %zu bytes.\n", __func__, count);
-	*printk("DH->NFCC:");
-	*for(i = 0; i < count; i++){
-	*	printk(" %02X", tmp[i]);
-	*}
-	*printk("\n");
-	*/
+	printk("DH->NFCC:");
+	for(i = 0; i < count; i++){
+		printk(" %02X", tmp[i]);
+	}
+	printk("\n");*/
 	/* Write data */
 	ret = i2c_master_send(pn5xx_dev->client, tmp, count);
 	if (ret != count) {
@@ -285,8 +281,7 @@ static ssize_t pn5xx_dev_write(struct file *filp, const char __user *buf,
 	}
 
 	/* pn5xx seems to be slow in handling I2C write requests
-    * so add 1ms delay after I2C send oparation
-	*/
+     * so add 1ms delay after I2C send oparation */
 	udelay(1000);
 	return ret;
 }
@@ -377,9 +372,8 @@ static int nxp_pn5xx_reset(void)
 {
 	int rc;
 	/*rc = gpio_tlmm_config(GPIO_CFG(pn5xx_dev->irq_gpio, 0,
-	*			GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN,
-	*			GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-	*/
+				GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN,
+				GPIO_CFG_2MA), GPIO_CFG_ENABLE);*/
 	if (!gpio_is_valid(pn5xx_dev->irq_gpio)) {
 		NFC_ERR_MSG("Could not configure nfc gpio%d\n", pn5xx_dev->irq_gpio);
 		return -EIO;
@@ -395,9 +389,8 @@ static int nxp_pn5xx_reset(void)
 		return -EIO;
 	}
 	/*rc = gpio_tlmm_config(GPIO_CFG(pn5xx_dev->firm_gpio, 0,
-	*				GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
-	*				GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-	*/
+					GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
+					GPIO_CFG_2MA), GPIO_CFG_ENABLE);*/
 	/*printk("pn5xx config firmgpio pull down\n");*/
 	if (!gpio_is_valid(pn5xx_dev->firm_gpio)) {
 		NFC_ERR_MSG("Could not configure nfc gpio%d\n", pn5xx_dev->firm_gpio);
@@ -415,9 +408,8 @@ static int nxp_pn5xx_reset(void)
 	}
 	/*ven gpio out*/
 	/*rc = gpio_tlmm_config(GPIO_CFG(pn5xx_dev->ven_gpio, 0,
-	*				GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,
-	*				GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-	*/
+					GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,
+					GPIO_CFG_2MA), GPIO_CFG_ENABLE);*/
 	/*printk("pn5xx config vengpio out put no pull\n");*/
 	if (!gpio_is_valid(pn5xx_dev->ven_gpio)) {
 		NFC_ERR_MSG("Could not configure nfc gpio%d\n", pn5xx_dev->ven_gpio);
@@ -582,15 +574,15 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			/*return -ENOENT;*/
 		} else{
 			NFC_DBG_MSG("start prepare bb_clk2\n");
-			/*ret = clk_set_rate(bb_clk2,NFC_RF_CLK_FREQ);
-			*if(ret) {
-			*	NFC_DBG_MSG("set bb_clk2 rate failed ret:%d\n", ret);
-			*}
-			//ret = clk_prepare_enable(bb_clk2);
-			*if(ret) {
-			*	NFC_DBG_MSG("prepare bb_clk2 failed ret:%d\n", ret);
+			/*
+			ret = clk_set_rate(bb_clk2,NFC_RF_CLK_FREQ);
+			if(ret) {
+				NFC_DBG_MSG("set bb_clk2 rate failed ret:%d\n", ret);
 			}
-			*/
+			//ret = clk_prepare_enable(bb_clk2);
+			if(ret) {
+				NFC_DBG_MSG("prepare bb_clk2 failed ret:%d\n", ret);
+			}*/
 		}
 #endif
 		/*pr_info("%s : requesting IRQ %d\n", __func__, client->irq);*/
@@ -625,7 +617,6 @@ err_request_irq_failed:
 err_misc_register:
 	mutex_destroy(&pn5xx_dev->read_mutex);
 	mutex_destroy(&pn5xx_dev->write_mutex);
-	kfree(pn5xx_dev);
 err_device_create_failed:
 	kfree(pn5xx_dev);
 	pn5xx_dev = NULL;
@@ -679,10 +670,11 @@ static const struct i2c_device_id pn5xx_id[] = {
 	{ }
 };
 
-static const struct of_device_id nfc_match_table[] = {
+static struct of_device_id nfc_match_table[] = {
 	{.compatible = "nxp,pn544",},
 	{.compatible = "nxp,pn547",},
 	{.compatible = "nxp,pn548",},
+	{.compatible = "nxp,pn553",},
 	{ },
 };
 

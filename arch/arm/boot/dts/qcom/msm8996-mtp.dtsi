@@ -1038,8 +1038,7 @@
 		pinctrl-1 = <&nfc_int_suspend &nfc_disable_suspend>;
 		clocks = <&clock_gcc clk_bb_clk2_pin>;
 		clock-names = "ref_clk";
-	};
-	*/
+	};*/
 	pn5xx@28{
 		compatible = "nxp,pn548";
 		reg = <0x28>;
@@ -1051,14 +1050,14 @@
 		nxp,pn5xx-ese-pwr = <&pm8994_gpios 7 0x00>;
 		//nxp,pn5xx-swp2-pwr = <&tlmm129 0x00>;
 		nxp,int_active_low = <0>;
-		//nxp,pn5xx-clkreq = <&pm8994_gpios 2 0x00>;
-		//nxp,clk-src = "BBCLK2";
-		//interrupt-names = "nfc_irq";
-		pinctrl-names = "nfc_active", "nfc_suspend";
+		/*nxp,pn5xx-clkreq = <&pm8994_gpios 2 0x00>;
+		nxp,clk-src = "BBCLK2";
+		interrupt-names = "nfc_irq";*/
+		pinctrl-names = "nfc_active","nfc_suspend";
 		pinctrl-0 = <&nfc_int_active &nfc_disable_active>;
 		pinctrl-1 = <&nfc_int_suspend &nfc_disable_suspend>;
-		//clocks = <&clock_gcc clk_bb_clk2_pin>;
-		//clock-names = "bb_clk2";
+		/*clocks = <&clock_gcc clk_bb_clk2_pin>;
+		clock-names = "bb_clk2";*/
 	};
 };
 

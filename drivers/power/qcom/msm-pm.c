@@ -645,7 +645,7 @@ static int  zte_amss_needF3log(int apSleep_time_s, int modemAwake_percent)
 #define THRESOLD_FOR_OFFLINE_AWAKE_TIME 100 /*ms*/
 #define THRESOLD_FOR_OFFLINE_TIME 5000 /*s*/
 
-static int mEnableRrecordFlag_ZTE;
+int mEnableRrecordFlag_ZTE;
 module_param_named(zte_enableRecord,
 	mEnableRrecordFlag_ZTE, int, S_IRUGO | S_IWUSR | S_IWGRP);
 

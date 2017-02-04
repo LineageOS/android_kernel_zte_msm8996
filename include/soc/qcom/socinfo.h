@@ -289,9 +289,10 @@ int socinfo_get_fp_hw(void);
 #endif
 
 /* Fingerpint hw types*/
+/*
 enum {
 	FINGERPRINT_HW_UNKOWN	= -1,
 	FINGERPRINT_HW_GOODIX	= 0,
 	FINGERPRINT_HW_SYNAFP	= 1
-};
+};*/
 #endif

@@ -238,6 +238,7 @@ static void pwrkey_timer(unsigned long data)
 	schedule_work(&pon->pwrkey_poweroff_work);
 }
 
+extern int zte_volume_key;
 static void pwrkey_poweroff(struct work_struct *work)
 {
 #if 0
@@ -249,7 +250,8 @@ static void pwrkey_poweroff(struct work_struct *work)
 	}
 #else
 	pr_emerg("%s: power key long pressed, trigger reboot\n",__func__);
-	kernel_restart("LONGPRESS");
+    if(zte_volume_key)
+	  kernel_restart("ZTE-LONGPRESS");
 #endif
 }
 
@@ -368,6 +370,23 @@ static const char * const qpnp_poff_reason[] = {
  */
 static int warm_boot;
 module_param(warm_boot, int, 0);
+
+static int
+qpnp_pon_read_byte(struct qpnp_pon *pon, u16 addr, u8 *val)
+{
+	int rc;
+
+	rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid,
+							addr, val, 1);
+	if (rc) {
+		dev_err(&pon->spmi->dev,
+			"Unable to read from addr=%hx, rc(%d)\n",
+			addr, rc);
+		return rc;
+	}
+
+	return rc;
+}
 
 static int
 qpnp_pon_masked_write(struct qpnp_pon *pon, u16 addr, u8 mask, u8 val)
@@ -2032,6 +2051,45 @@ static int read_gen2_pon_off_reason(struct qpnp_pon *pon, u16 *reason,
 	return 0;
 }
 
+
+#if 1
+int qpnp_s2_reset_en(void)
+{
+	int rc;
+	u8 s2_en = 0;
+	rc = spmi_ext_register_readl(sys_reset_dev->spmi->ctrl, sys_reset_dev->spmi->sid, 0x843, &s2_en,1);
+	if (rc) {
+		pr_info("qpnp_s2_reset_en read failed\n");
+		return rc;
+	}
+
+	if(s2_en!=0x80)
+	{
+	   s2_en=0x80;
+	   rc = spmi_ext_register_writel(sys_reset_dev->spmi->ctrl, sys_reset_dev->spmi->sid, 0x843, &s2_en,1);
+       if (rc) {
+		pr_info("qpnp_s2_reset_en write failed\n");
+		return rc;
+	   }
+	}
+
+	pr_info("qpnp_s2_reset_en ok...");
+	return 0;
+}
+
+extern int smb_set_shipmode(void);
+static struct qpnp_pon *zte_pon=NULL;
+int zte_read_s3_type(u8* s3_src_reg)
+{
+   int rc = 0;
+   
+   if(zte_pon)
+     rc=qpnp_pon_read_byte(zte_pon, QPNP_PON_S3_SRC(zte_pon), s3_src_reg);
+
+   return rc;
+}	
+#endif
+
 static int qpnp_pon_probe(struct spmi_device *spmi)
 {
 	struct qpnp_pon *pon;
@@ -2277,6 +2335,17 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 		return rc;
 	}
 
+#if 1	
+	rc = qpnp_pon_read_byte(pon, QPNP_PON_S3_SRC(pon), &s3_src_reg);
+	if (rc) {
+		dev_err(&spmi->dev, "Unable to program s3 source rc: %d\n", rc);
+		return rc;
+	}
+	dev_info(&spmi->dev, "s3_src_reg: %d\n", s3_src_reg);
+//	if (s3_src_reg != 2)
+//		smb_set_shipmode();
+#endif
+		
 	dev_set_drvdata(&spmi->dev, pon);
 
 	INIT_DELAYED_WORK(&pon->bark_work, bark_work_func);
@@ -2394,6 +2463,10 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 					"qcom,store-hard-reset-reason");
 
 	qpnp_pon_debugfs_init(spmi);
+
+    if(zte_pon==NULL)
+	   zte_pon=pon;
+	
 	return 0;
 }
 

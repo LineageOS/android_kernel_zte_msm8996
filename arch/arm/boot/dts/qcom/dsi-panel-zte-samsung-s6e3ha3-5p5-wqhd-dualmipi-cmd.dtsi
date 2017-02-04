@@ -69,11 +69,11 @@
 
 		zte,esd-interrupt-gpio = <&tlmm 53 0>;/*zte,esd interrupt mode 0205 */
 
-		qcom,partial-update-enabled;
-		qcom,partial-update-roi-merge;
-		qcom,panel-roi-alignment = <8 8 8 8 8 8>;
-
+//		qcom,partial-update-enabled;
+//		qcom,partial-update-roi-merge;
+//		qcom,panel-roi-alignment = <8 8 8 8 8 8>;
 		qcom,mdss-dsi-reset-sequence = <1 2>, <0 1>, <1 5>;
+
 		qcom,mdss-dsi-t-clk-post = <0x03>;
 		qcom,mdss-dsi-t-clk-pre = <0x2b>; //<0x29>;
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";

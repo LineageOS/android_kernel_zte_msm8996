@@ -3627,6 +3627,10 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 					if (mdwc->chg_type != DWC3_SDP_CHARGER)
 						break;
 				}
+				/* wall charger in which D+/D- is disconnected
+				would be recognized as an usb cable, 4.1/5 */
+				schedule_delayed_work(&mdwc->invalid_chg_work, 5*HZ);
+				/* end */
 				dwc3_otg_start_peripheral(mdwc, 1);
 				mdwc->otg_state = OTG_STATE_B_PERIPHERAL;
 				dbg_event(0xFF, "Undef SDP",
@@ -3694,7 +3698,7 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 				mdwc->otg_state = OTG_STATE_B_PERIPHERAL;
 				work = 1;
 				/* wall charger in which D+/D- is disconnected
-				would be recognized as an usb cable, 4/5 */
+				would be recognized as an usb cable, 4.2/5 */
 				schedule_delayed_work(&mdwc->invalid_chg_work, 5*HZ);
 				/* end */
 				break;

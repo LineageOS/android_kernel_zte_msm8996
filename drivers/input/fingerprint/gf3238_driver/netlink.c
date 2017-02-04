@@ -6,6 +6,9 @@
 #include <net/sock.h>
 #include <net/netlink.h>
 
+#include "gf3238_spi.h"
+
+
 #define NETLINK_TEST 25
 #define MAX_MSGSIZE 32
 int stringlength(char *s);
@@ -54,7 +57,7 @@ void sendnlmsg(char *message)
 	ret = netlink_unicast(nl_sk, skb_1, pid, MSG_DONTWAIT);
 	if (!ret) {
 		/* kfree_skb(skb_1); */
-		pr_info("send msg from kernel to usespace failed ret 0x%x\n", ret);
+		FP_LOG(INFO, "send msg from kernel to usespace failed ret 0x%x\n", ret);
 	}
 
 }
@@ -74,7 +77,7 @@ void nl_data_ready(struct sk_buff *__skb)
 		pid = nlh->nlmsg_pid;
 
 		if (pid)
-			pr_info("Message pid %d received:%s\n", pid, str);
+			FP_LOG(INFO, "Message pid %d received:%s\n", pid, str);
 		/* while(i--) */
 		/* { */
 		/* init_completion(&cmpl); */
@@ -101,10 +104,10 @@ int netlink_init(void)
 	/* netlink_cfg.bind = NULL; */
 
 	nl_sk = netlink_kernel_create(&init_net, NETLINK_TEST,
-				      &netlink_cfg);
+				&netlink_cfg);
 
 	if (!nl_sk) {
-		pr_err("my_net_link: create netlink socket error.\n");
+		FP_LOG(ERR, "my_net_link: create netlink socket error.\n");
 		return -EPERM;
 	}
 
@@ -118,6 +121,6 @@ void netlink_exit(void)
 		nl_sk = NULL;
 	}
 
-	pr_info("my_net_link: self module exited\n");
+	FP_LOG(INFO, "my_net_link: self module exited\n");
 }
 

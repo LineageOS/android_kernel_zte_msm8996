@@ -1,0 +1,3 @@
+config FINGERPRINT_GOODIX_GF3238M
+	tristate "GOODIX GF3238 fingerprint driver"
+	default n

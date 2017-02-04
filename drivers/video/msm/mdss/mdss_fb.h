@@ -322,9 +322,11 @@ struct msm_fb_data_type {
 	struct task_struct *disp_thread;
 	atomic_t commits_pending;
 	atomic_t kickoff_pending;
+	atomic_t vr_pending;
 	wait_queue_head_t commit_wait_q;
 	wait_queue_head_t idle_wait_q;
 	wait_queue_head_t kickoff_wait_q;
+	wait_queue_head_t vr_wait_q;
 	bool shutdown_pending;
 
 	struct msm_fb_splash_info splash_info;
@@ -358,6 +360,8 @@ struct msm_fb_data_type {
 	bool pending_switch;
 	struct mutex switch_lock;
 	struct input_handler *input_handler;
+	u32 vr_mode;		//zte jiangfeng add for VR mode
+	u32 vr_mode_exiting;	//zte jiangfeng add for VR mode
 };
 
 static inline void mdss_fb_update_notify_update(struct msm_fb_data_type *mfd)

@@ -31,4 +31,4 @@ obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 obj-$(CONFIG_FINGERPRINT_SYNA_VFS) += fingerprint/synaptics_vfs/
 obj-$(CONFIG_FINGERPRINT_FPC) += fingerprint/fpc/
 obj-$(CONFIG_FINGERPRINT_GOODIX_GF3118M) += fingerprint/goodix/
-obj-$(CONFIG_FINGERPRINT_GOODIX_GF3238M) += fingerprint/gf3238_kernel/
+obj-$(CONFIG_FINGERPRINT_GOODIX_GF3238M) += fingerprint/gf3238_driver/

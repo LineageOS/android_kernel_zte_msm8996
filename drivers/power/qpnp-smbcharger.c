@@ -756,7 +756,9 @@ static void smbchg_stay_awake(struct smbchg_chip *chip, int reason)
 	if (reasons != 0 && chip->wake_reasons == 0) {
 		pr_smb(PR_PM, "staying awake: 0x%02x (bit %d)\n",
 				reasons, reason);
-		pm_stay_awake(chip->dev);
+		/*pm_stay_awake(chip->dev);*/
+		/*ZTE_PM hold qpnp-smbcharger-16 for 5mins at most to avoid fail to release.*/
+		pm_wakeup_event(chip->dev, 5 * 60 * MSEC_PER_SEC);
 	}
 	chip->wake_reasons = reasons;
 	mutex_unlock(&chip->pm_lock);
@@ -8751,6 +8753,8 @@ static int smbchg_ovp_config(struct smbchg_chip *chip)
 	return rc;
 }
 
+extern int zte_read_s3_type(u8* s3_src_reg);
+
 static int smbchg_probe(struct spmi_device *spmi)
 {
 	int rc;
@@ -8758,6 +8762,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 	struct power_supply *usb_psy, *typec_psy = NULL;
 	struct qpnp_vadc_chip *vadc_dev = NULL, *vchg_vadc_dev = NULL;
 	const char *typec_psy_name;
+	u8 s3_src_reg;
 
 	usb_psy = power_supply_get_by_name("usb");
 	if (!usb_psy) {
@@ -9054,6 +9059,17 @@ static int smbchg_probe(struct spmi_device *spmi)
 				  round_jiffies_relative(msecs_to_jiffies(HEARTBEAT_MS)));
 	/*zte add for update heartbeat work end*/
 	zte_chip =	chip;
+
+#if 1	
+		rc = zte_read_s3_type(&s3_src_reg);
+		if (rc) {
+			dev_err(&spmi->dev, "Unable to program s3 source rc: %d\n", rc);
+			return rc;
+		}
+		dev_info(&spmi->dev, "s3_src_reg: %d\n", s3_src_reg);
+		if (s3_src_reg != 2)
+			smb_set_shipmode();
+#endif
 
 	return 0;
 

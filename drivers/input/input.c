@@ -29,6 +29,9 @@
 #include <linux/rcupdate.h>
 #include "input-compat.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/input.h>
+
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("Input core");
 MODULE_LICENSE("GPL");
@@ -403,6 +406,32 @@ static void input_handle_event(struct input_dev *dev,
 
 }
 
+static int waiting_step, lastX, lastY;
+
+void trace_log_keyevent(unsigned int type, unsigned int code, int value)
+{
+	if (type == EV_KEY && code == BTN_TOUCH && value == 0) {
+		trace_input_user_press_up(lastX, lastY);
+		waiting_step = 0;
+		return;
+	}
+	if (type == EV_KEY && code == BTN_TOUCH &&
+			value == 1 && waiting_step == 0) {
+		waiting_step = 1;
+		return;
+	}
+
+	if (type == EV_ABS && ABS_MT_POSITION_X == code) {
+		lastX = value;
+	} else if (type == EV_ABS && ABS_MT_POSITION_Y == code) {
+		lastY = value;
+		if (waiting_step == 1) {
+			trace_input_user_press_down(lastX, lastY);
+			waiting_step = 2;
+		}
+	}
+}
+
 /**
  * input_event() - report new input event
  * @dev: device that generated the event
@@ -428,6 +457,7 @@ void input_event(struct input_dev *dev,
 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
 
 		spin_lock_irqsave(&dev->event_lock, flags);
+		trace_log_keyevent(type, code, value);
 		input_handle_event(dev, type, code, value);
 		spin_unlock_irqrestore(&dev->event_lock, flags);
 	}

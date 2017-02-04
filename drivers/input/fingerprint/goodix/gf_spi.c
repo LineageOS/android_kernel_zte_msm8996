@@ -611,14 +611,6 @@ static int gf_probe(struct platform_device *pdev)
     gf_dev->device_available = 0;
     gf_dev->fb_black = 0;
 
-    //0:Goodix 1:Synapatics
-    if (!is_goodix_fp()) {
-        pr_info("<HW> not Goodix fingerprint hw, skip\n");
-        return 0;
-    } else {
-        pr_info("<HW> Goodix fingerprint hw detected\n");
-    }
-
     if (gf_parse_dts(gf_dev))
         goto error;
     /*
@@ -820,6 +812,15 @@ static struct platform_driver gf_driver = {
 static int __init gf_init(void)
 {
     int status;
+
+
+	if (!is_goodix_fp()) {
+		pr_info("<HW> not Goodix gf3118M fingerprint hw, skip\n");
+		goto out;
+	} else {
+		pr_info("<HW> Goodix gf3118M fingerprint hw detected\n");
+	}
+
     FUNC_ENTRY();
 
     /* Claim our 256 reserved device numbers.  Then register a class
@@ -854,7 +855,9 @@ static int __init gf_init(void)
 
     pr_info(" status = 0x%x\n", status);
     FUNC_EXIT();
-    return 0;       //status;
+
+out:
+	return 0;
 }
 
 module_init(gf_init);

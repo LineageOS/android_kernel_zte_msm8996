@@ -3,6 +3,8 @@
 
 #include <linux/types.h>
 #include <linux/notifier.h>
+#include <linux/wakelock.h>
+
 /**********************************************************/
 enum FP_MODE {
 	GF_IMAGE_MODE = 0,
@@ -62,6 +64,18 @@ struct gf_ioc_chip_info {
 
 #define  GF_IOC_MAXNR    14  /* THIS MACRO IS NOT USED NOW... */
 
+#define GF_LOG_ERR (1U << 0)
+#define GF_LOG_INFO (1U << 1)
+#define GF_LOG_DEBUG (1U << 2)
+
+#define FP_LOG(debug_level_mask, fmt, ...) \
+	do { \
+		if (gf_log_mask & GF_LOG_##debug_level_mask) \
+			pr_info("goodix_fp[%s][%s]:"fmt, #debug_level_mask, __func__, ##__VA_ARGS__); \
+	} while (0)
+extern int gf_log_mask;
+#define FP_ENTRY()
+#define FP_EXIT()
 /* #define AP_CONTROL_CLK       1 */
 #define  USE_PLATFORM_BUS     1
 /* #define  USE_SPI_BUS	1 */
@@ -98,14 +112,14 @@ struct gf_dev {
 	char fb_black;
 };
 
-int gf_parse_dts(struct gf_dev *gf_dev);
-void gf_cleanup(struct gf_dev *gf_dev);
+int gf_milan_parse_dts(struct gf_dev *gf_dev);
+void gf_milan_cleanup(struct gf_dev *gf_dev);
 
-int gf_power_on(struct gf_dev *gf_dev);
-int gf_power_off(struct gf_dev *gf_dev);
+int gf_milan_power_on(struct gf_dev *gf_dev);
+int gf_milan_power_off(struct gf_dev *gf_dev);
 
-int gf_hw_reset(struct gf_dev *gf_dev, unsigned int delay_ms);
-int gf_irq_num(struct gf_dev *gf_dev);
+int gf_milan_hw_reset(struct gf_dev *gf_dev, unsigned int delay_ms);
+int gf_milan_irq_num(struct gf_dev *gf_dev);
 
 void sendnlmsg(char *message);
 int netlink_init(void);

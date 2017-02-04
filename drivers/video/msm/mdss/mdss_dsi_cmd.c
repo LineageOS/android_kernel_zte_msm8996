@@ -756,7 +756,13 @@ int mdss_dsi_cmdlist_put(struct mdss_dsi_ctrl_pdata *ctrl,
 	struct dcs_cmd_req *req;
 	struct dcs_cmd_list *clist;
 	int ret = 0;
+	struct mdss_panel_info *panel_info = NULL;
 
+	panel_info = &ctrl->panel_data.panel_info;
+	if (panel_info->panel_power_state == MDSS_PANEL_POWER_OFF) {
+		pr_err("LCD %s Power off,could not send cmd anymore!", __func__);
+		return ret;
+	}
 	mutex_lock(&ctrl->cmd_mutex);
 	mutex_lock(&ctrl->cmdlist_mutex);
 	clist = &ctrl->cmdlist;

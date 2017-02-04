@@ -52,6 +52,7 @@ static int __ref cpu_subsys_online(struct device *dev)
 		return -ENODEV;
 
 	ret = cpu_up(cpuid);
+	printk("cpu id %d online\n", cpuid);
 	/*
 	 * When hot adding memory to memoryless node and enabling a cpu
 	 * on the node, node number of the cpu may internally change.
@@ -65,6 +66,7 @@ static int __ref cpu_subsys_online(struct device *dev)
 
 static int cpu_subsys_offline(struct device *dev)
 {
+	printk("cpu id %u offline\n", dev->id);
 	return cpu_down(dev->id);
 }
 

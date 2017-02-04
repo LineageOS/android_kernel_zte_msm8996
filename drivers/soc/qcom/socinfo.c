@@ -661,6 +661,7 @@ static int __init zte_pv_flag_init(char *ver)
 }
 __setup(SOCINFO_CMDLINE_PV_FLAG, zte_pv_flag_init);
 
+/*
 #define SOCINFO_CMDLINE_FP_HW               "androidboot.fingerprinthw="
 #define SOCINFO_CMDLINE_FP_HW_SYNAFP        "synafp"
 #define SOCINFO_CMDLINE_FP_HW_GOODIX        "goodix"
@@ -681,7 +682,7 @@ static int __init zte_fingerprint_hw_init(char *ver)
 	return 0;
 }
 __setup(SOCINFO_CMDLINE_FP_HW, zte_fingerprint_hw_init);
-
+*/
 static int g_boot_mode = 0;
 
 void socinfo_set_boot_mode(int boot_mode)
@@ -728,6 +729,7 @@ int socinfo_get_pv_flag(void)
 EXPORT_SYMBOL(socinfo_get_pv_flag);
 
 //ZTE fingerprint hw setting
+/*
 static int fingprint_hw_type = -1;
 void socinfo_set_fp_hw(int val)
 {
@@ -739,7 +741,7 @@ int socinfo_get_fp_hw(void)
     return fingprint_hw_type;
 }
 EXPORT_SYMBOL(socinfo_get_fp_hw);
-
+*/
 #endif
 
 uint32_t socinfo_get_id(void)

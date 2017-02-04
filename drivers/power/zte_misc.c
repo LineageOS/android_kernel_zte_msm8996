@@ -287,57 +287,102 @@ bool is_haptics_zte(void)
 
 /*************************************************
 fingerprint id detector
+1. Old Methods
 In MSM8996, Goodix and Synaptics.
 Goodix id pin NO PULL;
 Synaptics id pin PULL UP.
 set id pin to pull up, then check the pin status:
 0 for Goodix, 1 for Synaptics
+2. New Method:
+a. Read fingerprint id from LK
+b. Pass the id by cmdline
 **************************************************/
-static int fingerprint_hw = FINGERPRINT_HW_UNKOWN;
-module_param(fingerprint_hw, int, 0644);
-static void zte_misc_fingerprint_hw_check(struct device *dev)
+typedef enum fingerprint_chipid_type {
+	FINGERPRINT_CHIPID_GOODIX_GF3118M = 1,
+	FINGERPRINT_CHIPID_GOODIX_GF5206 = 2,
+	FINGERPRINT_CHIPID_GOODIX_GF5208 = 3,
+	FINGERPRINT_CHIPID_GOODIX_GF3238 = 4,
+	FINGERPRINT_CHIPID_GOODIX_GF3258 = 5,
+
+	FINGERPRINT_CHIPID_SYNAFP = 32,
+
+	FINGERPRINT_CHIPID_FPC = 64,
+
+	FINGERPRINT_CHIPID_MAX = 256,
+
+} fingerprint_chipid_type_t;
+
+static unsigned long fingerprint_hw = FINGERPRINT_CHIPID_GOODIX_GF3118M;
+module_param(fingerprint_hw, ulong, 0644);
+/*
+ * Get the fingerprint_id value
+ */
+static int __init fingerprint_id_setup(char *str)
 {
-    struct device_node *np;
-    uint32_t *buf = NULL;
-    uint32_t board_id = 3;//default set to 3,means a new board
-#ifdef CONFIG_ZTE_BOOT_MODE
-    int force_hw = socinfo_get_fp_hw();
-#else
-    int force_hw = FINGERPRINT_HW_UNKOWN;
-#endif
+	int ret = 0;
 
-    np = of_find_compatible_node(NULL, NULL, "qcom,msm-imem-board-id");
-    if (!np) {
-        pr_err("unable to find DT imem qcom,msm-imem-board-id\n");
-    }else {
-        buf =(uint32_t *)of_iomap(np, 0);
-        if (!buf)
-            pr_err("unable to map imem [board-id]\n");
-        else
-            board_id = *buf;
+	pr_info("%s @str:%s\n", __func__, str);
+
+	/* fingerprint_hw = simple_strtoul(str, NULL, 10);*/
+	ret = kstrtoul(str, 10, &fingerprint_hw);
+	if (ret != 0) {
+		pr_info("%s, kstrtoul error\n", __func__);
     }
-    pr_info("board_id=%d\n", board_id);
+	pr_info("fingerprint_id =%lu\n", fingerprint_hw);
 
-    if (board_id < 3)
-        fingerprint_hw = FINGERPRINT_HW_SYNAFP;
-    else
-        fingerprint_hw = FINGERPRINT_HW_GOODIX;
-
-    if (force_hw != FINGERPRINT_HW_UNKOWN ) {
-        fingerprint_hw = force_hw;
-        pr_info("fingerprint hw force set to %d %s\n",fingerprint_hw, (fingerprint_hw==FINGERPRINT_HW_SYNAFP)?"SYNAFP":"GOODIX");
-    }
-    pr_info("fingerprint_hw=%d %s\n", fingerprint_hw, (fingerprint_hw==FINGERPRINT_HW_SYNAFP)?"SYNAFP":"GOODIX");
+	return 0;
 }
+__setup("fingerprint_id=", fingerprint_id_setup);
+
+
+static int zte_misc_fingerprint_hw_check(struct device *dev)
+{
+	char *fingerprint_id_name;
+
+	switch (fingerprint_hw) {
+	case FINGERPRINT_CHIPID_GOODIX_GF3118M:
+		fingerprint_id_name = "GF3118M";
+		break;
+	case FINGERPRINT_CHIPID_GOODIX_GF5206:
+		fingerprint_id_name = "GF5206";
+		break;
+	case FINGERPRINT_CHIPID_GOODIX_GF5208:
+		fingerprint_id_name = "GF5208";
+		break;
+	case FINGERPRINT_CHIPID_GOODIX_GF3238:
+		fingerprint_id_name = "GF3238";
+		break;
+	case FINGERPRINT_CHIPID_GOODIX_GF3258:
+		fingerprint_id_name = "GF3258";
+		break;
+	case FINGERPRINT_CHIPID_SYNAFP:
+		fingerprint_id_name = "SYNAFP";
+		break;
+	default:
+		fingerprint_hw = FINGERPRINT_CHIPID_GOODIX_GF3118M;
+		fingerprint_id_name = "NONE";
+		break;
+    }
+
+	pr_info("%s, fingerprint_id is :%lu name:%s\n", __func__, fingerprint_hw, fingerprint_id_name);
+
+	return 0;
+}
+
 
 bool is_goodix_fp(void)
 {
-    return (fingerprint_hw == FINGERPRINT_HW_GOODIX);
+	return (fingerprint_hw == FINGERPRINT_CHIPID_GOODIX_GF3118M);
+}
+
+bool is_goodix_milan_fp(void)
+{
+	return (fingerprint_hw == FINGERPRINT_CHIPID_GOODIX_GF3238);
 }
 
 bool is_synafp_fp(void)
 {
-    return (fingerprint_hw == FINGERPRINT_HW_SYNAFP);
+	return (fingerprint_hw == FINGERPRINT_CHIPID_SYNAFP);
 }
 
 /*************************************************

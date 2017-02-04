@@ -45,6 +45,7 @@ struct alarm {
 
 void alarm_init(struct alarm *alarm, enum alarmtimer_type type,
 		enum alarmtimer_restart (*function)(struct alarm *, ktime_t));
+void alarm_log_zte(struct alarm *alarm, long start, long interval, int relative);
 int alarm_start(struct alarm *alarm, ktime_t start);
 int alarm_start_relative(struct alarm *alarm, ktime_t start);
 void alarm_restart(struct alarm *alarm);

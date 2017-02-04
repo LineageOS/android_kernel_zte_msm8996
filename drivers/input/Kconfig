@@ -214,7 +214,7 @@ source "drivers/input/fingerprint/fpc/Kconfig"
 
 source "drivers/input/fingerprint/goodix/Kconfig"
 #wk10182671 add for gf3238
-source "drivers/input/fingerprint/gf3238_kernel/Kconfig"
+source "drivers/input/fingerprint/gf3238_driver/Kconfig"
 #wk10182671 end to add for gf3238
 
 endif
