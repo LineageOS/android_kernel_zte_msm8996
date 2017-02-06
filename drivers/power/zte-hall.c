@@ -134,7 +134,9 @@ static void update_hall_state_by_work(struct work_struct *work)
     envp[0] = event;
     envp[1] = NULL;
 
-    hallstate = open? HALL_STATE_OPEN : HALL_STATE_CLOSE;   
+    hallstate = open? HALL_STATE_OPEN : HALL_STATE_CLOSE;
+    input_report_switch(hallpwrkey->hall_pwr, SW_LID, hallstate - 1);
+    input_sync(hallpwrkey->hall_pwr);
     if(!hall_current_factory_mode)//not in factory mode
     {
         pr_info("ZTE_PM_HALL by work hall_detect_high_interrupt: hall %s\n",open?"open":"close");
@@ -241,7 +243,10 @@ static int  zte_hall_probe(struct platform_device *pdev)
         goto free_pwrkey;
     }
 
+    set_bit(EV_SW, hall_pwr->evbit);
+
     input_set_capability(hall_pwr, EV_KEY, KEY_POWER);
+    input_set_capability(hall_pwr, EV_SW, SW_LID);
     err = input_register_device(hall_pwr);
     if (err) {
         pr_info( "Can't register hall ");
