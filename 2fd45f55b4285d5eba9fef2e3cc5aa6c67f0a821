@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7a288981_dcb54f32",
+        "filename": "drivers/nfc/pn5xx_i2c.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 628,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-02-08T17:50:40Z",
+      "side": 1,
+      "message": "This is obviously wrong, it\u0027s free\u0027d twice here (again on the next line).  If we were to ever hit err_misc_register, it\u0027d oops.",
+      "revId": "2fd45f55b4285d5eba9fef2e3cc5aa6c67f0a821",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
