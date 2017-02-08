@@ -136,7 +136,7 @@ static struct proc_dir_entry *nfc_id_proc_file;
 
 static void create_nfc_info_proc_file(void)
 {
-	nfc_id_proc_file = proc_create("driver/nfc_id", 0777, NULL, &nfc_proc_fops);
+	nfc_id_proc_file = proc_create("driver/nfc_id", S_IWUGO | S_IRUGO, NULL, &nfc_proc_fops);
 	NFC_DBG_MSG("goes to create_nfc_info_proc_file\n");
 	if (nfc_id_proc_file) {
 	} else{
@@ -670,7 +670,7 @@ static const struct i2c_device_id pn5xx_id[] = {
 	{ }
 };
 
-static struct of_device_id nfc_match_table[] = {
+static const struct of_device_id nfc_match_table[] = {
 	{.compatible = "nxp,pn544",},
 	{.compatible = "nxp,pn547",},
 	{.compatible = "nxp,pn548",},
