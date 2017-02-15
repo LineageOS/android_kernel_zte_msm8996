@@ -14140,6 +14140,150 @@ static eHalStatus hdd_11d_scan_done(tHalHandle halHandle, void *pContext,
     return eHAL_STATUS_SUCCESS;
 }
 
+#define WIFI_MAC_ADDR_FILE    "/persist/wifimac.dat"
+#define WIFI_MAC_ADDR_FILE2   "/persist/wifimac2.dat"
+#define WIFI_MAX_ADDR_LEN     60
+#define WIFI_MAC_ADDR_HEAD    "wifiaddr:"
+
+struct mac_addr
+{
+    char magic[6];
+    int  valid;
+    char addr[6];
+};
+
+int random_mac_addr(unsigned char *buf)
+{
+    int rc = 0;
+    unsigned int rand_mac;
+    char buff[WIFI_MAX_ADDR_LEN];
+    char *s;
+    int i;
+    unsigned int wifi_addr[6];
+    struct file *fp;
+
+    memset(buff, 0, WIFI_MAX_ADDR_LEN);
+    fp = filp_open(WIFI_MAC_ADDR_FILE2, O_CREAT | O_RDWR, 0644);
+    if (IS_ERR(fp)) {
+        fp = NULL;
+        printk("Open wifi mac file failed! should not get here\n");
+        //random_mac_addr(addr);
+        return 0;
+    }
+    rc = kernel_read(fp, fp->f_pos, buff, WIFI_MAX_ADDR_LEN);
+    s = strstr(buff, WIFI_MAC_ADDR_HEAD);
+    if(!s){
+        printk("wifi mac temporary file not exist , create one.\n");
+        prandom_seed((unsigned int)jiffies);
+        rand_mac = prandom_u32();
+        buf[0] = 0x00;
+        buf[1] = 0xd0;
+        buf[2] = 0xd0;
+        buf[3] = (unsigned char)rand_mac;
+        buf[4] = (unsigned char)(rand_mac >> 8);
+        buf[5] = (unsigned char)(rand_mac >> 16);
+
+        sprintf(buff, "wifiaddr: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
+                buf[0], buf[1], buf[2],
+                buf[3], buf[4], buf[5]);
+
+        kernel_write(fp, buff, WIFI_MAX_ADDR_LEN, fp->f_pos);
+        printk("Generated random wifi mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+        filp_close(fp, NULL);
+        return 0;
+    } else {
+        sscanf(s, "wifiaddr: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
+                &wifi_addr[0], &wifi_addr[1], &wifi_addr[2],
+                &wifi_addr[3], &wifi_addr[4], &wifi_addr[5]);
+        for (i=0; i<6; i++) {
+            buf[i] = wifi_addr[i];
+        }
+        printk("Got wifi mac from wifimac2.dat successfully! \n");
+        printk("Using wifi mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+        filp_close(fp, NULL);
+        return 0;
+    }
+
+}
+
+int zte_wifi_get_mac_addr(unsigned char *addr)
+{
+    int rc = 0;
+    char buf[WIFI_MAX_ADDR_LEN];
+    char *s;
+    struct file *fp;
+    unsigned int wifi_addr[6];
+    int i;
+
+    memset(buf, 0, WIFI_MAX_ADDR_LEN);
+    fp = filp_open(WIFI_MAC_ADDR_FILE, O_RDONLY, 0);
+
+    if (IS_ERR(fp)) {
+        fp = NULL;
+        printk("Open wifi mac file failed! skip it and use random mac\n");
+        random_mac_addr(addr);
+        return 0;
+    }
+
+    rc = kernel_read(fp, fp->f_pos, buf, WIFI_MAX_ADDR_LEN);
+    s = strstr(buf, WIFI_MAC_ADDR_HEAD);
+    printk("Read form mac file - %s\n", s);
+    if (!s) {
+        printk("Got wifi mac fail, use random mac addr \n");
+        random_mac_addr(addr);
+        filp_close(fp, NULL);
+        return 0;
+    } else {
+        sscanf(s, "wifiaddr: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
+                &wifi_addr[0], &wifi_addr[1], &wifi_addr[2],
+                &wifi_addr[3], &wifi_addr[4], &wifi_addr[5]);
+
+        for (i=0; i<6; i++) {
+            addr[i] = wifi_addr[i];
+        }
+
+        if (0 != ((unsigned int)addr[0] % 2)) {
+            printk("Got illegal wifi mac, use random mac addr \n");
+            random_mac_addr(addr);
+            filp_close(fp, NULL);
+            return 0;
+        } else {
+            printk("Got wifi mac from wifimac.dat successfully! \n");
+            printk("Using wifi mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                    addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+            filp_close(fp, NULL);
+            return 0;
+        }
+    }
+}
+
+int zte_wifi_get_p2pmac_addr(unsigned char *addrwlan0, unsigned char *addrp2p)
+{
+    int i;
+    int wifiaddr0b2 = 0x02;
+    unsigned int wifi_addr[6];
+
+    for (i=0; i<6; i++) {
+        wifi_addr[i] = addrwlan0[i];
+        if ( i == 0 ){
+            wifi_addr[i] = (wifi_addr[i]) | wifiaddr0b2;
+        }
+        addrp2p[i] = wifi_addr[i];
+    }
+    if (0 != ((unsigned int)addrp2p[0] % 2)) {
+        printk("Got illegal wifi p2p mac, use random mac addr \n");
+        random_mac_addr(addrp2p);
+        return 0;
+    } else {
+        printk("Got wifi p2p successfully! \n");
+        printk("Using wifi p2p mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                addrp2p[0], addrp2p[1], addrp2p[2], addrp2p[3], addrp2p[4], addrp2p[5]);
+        return 0;
+    }
+}
+
 #ifdef QCA_ARP_SPOOFING_WAR
 int wlan_check_xxx(struct net_device *dev, int if_idex, void *data)
 {
@@ -15069,6 +15213,10 @@ int hdd_wlan_startup(struct device *dev, v_VOID_t *hif_sc)
        goto err_wiphy_unregister;
    }
 
+   zte_wifi_get_mac_addr((unsigned char *)&macFromPersist[0].bytes[0]);
+   vos_mem_copy((v_U8_t *)&pHddCtx->cfg_ini->intfMacAddr[0].bytes[0],
+                         (v_U8_t *)&macFromPersist[0].bytes[0], VOS_MAC_ADDR_SIZE);
+
    {
       eHalStatus halStatus;
       /* Set the MAC Address Currently this is used by HAL to
@@ -15205,6 +15353,10 @@ int hdd_wlan_startup(struct device *dev, v_VOID_t *hif_sc)
                goto err_close_adapter;
             }
          }
+
+         zte_wifi_get_p2pmac_addr((unsigned char *)&macFromPersist[0].bytes[0], (unsigned char *)&macFromPersist[1].bytes[0]);
+         vos_mem_copy(&pHddCtx->p2pDeviceAddress.bytes[0],
+                       (v_U8_t *)&macFromPersist[1].bytes[0], VOS_MAC_ADDR_SIZE);
 
          pP2pAdapter = hdd_open_adapter(pHddCtx, WLAN_HDD_P2P_DEVICE, "p2p%d",
                                         &pHddCtx->p2pDeviceAddress.bytes[0],
@@ -15813,7 +15965,7 @@ static int hdd_driver_init( void)
 #ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
    wlan_logging_sock_init_svc();
 #endif
-
+   v_MACADDR_t macFromPersist[VOS_MAX_CONCURRENCY_PERSONA];
    ENTER();
 
 #ifdef TIMER_MANAGER
