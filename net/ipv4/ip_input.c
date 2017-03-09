@@ -147,10 +147,6 @@
 #include <linux/mroute.h>
 #include <linux/netlink.h>
 
-/*ZTE_LC_IP_DEBUG, 20130509 start*/
-extern int tcp_socket_debugfs;
-extern int ip_log_pm;        /* ZTE_PM_TCP  lcf@20160523 */
-/*ZTE_LC_IP_DEBUG, 20130509 end*/
 /*
  *	Process Router Attention IP option (RFC 2113)
  */
@@ -454,52 +450,6 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, 
 	/* Must drop socket now because of tproxy. */
 	skb_orphan(skb);
 
-/*ZTE_LC_IP_DEBUG, 20130509 start*/
-	if ((tcp_socket_debugfs & 0x00000002) || ip_log_pm == 1) {       /*ZTE_PM_TCP  lcf@20160523 */
-		char stmp[50], dtmp[50];
-/*here it is IPV4 */
-/*regardless swapper process, loop device */
-		if (strcmp(inet_ntop(AF_INET, &iph->daddr, dtmp, 50), "127.0.0.1")) {
-			if (iph->protocol == IPPROTO_TCP) {
-				struct tcphdr *th = (struct tcphdr *)(skb->data+(iph->ihl<<2));
-/*ignore checking tcp pkts correct*/
-				pr_info("[IP]  TCP RCV len = %d, %d (%s) [%d (%s)],  (%s:%d <- %s:%d),F:%d%d%d%d%d%d%d%d\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->daddr, stmp, 50), ntohs(th->dest),
-					inet_ntop(AF_INET, &iph->saddr, dtmp, 50), ntohs(th->source),
-					th->cwr, th->ece, th->urg, th->ack, th->psh, th->rst, th->syn, th->fin);
-			} else if (iph->protocol == IPPROTO_UDP) {
-				struct udphdr *uh = (struct udphdr *)(skb->data+(iph->ihl<<2));
-/*ignore checking udp pkts correct*/
-				pr_info("[IP]  UDP RCV len = %d, %d (%s) [%d (%s)],  (%s:%d <- %s:%d)\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->daddr, stmp, 50), ntohs(uh->dest),
-					inet_ntop(AF_INET, &iph->saddr, dtmp, 50), ntohs(uh->source));
-			} else if (iph->protocol == IPPROTO_ICMP) {
-				struct icmphdr *icmph = (struct icmphdr *)(skb->data+(iph->ihl<<2));
-/*ignore checking icmp pkts correct*/
-				pr_info("[IP]  ICMP RCV len = %d, %d (%s) [%d (%s)],  (%s <- %s) , T: %d,C: %d\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->daddr, stmp, 50),
-					inet_ntop(AF_INET, &iph->saddr, dtmp, 50),
-					icmph->type, icmph->code);
-			} else
-				pr_info("[IP]  RCV len = %d, %d (%s) [%d (%s)], (%s <- %s), TP = %d\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->daddr, stmp, 50),
-					inet_ntop(AF_INET, &iph->saddr, dtmp, 50),
-					iph->protocol);
-		}
-	}
-/*ZTE_LC_IP_DEBUG, 20130509 end*/
 	return NF_HOOK(NFPROTO_IPV4, NF_INET_PRE_ROUTING, skb, dev, NULL,
 		       ip_rcv_finish);
 
