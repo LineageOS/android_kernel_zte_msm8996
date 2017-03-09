@@ -76,11 +76,6 @@
 #include <asm/unaligned.h>
 #include <linux/errqueue.h>
 
-/*ZTE_LC_TCP_DEBUG, 20130116 start*/
-#include <linux/inet.h>
-#include <linux/rtc.h>
-/*ZTE_LC_TCP_DEBUG, 20130116 end*/
-
 int sysctl_tcp_timestamps __read_mostly = 1;
 int sysctl_tcp_window_scaling __read_mostly = 1;
 int sysctl_tcp_sack __read_mostly = 1;
@@ -105,9 +100,6 @@ int sysctl_tcp_thin_dupack __read_mostly;
 int sysctl_tcp_moderate_rcvbuf __read_mostly = 1;
 int sysctl_tcp_early_retrans __read_mostly = 3;
 int sysctl_tcp_default_init_rwnd __read_mostly = TCP_INIT_CWND * 2;
-/*ZTE_LC_TCP_DEBUG, 20130116 start*/
-extern int tcp_socket_debugfs;
-/*ZTE_LC_TCP_DEBUG, 20130116 end*/
 
 #define FLAG_DATA		0x01 /* Incoming frame contained data.		*/
 #define FLAG_WIN_UPDATE		0x02 /* Incoming ACK was a window update.	*/
@@ -265,31 +257,6 @@ static void tcp_ecn_check_ce(struct tcp_sock *tp, const struct sk_buff *skb)
 
 static void tcp_ecn_rcv_synack(struct tcp_sock *tp, const struct tcphdr *th)
 {
-	/*ZTE_LC_TCP_DEBUG, 20130116 start*/
-	if (tcp_socket_debugfs & 0x00000001) {
-		struct inet_sock *inet = &tp->inet_conn.icsk_inet;
-		char stmp[50], dtmp[50];
-
-#if IS_ENABLED(CONFIG_IPV6)
-		if ((AF_INET6 == inet->sk.sk_family) && (IPV6_ADDR_MAPPED ==
-			ipv6_addr_type(&((struct ipv6_pinfo *)(inet6_sk(&inet->sk)))->saddr))) {
-#else
-		if (AF_INET == inet->sk.sk_family) {
-#endif
-			if (strcmp(inet_ntop(AF_INET, &inet->inet_saddr, stmp, 50), "127.0.0.1"))
-				pr_info("[TCP] ESTAB pid = %d (%s), Gpid = %d (%s) (%s:%d <- %s:%d)\n",
-					current->pid, current->comm,
-					current->group_leader->pid, current->group_leader->comm,
-					inet_ntop(AF_INET, &inet->inet_saddr, stmp, 50),
-					ntohs(inet->inet_sport),
-					inet_ntop(AF_INET, &inet->inet_daddr, dtmp, 50),
-					ntohs(inet->inet_dport));
-		} else {
-			pr_info("[TCP] ESTAB AF = %d\n", inet->sk.sk_family);
-		}
-	}
-	/*ZTE_LC_TCP_DEBUG, 20130116 end*/
-
 	if ((tp->ecn_flags & TCP_ECN_OK) && (!th->ece || th->cwr))
 		tp->ecn_flags &= ~TCP_ECN_OK;
 }
@@ -662,33 +629,6 @@ static void tcp_event_data_recv(struct sock *sk, struct sk_buff *skb)
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	u32 now;
-
-/*ZTE_LC_TCP_DEBUG, 20130116 start*/
-	if (tcp_socket_debugfs & 0x00000001) {
-		struct inet_sock *inet = inet_sk(sk);
-		char stmp[50], dtmp[50];
-
-		if (skb->len) {
-#if IS_ENABLED(CONFIG_IPV6)
-			if ((AF_INET6 == sk->sk_family) && (IPV6_ADDR_MAPPED ==
-				ipv6_addr_type(&((struct ipv6_pinfo *)(inet6_sk(sk)))->saddr))) {
-#else
-			if (AF_INET == inet->sk.sk_family) {
-#endif
-				if (strcmp(inet_ntop(AF_INET, &inet->inet_saddr, stmp, 50), "127.0.0.1"))
-					pr_info("[TCP] Rx D_len = %d , pid = %d (%s) , Gpid = %d (%s)  (%s:%d <- %s:%d)\n",
-						skb->len, current->pid, current->comm,
-						current->group_leader->pid,	current->group_leader->comm,
-						inet_ntop(AF_INET, &inet->inet_saddr, stmp, 50),
-						ntohs(inet->inet_sport),
-						inet_ntop(AF_INET, &inet->inet_daddr, dtmp, 50),
-						ntohs(inet->inet_dport));
-				} else {
-					pr_info("[TCP] Rx AF = %d\n", sk->sk_family);
-				}
-			}
-		}
-/*ZTE_LC_TCP_DEBUG, 20130116 end*/
 
 	inet_csk_schedule_ack(sk);
 

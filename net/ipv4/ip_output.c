@@ -83,10 +83,6 @@
 int sysctl_ip_default_ttl __read_mostly = IPDEFTTL;
 EXPORT_SYMBOL(sysctl_ip_default_ttl);
 
-/*ZTE_LC_IP_DEBUG, 20130509 start*/
-extern int tcp_socket_debugfs;
-extern int ip_log_pm;      /*ZTE_PM_TCP  lcf@20160523*/
-/*ZTE_LC_IP_DEBUG, 20130509 end*/
 /* Generate a checksum for an outgoing IP datagram. */
 void ip_send_check(struct iphdr *iph)
 {
@@ -343,54 +339,6 @@ int ip_output(struct sock *sk, struct sk_buff *skb)
 
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_IP);
-/*ZTE_LC_IP_DEBUG, 20130509 start*/
-/*for IP unicast*/
-	if ((tcp_socket_debugfs & 0x00000002) || ip_log_pm == 1) {       /*ZTE_PM_TCP  lcf@20160523*/
-		char stmp[50], dtmp[50];
-		const struct iphdr *iph;
-
-		iph = ip_hdr(skb);
-		if (strcmp(inet_ntop(AF_INET, &iph->daddr, dtmp, 50), "127.0.0.1")) {
-			if (iph->protocol == IPPROTO_TCP) {
-				struct tcphdr *th = (struct tcphdr *)(skb->data+(iph->ihl<<2));
-/*ignore checking tcp pkts correct*/
-				pr_info("[IP]  TCP SEND len = %d, Gpid:%d (%s) [pid:%d (%s)],  (%s:%d -> %s:%d),F:%d%d%d%d%d%d%d%d\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->saddr, stmp, 50), ntohs(th->source),
-					inet_ntop(AF_INET, &iph->daddr, dtmp, 50), ntohs(th->dest),
-					th->cwr, th->ece, th->urg, th->ack, th->psh, th->rst, th->syn, th->fin);
-			} else if (iph->protocol == IPPROTO_UDP) {
-				struct udphdr *uh = (struct udphdr *)(skb->data+(iph->ihl<<2));
-/*ignore checking udp pkts correct*/
-				pr_info("[IP]  UDP SEND len = %d, Gpid:%d (%s) [pid:%d (%s)],  (%s:%d -> %s:%d)\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->saddr, stmp, 50), ntohs(uh->source),
-					inet_ntop(AF_INET, &iph->daddr, dtmp, 50), ntohs(uh->dest));
-			} else if (iph->protocol == IPPROTO_ICMP) {
-				struct icmphdr *icmph = (struct icmphdr *)(skb->data+(iph->ihl<<2));
-/*ignore checking icmp pkts correct*/
-				pr_info("[IP]  ICMP SEND len = %d, Gpid:%d (%s) [pid:%d (%s)],  (%s -> %s) , T: %d,C: %d\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->saddr, stmp, 50),
-					inet_ntop(AF_INET, &iph->daddr, dtmp, 50),
-					icmph->type, icmph->code);
-			} else
-				pr_info("[IP]  SEND len = %d, Gpid:%d (%s) [pid:%d (%s)], (%s -> %s), TP = %d\n",
-					ntohs(iph->tot_len),
-					current->group_leader->pid, current->group_leader->comm,
-					current->pid, current->comm,
-					inet_ntop(AF_INET, &iph->saddr, stmp, 50),
-					inet_ntop(AF_INET, &iph->daddr, dtmp, 50),
-					iph->protocol);
-		}
-	}
-/*ZTE_LC_IP_DEBUG, 20130509 end*/
 
 	return NF_HOOK_COND(NFPROTO_IPV4, NF_INET_POST_ROUTING, skb, NULL, dev,
 			    ip_finish_output,
