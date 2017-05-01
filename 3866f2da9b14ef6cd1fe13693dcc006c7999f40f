@@ -1,0 +1,89 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1a486d77_8f0aebd0",
+        "filename": "drivers/staging/qcacld-2.0/CORE/HDD/src/wlan_hdd_main.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 14173,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-05-01T21:19:04Z",
+      "side": 1,
+      "message": "Return value not checked before buffer is used.",
+      "revId": "3866f2da9b14ef6cd1fe13693dcc006c7999f40f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a486d77_6f0fafe2",
+        "filename": "drivers/staging/qcacld-2.0/CORE/HDD/src/wlan_hdd_main.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 14174,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-05-01T21:19:04Z",
+      "side": 1,
+      "message": "Buffer is not NUL terminated at this point.",
+      "revId": "3866f2da9b14ef6cd1fe13693dcc006c7999f40f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a486d77_4f14f3f4",
+        "filename": "drivers/staging/qcacld-2.0/CORE/HDD/src/wlan_hdd_main.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 14230,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-05-01T21:19:04Z",
+      "side": 1,
+      "message": "Ditto",
+      "revId": "3866f2da9b14ef6cd1fe13693dcc006c7999f40f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a486d77_2ff9b7c8",
+        "filename": "drivers/staging/qcacld-2.0/CORE/HDD/src/wlan_hdd_main.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 14231,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-05-01T21:19:04Z",
+      "side": 1,
+      "message": "Ditto",
+      "revId": "3866f2da9b14ef6cd1fe13693dcc006c7999f40f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a486d77_0ff6fbd7",
+        "filename": "drivers/staging/qcacld-2.0/CORE/HDD/src/wlan_hdd_main.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 14239,
+      "author": {
+        "id": 5503
+      },
+      "writtenOn": "2017-05-01T21:19:04Z",
+      "side": 1,
+      "message": "No verification that sscanf was successful",
+      "revId": "3866f2da9b14ef6cd1fe13693dcc006c7999f40f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
