@@ -15825,6 +15825,117 @@ static eHalStatus hdd_11d_scan_done(tHalHandle halHandle, void *pContext,
     return eHAL_STATUS_SUCCESS;
 }
 
+#define WIFI_MAC_ADDR_FILE    "/persist/wifimac.dat"
+#define WIFI_MAC_ADDR_FILE2   "/persist/wifimac2.dat"
+#define WIFI_MIN_ADDR_LEN     21
+#define WIFI_MAX_ADDR_LEN     60
+#define WIFI_MAC_ADDR_HEAD    "wifiaddr:"
+
+void zte_wifi_random_mac_addr(unsigned char *addr)
+{
+    unsigned int rand_mac;
+
+    prandom_seed((unsigned int)jiffies);
+    rand_mac = prandom_u32();
+    addr[0] = 0x00;
+    addr[1] = 0xd0;
+    addr[2] = 0xd0;
+    addr[3] = (unsigned char)rand_mac;
+    addr[4] = (unsigned char)(rand_mac >> 8);
+    addr[5] = (unsigned char)(rand_mac >> 16);
+}
+
+int zte_wifi_write_mac_addr(const char *filename, unsigned char *addr)
+{
+    char buf[WIFI_MAX_ADDR_LEN];
+    struct file *fp;
+
+    memset(buf, 0, WIFI_MAX_ADDR_LEN);
+    fp = filp_open(filename, O_CREAT | O_RDWR, 0644);
+    if (IS_ERR(fp)) {
+        printk(KERN_ERR "Failed to write mac addr to %s\n", filename);
+        return PTR_ERR(fp);
+    }
+    sprintf(buf, "wifiaddr: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
+            addr[0], addr[1], addr[2],
+            addr[3], addr[4], addr[5]);
+    kernel_write(fp, buf, WIFI_MAX_ADDR_LEN, fp->f_pos);
+    filp_close(fp, NULL);
+
+    return 0;
+}
+
+int zte_wifi_read_mac_addr(const char *filename, unsigned char *addr)
+{
+    int rc = 0;
+    char buf[WIFI_MAX_ADDR_LEN+1];
+    struct file *fp;
+    unsigned int wifi_addr[ETH_ALEN];
+    int i;
+
+    memset(buf, 0, sizeof(buf));
+    fp = filp_open(WIFI_MAC_ADDR_FILE, O_RDONLY, 0);
+    if (IS_ERR(fp)) {
+        printk(KERN_ERR "Failed to read mac addr from %s\n", filename);
+        return PTR_ERR(fp);
+    }
+    rc = kernel_read(fp, fp->f_pos, buf, WIFI_MAX_ADDR_LEN);
+    filp_close(fp, NULL);
+    if (rc < WIFI_MIN_ADDR_LEN) {
+        printk(KERN_ERR "Failed to read mac addr from %s\n", filename);
+        return -EINVAL;
+    }
+    if (memcmp(buf, WIFI_MAC_ADDR_HEAD, sizeof(WIFI_MAC_ADDR_HEAD)-1) != 0) {
+        printk(KERN_ERR "Failed to parse mac addr from %s\n", filename);
+        return -EINVAL;
+    }
+
+    rc = sscanf(buf, "wifiaddr: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
+            &wifi_addr[0], &wifi_addr[1], &wifi_addr[2],
+            &wifi_addr[3], &wifi_addr[4], &wifi_addr[5]);
+    if (rc != ETH_ALEN) {
+        printk(KERN_ERR "Failed to parse mac addr from %s\n", filename);
+        return -EINVAL;
+    }
+
+    if (addr[0] % 2) {
+        printk(KERN_ERR "Failed to validate mac addr from %s\n", filename);
+        return -EINVAL;
+    }
+
+    for (i = 0; i < ETH_ALEN; i++) {
+        addr[i] = wifi_addr[i];
+    }
+
+    printk(KERN_INFO "Successfully read mac addr from %s\n", filename);
+
+    return 0;
+}
+
+void zte_wifi_get_mac_addr(unsigned char *addr)
+{
+    int rc;
+
+    rc = zte_wifi_read_mac_addr(WIFI_MAC_ADDR_FILE, addr);
+    if (rc) {
+        rc = zte_wifi_read_mac_addr(WIFI_MAC_ADDR_FILE2, addr);
+    }
+    if (rc) {
+        zte_wifi_random_mac_addr(addr);
+        zte_wifi_write_mac_addr(WIFI_MAC_ADDR_FILE2, addr);
+    }
+}
+
+void zte_wifi_get_p2pmac_addr(unsigned char *addrwlan0, unsigned char *addrp2p)
+{
+    memcpy(addrp2p, addrwlan0, ETH_ALEN);
+    if (addrp2p[0] % 2) {
+        printk(KERN_ERR "Got illegal wifi p2p mac, use random mac addr\n");
+        zte_wifi_random_mac_addr(addrp2p);
+    }
+    addrp2p[0] |= 0x02;
+}
+
 #ifdef QCA_ARP_SPOOFING_WAR
 int wlan_check_xxx(struct net_device *dev, int if_idex, void *data)
 {
@@ -16442,6 +16553,7 @@ int hdd_wlan_startup(struct device *dev, v_VOID_t *hif_sc)
    int set_value;
    struct sme_5g_band_pref_params band_pref_params;
 
+   v_MACADDR_t macFromPersist[VOS_MAX_CONCURRENCY_PERSONA];
    ENTER();
 
    if (WLAN_IS_EPPING_ENABLED(con_mode)) {
@@ -16957,6 +17069,10 @@ int hdd_wlan_startup(struct device *dev, v_VOID_t *hif_sc)
        goto err_wiphy_unregister;
    }
 
+   zte_wifi_get_mac_addr((unsigned char *)&macFromPersist[0].bytes[0]);
+   vos_mem_copy((v_U8_t *)&pHddCtx->cfg_ini->intfMacAddr[0].bytes[0],
+                         (v_U8_t *)&macFromPersist[0].bytes[0], VOS_MAC_ADDR_SIZE);
+
    {
       eHalStatus halStatus;
       /* Set the MAC Address Currently this is used by HAL to
@@ -17102,6 +17218,10 @@ int hdd_wlan_startup(struct device *dev, v_VOID_t *hif_sc)
                goto err_close_adapter;
             }
          }
+
+         zte_wifi_get_p2pmac_addr((unsigned char *)&macFromPersist[0].bytes[0], (unsigned char *)&macFromPersist[1].bytes[0]);
+         vos_mem_copy(&pHddCtx->p2pDeviceAddress.bytes[0],
+                       (v_U8_t *)&macFromPersist[1].bytes[0], VOS_MAC_ADDR_SIZE);
 
          pP2pAdapter = hdd_open_adapter(pHddCtx, WLAN_HDD_P2P_DEVICE, "p2p%d",
                                         &pHddCtx->p2pDeviceAddress.bytes[0],
