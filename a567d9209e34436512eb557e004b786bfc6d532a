@@ -1,0 +1,44 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da87b5cf_eeee3822",
+        "filename": "drivers/platform/msm/qpnp-haptic.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 370,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-06-11T18:06:26Z",
+      "side": 1,
+      "message": "double re-add here",
+      "revId": "a567d9209e34436512eb557e004b786bfc6d532a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da87b5cf_8ef3ec09",
+        "filename": "drivers/platform/msm/qpnp-haptic.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1765,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-06-11T18:06:26Z",
+      "side": 1,
+      "message": "don\u0027t know if this was in the original code, but need a space here.",
+      "range": {
+        "startLine": 1765,
+        "startChar": 30,
+        "endLine": 1765,
+        "endChar": 32
+      },
+      "revId": "a567d9209e34436512eb557e004b786bfc6d532a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da87b5cf_aef830e6",
+        "filename": "drivers/platform/msm/qpnp-haptic.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1603,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-06-11T18:06:26Z",
+      "side": 0,
+      "message": "Not taking this into account is my only concern... Have you tested that intense vib doesn\u0027t kill the vib motor?",
+      "range": {
+        "startLine": 1603,
+        "startChar": 0,
+        "endLine": 1603,
+        "endChar": 33
+      },
+      "revId": "3a4bd3fb9eb3db4ccb8103ba37ea5082836dba36",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
