@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "da87b5cf_6eda287a",
+        "filename": "drivers/platform/msm/qpnp-haptic.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 370,
+      "author": {
+        "id": 9394
+      },
+      "writtenOn": "2017-06-11T18:09:08Z",
+      "side": 1,
+      "message": "Ahhh, I see you handle this in a later patch.",
+      "parentUuid": "da87b5cf_eeee3822",
+      "revId": "a567d9209e34436512eb557e004b786bfc6d532a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da87b5cf_8ef3ec09",
         "filename": "drivers/platform/msm/qpnp-haptic.c",
         "patchSetId": 3
