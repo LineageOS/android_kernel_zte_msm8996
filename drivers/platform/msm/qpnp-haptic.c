@@ -1409,7 +1409,7 @@ static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(min_max_test, (S_IRUGO | S_IWUSR | S_IWGRP),
 			qpnp_hap_min_max_test_data_show,
 			qpnp_hap_min_max_test_data_store),
-	__ATTR(ztevmax_mv, (S_IRUGO | S_IWUSR | S_IWGRP),
+	__ATTR(vmax_mv, (S_IRUGO | S_IWUSR | S_IWGRP),
 			qpnp_hap_vmax_mv_show,
 			qpnp_hap_vmax_mv_store),
 };
@@ -1629,24 +1629,12 @@ static int qpnp_hap_set(struct qpnp_hap *hap, int on)
 			 * and enable it after the sleep of
 			 * 'time_required_to_generate_back_emf_us' is completed.
 			 */
-#if 0  //Qualcomm
 			if ((hap->act_type == QPNP_HAP_LRA) &&
 
 				(hap->correct_lra_drive_freq ||
 				hap->auto_res_mode == QPNP_HAP_AUTO_RES_QWD))
 				qpnp_hap_auto_res_enable(hap, 0);
-#else
-			if (is_haptics_zte()) {//zte add
-				u32 max_mv = BLUECOM_HAP_VMAX_MV;
-				val = ((on & 0xFF0000)>>16);
-				max_mv = val * QPNP_HAP_VMAX_MIN_MV;
-				if (val > BLUECOM_HAP_VMAX_MV/QPNP_HAP_VMAX_MIN_MV)
-						max_mv = BLUECOM_HAP_VMAX_MV;
-				hap->vmax_mv = max_mv;
-				rc = qpnp_hap_vmax_config(hap);
-				//printk(KERN_ERR"%s: set hap voltage %d\n", __func__, max_mv);
-			}
-#endif
+
 			rc = qpnp_hap_mod_enable(hap, on);
 			if (rc < 0)
 				return rc;
@@ -1720,16 +1708,12 @@ static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
 		hap->state = 0;
 	} else {
 		if (is_haptics_zte()) {
-			int vtg_value, timeout_value;
-
+			int  timeout_value;
 			//printk(KERN_ERR"%s: value is %d, 0x%x\n", __func__, value, value);
-			vtg_value = value & 0xFF0000;
 			timeout_value = value & 0xFFFF;
-			if (vtg_value == 0 )
-				vtg_value = (BLUECOM_HAP_VMAX_MV/QPNP_HAP_VMAX_MIN_MV)<<16;
 			timeout_value = ( timeout_value > hap->timeout_ms ?
 			hap->timeout_ms : timeout_value);
-			hap->state = 1 | vtg_value;
+			hap->state = 1 ;
 
 			hrtimer_start(&hap->hap_timer,
 				  ktime_set(timeout_value / 1000, (timeout_value % 1000) * 1000000),
