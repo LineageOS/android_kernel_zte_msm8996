@@ -13,7 +13,11 @@
 #include <linux/irqchip/qpnp-int.h>
 #include <linux/irqchip/msm-gpio-irq.h>
 #include <linux/irqchip/msm-mpm-irq.h>
+#ifdef CONFIG_AK4961_CODEC
+#include <linux/mfd/ak49xx/core.h>
+#else
 #include <linux/mfd/wcd9xxx/core.h>
+#endif
 #include "irqchip.h"
 
 static int __init irq_msm_gpio_init(struct device_node *node,
@@ -65,7 +69,11 @@ IRQCHIP_DECLARE(sdx20_pinctrl, "qcom,sdx20-pinctrl",
 		pinctrl_irq_dummy);
 IRQCHIP_DECLARE(9607_pinctrl, "qcom,mdm9607-pinctrl", pinctrl_irq_dummy);
 IRQCHIP_DECLARE(qpnp_irq, "qcom,spmi-pmic-arb", qpnpint_of_init);
+#ifdef CONFIG_AK4961_CODEC
+IRQCHIP_DECLARE(ak49xx_irq, "akm,ak49xx-irq", ak49xx_irq_of_init);
+#else
 IRQCHIP_DECLARE(wcd9xxx_irq, "qcom,wcd9xxx-irq", wcd9xxx_irq_of_init);
+#endif
 IRQCHIP_DECLARE(8917_pinctrl, "qcom,msm8917-pinctrl", pinctrl_irq_dummy);
 IRQCHIP_DECLARE(8952_pinctrl, "qcom,msm8952-pinctrl", pinctrl_irq_dummy);
 IRQCHIP_DECLARE(8937_pinctrl, "qcom,msm8937-pinctrl", pinctrl_irq_dummy);
