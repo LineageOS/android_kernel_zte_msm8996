@@ -318,6 +318,14 @@ enum msm_sensor_cfg_type_t {
 	CFG_SLAVE_WRITE_I2C_ARRAY,
 	CFG_WRITE_I2C_SEQ_ARRAY,
 	CFG_POWER_UP,
+ /*
+  * recovery camera preview after camera sensor is died
+  *
+  * by ZTE_YCM_20160530 yi.changming 400267
+  */
+// --->
+	CFG_POWER_RESET,
+// <---400267
 	CFG_POWER_DOWN,
 	CFG_SET_STOP_STREAM_SETTING,
 	CFG_GET_SENSOR_INFO,
@@ -364,9 +372,11 @@ struct msm_ois_opcode {
 
 enum msm_ois_cfg_type_t {
 	CFG_OIS_INIT,
+       CFG_OIS_DEINIT,
 	CFG_OIS_POWERDOWN,
 	CFG_OIS_POWERUP,
 	CFG_OIS_CONTROL,
+	CFG_OIS_READ,
 	CFG_OIS_I2C_WRITE_SEQ_TABLE,
 };
 
@@ -378,6 +388,7 @@ enum msm_ois_cfg_download_type_t {
 enum msm_ois_i2c_operation {
 	MSM_OIS_WRITE = 0,
 	MSM_OIS_POLL,
+	MSM_OIS_READ,
 };
 
 struct reg_settings_ois_t {

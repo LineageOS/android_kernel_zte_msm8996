@@ -26,6 +26,16 @@
 #define MSM_CAM_V4L2_IOCTL_DAEMON_DISABLED \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 35, struct msm_v4l2_event_data)
 
+/*
+  * recovery camera preview after camera sensor is died
+  *
+  * by ZTE_YCM_20160530 yi.changming 400267
+  */
+// --->
+#define MSM_CAM_V4L2_IOCTL_NOTIFY_RECOVERY \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 40, struct msm_v4l2_event_data)
+// <---400267
+
 #define QCAMERA_DEVICE_GROUP_ID	1
 #define QCAMERA_VNODE_GROUP_ID	2
 #define MSM_CAMERA_NAME			"msm_camera"
@@ -103,6 +113,15 @@
 #define MSM_CAMERA_PRIV_STREAM_INFO_SYNC \
 	(V4L2_CID_PRIVATE_BASE + 13)
 #define MSM_CAMERA_PRIV_G_SESSION_ID (V4L2_CID_PRIVATE_BASE + 14)
+/*
+  * recovery camera preview after camera sensor is died
+  *
+  * by ZTE_YCM_20160530 yi.changming 400267
+  */
+// --->
+#define MSM_CAMERA_PRIV_RECOVERY_SENSOR  	(V4L2_CID_PRIVATE_BASE + 16)		
+#define MSM_CAMERA_PRIV_RECOVERY  	(V4L2_CID_PRIVATE_BASE + 17)	
+// <---400267
 #define MSM_CAMERA_PRIV_CMD_MAX  20
 
 /* data.status - success */
