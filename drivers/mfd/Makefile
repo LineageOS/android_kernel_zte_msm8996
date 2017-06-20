@@ -183,6 +183,8 @@ obj-$(CONFIG_WCD9306_CODEC)	+= wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o\
 					wcd-gpio-ctrl.o
 obj-$(CONFIG_WCD9320_CODEC)	+= wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o\
 						wcd9xxx-core-resource.o
+obj-$(CONFIG_AK4961_CODEC)	+= ak49xx-core.o ak49xx-irq.o\
+						ak49xx-slimslave.o ak49xx-core-resource.o
 obj-$(CONFIG_WCD9330_CODEC)	+= wcd9xxx-core.o wcd9xxx-irq.o wcd9xxx-slimslave.o\
 					wcd9xxx-core-resource.o wcd9330-regmap.o\
 					wcd-gpio-ctrl.o
