@@ -25,6 +25,7 @@
 #include <linux/of_device.h>
 #include <linux/radix-tree.h>
 #include <linux/qpnp/pwm.h>
+#include <linux/delay.h>	/* for udelay() */ //zte add for led
 
 #define QPNP_LPG_DRIVER_NAME	"qcom,qpnp-pwm"
 #define QPNP_LPG_CHANNEL_BASE	"qpnp-lpg-channel-base"
@@ -44,6 +45,12 @@
 #define QPNP_EN_PAUSE_HI_SHIFT		1
 #define QPNP_EN_PAUSE_HI_MASK		0x02
 #define QPNP_EN_PAUSE_LO_MASK		0x01
+
+//zte_led liyf 20150213 for 2 blink-period in 8994-led
+#define QPNP_LED_PERIOD_2_HI 2000//500   //No.2 period-time =3s=(pause_lo+pause_hi+step),step defined in dtsi file
+#define QPNP_LED_PERIOD_2_LO 2000//3000  2s+2s+50*10*2  //ZTE_PM
+#define QPNP_LED_PERIOD_2_BLINK 2
+#define QPNP_LED_PERIOD_2_STEP_MS 50
 
 /* LPG Control for LPG_PWM_SIZE_CLK */
 #define QPNP_PWM_SIZE_SHIFT_SUB_TYPE		2
@@ -1123,6 +1130,7 @@ static int qpnp_lpg_configure_lut_state(struct qpnp_pwm_chip *chip,
 
 	rc = qpnp_lpg_save_and_write(value2, mask2, reg2,
 					addr, 1, chip);
+	mdelay(5); // zte add for led , CASE 01387775 in 8974-JB
 	if (rc)
 		return rc;
 
@@ -1279,6 +1287,15 @@ after_table_write:
 
 	if (ramp_step_ms > PM_PWM_LUT_RAMP_STEP_TIME_MAX)
 		ramp_step_ms = PM_PWM_LUT_RAMP_STEP_TIME_MAX;
+
+	//zte_led liyf 20150213 for 2 blink-period in 8994-led
+	if( QPNP_LED_PERIOD_2_BLINK == lut_params.blink_value){
+		lut_params.lut_pause_lo = QPNP_LED_PERIOD_2_LO;
+		lut_params.lut_pause_hi = QPNP_LED_PERIOD_2_HI;
+		ramp_step_ms = QPNP_LED_PERIOD_2_STEP_MS;      //ZTE_PM  50ms*10 step up
+	}
+	pr_info("blink=%d  hi=%d lo=%d\n",lut_params.blink_value,lut_params.lut_pause_hi,lut_params.lut_pause_lo);
+	//zte_led end
 
 	QPNP_SET_PAUSE_CNT(lut_config->lut_pause_lo_cnt,
 			lut_params.lut_pause_lo, ramp_step_ms);
