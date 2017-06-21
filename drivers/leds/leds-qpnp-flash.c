@@ -780,6 +780,41 @@ static ssize_t qpnp_led_strobe_type_store(struct device *dev,
 	return count;
 }
 
+static ssize_t qpnp_led_duration_set(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct flash_node_data *flash_node;
+	unsigned long state;
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	ssize_t ret = -EINVAL;
+
+	ret = kstrtoul(buf, 10, &state);
+	if (ret)
+		return ret;
+
+	flash_node = container_of(led_cdev, struct flash_node_data, cdev);
+
+
+	flash_node->duration = state;
+
+
+	return count;
+}
+
+static ssize_t qpnp_led_duration_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	struct flash_node_data *flash_node;
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+
+	flash_node = container_of(led_cdev, struct flash_node_data, cdev);
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", flash_node->duration);
+}
+
+
 static ssize_t qpnp_flash_led_dump_regs_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -871,6 +906,9 @@ static struct device_attribute qpnp_flash_led_attrs[] = {
 	__ATTR(strobe, (S_IRUGO | S_IWUSR | S_IWGRP),
 				NULL,
 				qpnp_led_strobe_type_store),
+	__ATTR(duration, (S_IRUGO | S_IWUSR | S_IWGRP),
+				qpnp_led_duration_show,
+				qpnp_led_duration_set),
 	__ATTR(reg_dump, (S_IRUGO | S_IWUSR | S_IWGRP),
 				qpnp_flash_led_dump_regs_show,
 				NULL),
@@ -1312,7 +1350,8 @@ static void qpnp_flash_led_work(struct work_struct *work)
 	/* Global lock is to synchronize between the flash leds and torch */
 	mutex_lock(&led->flash_led_lock);
 	/* Local lock is to synchronize for one led instance */
-	mutex_lock(&flash_node->cdev.led_access);
+	/* delete lock ZTE_CAM_LIJING_20170310 */
+	/* mutex_lock(&flash_node->cdev.led_access); */
 
 	brightness = flash_node->cdev.brightness;
 	if (!brightness)
@@ -1783,7 +1822,8 @@ static void qpnp_flash_led_work(struct work_struct *work)
 
 	flash_node->flash_on = true;
 unlock_mutex:
-	mutex_unlock(&flash_node->cdev.led_access);
+	/* delete lock ZTE_CAM_LIJING_20170310 */
+	/* mutex_unlock(&flash_node->cdev.led_access); */
 	mutex_unlock(&led->flash_led_lock);
 
 	return;
@@ -1860,7 +1900,8 @@ error_enable_gpio:
 		flash_regulator_enable(led, flash_node, false);
 
 	flash_node->flash_on = false;
-	mutex_unlock(&flash_node->cdev.led_access);
+	/* delete lock ZTE_CAM_LIJING_20170310 */
+	/* mutex_unlock(&flash_node->cdev.led_access); */
 	mutex_unlock(&led->flash_led_lock);
 
 	return;
@@ -1927,9 +1968,16 @@ static void qpnp_flash_led_brightness_set(struct led_classdev *led_cdev,
 			value = FLASH_LED_MIN_CURRENT_MA;
 		flash_node->prgm_current = value;
 	}
-
+/*
+  * by ZTE_YCM_20151102 yi.changming 400091-3
+  */
+// --->
+#if 0
 	queue_work(led->ordered_workq, &flash_node->work);
-
+#else
+    qpnp_flash_led_work(&flash_node->work);
+#endif
+// <---400091-3
 	return;
 }
 
