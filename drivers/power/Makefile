@@ -84,3 +84,4 @@ obj-$(CONFIG_MSM_BCL_PERIPHERAL_CTL) += bcl_peripheral.o
 obj-$(CONFIG_POWER_RESET)	+= reset/
 obj-$(CONFIG_ARCH_MSM)		+= qcom/
 obj-$(CONFIG_ZTE_HALL_AVAILABLE) += zte-hall.o
+obj-y += zte_misc.o
