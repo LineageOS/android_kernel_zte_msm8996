@@ -43,6 +43,34 @@
 static void dwc3_gadget_wakeup_interrupt(struct dwc3 *dwc, bool remote_wakeup);
 static int dwc3_gadget_wakeup_int(struct dwc3 *dwc);
 
+/* UDC descriptor */
+static struct dwc3  *_dwc3;
+
+/* notify usb online and offline state */
+static ssize_t dwc3_print_switch_name(struct switch_dev *sdev, char *buf)
+{
+	return snprintf(buf, 32, "%s\n", "usb_scsi_command");
+}
+
+static ssize_t dwc3_print_switch_state(struct switch_dev *sdev, char *buf)
+{
+	return snprintf(buf, 32, "%d\n", sdev->state);
+}
+
+static void dwc3_uevent(struct switch_dev *sdev, int state)
+{
+	char *online[2] = { "USB_STATE=ONLINE", NULL };
+	char *offline[2] = { "USB_STATE=OFFLINE", NULL };
+	char **uevent_envp = NULL;
+
+	uevent_envp = state ? online : offline;
+
+	if (uevent_envp) {
+		kobject_uevent_env(&sdev->dev->kobj, KOBJ_CHANGE, uevent_envp);
+		pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
+	}
+}
+
 /*
  * Some USB functions' endpoints are not enabled at set config stage.
  * So fifo_resize cannot happen for these endpoints.
@@ -1730,6 +1758,8 @@ static void dwc3_gadget_wakeup_work(struct work_struct *w)
 	retry_count = 0;
 	dbg_event(0xFF, "Gdgwake gsyn",
 		atomic_read(&dwc->dev->power.usage_count));
+	pr_info("dwc3 pm usage count " "Gdgwake gsyn " "%d\n",
+		atomic_read(&dwc->dev->power.usage_count));
 
 	ret = dwc3_gadget_wakeup_int(dwc);
 
@@ -1740,6 +1770,8 @@ static void dwc3_gadget_wakeup_work(struct work_struct *w)
 
 	pm_runtime_put_noidle(dwc->dev);
 	dbg_event(0xFF, "Gdgwake put",
+		atomic_read(&dwc->dev->power.usage_count));
+	pr_info("dwc3 pm usage count " "Gdgwake put " "%d\n",
 		atomic_read(&dwc->dev->power.usage_count));
 }
 
@@ -2018,6 +2050,18 @@ static int dwc3_gadget_vbus_draw(struct usb_gadget *g, unsigned mA)
 	return 0;
 }
 
+/* for notify otg from gadget, 5/8 */
+static int dwc3_gadget_notify_otg(struct usb_gadget *g, unsigned event)
+{
+	struct dwc3		*dwc = gadget_to_dwc(g);
+
+	dwc->extra_event = event;
+	dev_dbg(dwc->dev, "Notify controller from %s. extra_event = %d\n", __func__, event);
+	dwc3_notify_event(dwc, DWC3_CONTROLLER_GADGET_EXTRA_EVENT, 0);
+	return 0;
+}
+/* end */
+
 static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 {
 	struct dwc3		*dwc = gadget_to_dwc(g);
@@ -2039,6 +2083,8 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 	pm_runtime_get_sync(dwc->dev);
 	dbg_event(0xFF, "Pullup gsync",
 		atomic_read(&dwc->dev->power.usage_count));
+	pr_info("dwc3 pm usage count " "Pullup gsync " "%d\n",
+		atomic_read(&dwc->dev->power.usage_count));
 
 	spin_lock_irqsave(&dwc->lock, flags);
 
@@ -2059,6 +2105,8 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 	pm_runtime_mark_last_busy(dwc->dev);
 	pm_runtime_put_autosuspend(dwc->dev);
 	dbg_event(0xFF, "Pullup put",
+		atomic_read(&dwc->dev->power.usage_count));
+	pr_info("dwc3 pm usage count " "Pullup put " "%d\n",
 		atomic_read(&dwc->dev->power.usage_count));
 
 	return ret;
@@ -2140,6 +2188,10 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 	}
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
+
+	/* notify usb's state to userspace */
+	dwc3_uevent(&dwc->sdev, is_active);
+	pr_info("usb vbus activate: %d, softconnect: %d\n", is_active, dwc->softconnect);
 	return 0;
 }
 
@@ -2313,6 +2365,7 @@ static const struct usb_gadget_ops dwc3_gadget_ops = {
 	.udc_start		= dwc3_gadget_start,
 	.udc_stop		= dwc3_gadget_stop,
 	.restart		= dwc3_gadget_restart_usb_session,
+	.notify_otg		= dwc3_gadget_notify_otg, /* for notify otg from gadget, 4/8 */
 };
 
 /* -------------------------------------------------------------------------- */
@@ -3738,7 +3791,22 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 		pm_runtime_get(&dwc->gadget.dev);
 	}
 
+	/* online and offline event */
+	dwc->sdev.name = "usb_scsi_command";
+	dwc->sdev.print_name = dwc3_print_switch_name;
+	dwc->sdev.print_state = dwc3_print_switch_state;
+	ret = switch_dev_register(&dwc->sdev);
+	if (ret) {
+		pr_info("%s register switch event error, errno = %d\n", __func__, ret);
+		goto err5;
+	}
+
+	_dwc3 = dwc; /* init the glocal variable */
+
 	return 0;
+
+err5:
+	switch_dev_unregister(&dwc->sdev);
 
 err4:
 	dwc3_gadget_free_endpoints(dwc);

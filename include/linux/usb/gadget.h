@@ -597,6 +597,9 @@ struct usb_gadget_ops {
 			struct usb_gadget_driver *);
 	int	(*udc_stop)(struct usb_gadget *,
 			struct usb_gadget_driver *);
+	/* for notify otg from gadget, 3/8 */
+	int	(*notify_otg)(struct usb_gadget *, unsigned event);
+	/* end */
 };
 
 /**
@@ -875,6 +878,15 @@ static inline int usb_gadget_vbus_draw(struct usb_gadget *gadget, unsigned mA)
 		return -EOPNOTSUPP;
 	return gadget->ops->vbus_draw(gadget, mA);
 }
+
+/* for notify otg from gadget, 2/8 */
+static inline int usb_gadget_notify_otg(struct usb_gadget *gadget, unsigned event)
+{
+	if (!gadget->ops->notify_otg)
+		return -EOPNOTSUPP;
+	return gadget->ops->notify_otg(gadget, event);
+}
+/* end */
 
 /**
  * usb_gadget_vbus_disconnect - notify controller about VBUS session end
