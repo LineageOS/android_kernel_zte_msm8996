@@ -238,10 +238,10 @@ enum fg_mem_data_index {
 static struct fg_mem_setting settings[FG_MEM_SETTING_MAX] = {
 	/*       ID                    Address, Offset, Value*/
 	SETTING(SOFT_COLD,       0x454,   0,      100),
-	SETTING(SOFT_HOT,        0x454,   1,      400),
-	SETTING(HARD_COLD,       0x454,   2,      50),
-	SETTING(HARD_HOT,        0x454,   3,      450),
-	SETTING(RESUME_SOC,      0x45C,   1,      0),
+	SETTING(SOFT_HOT,        0x454,   1,      450),
+	SETTING(HARD_COLD,       0x454,   2,      0),
+	SETTING(HARD_HOT,        0x454,   3,      550),
+	SETTING(RESUME_SOC,      0x45C,   1,      99),
 	SETTING(BCL_LM_THRESHOLD, 0x47C,   2,      50),
 	SETTING(BCL_MH_THRESHOLD, 0x47C,   3,      752),
 	SETTING(TERM_CURRENT,	 0x40C,   2,      250),
@@ -249,7 +249,7 @@ static struct fg_mem_setting settings[FG_MEM_SETTING_MAX] = {
 	SETTING(IRQ_VOLT_EMPTY,	 0x458,   3,      3100),
 	SETTING(CUTOFF_VOLTAGE,	 0x40C,   0,      3200),
 	SETTING(VBAT_EST_DIFF,	 0x000,   0,      30),
-	SETTING(DELTA_SOC,	 0x450,   3,      1),
+	SETTING(DELTA_SOC,	 0x450,   3,      2),
 	SETTING(BATT_LOW,	 0x458,   0,      4200),
 	SETTING(THERM_DELAY,	 0x4AC,   3,      0),
 };
@@ -315,7 +315,7 @@ module_param_named(
 	debug_mask, fg_debug_mask, int, S_IRUSR | S_IWUSR
 );
 
-static int fg_reset_on_lockup;
+static int fg_reset_on_lockup = 1;
 
 static int fg_sense_type = -EINVAL;
 static int fg_restart;
@@ -324,8 +324,11 @@ static int fg_est_dump;
 module_param_named(
 	first_est_dump, fg_est_dump, int, S_IRUSR | S_IWUSR
 );
+static char *fg_batt_type_default = "zte_p894a01_3000mah";
+static char *fg_batt_type_batteryid_1 = "ZTE_BATTERY_DATA_ID_1";
 
-static char *fg_batt_type;
+static char *fg_batt_type = "ZTE_BATTERY_DATA_ID_1";//zte add 
+
 module_param_named(
 	battery_type, fg_batt_type, charp, S_IRUSR | S_IWUSR
 );
@@ -531,6 +534,7 @@ struct fg_chip {
 	bool			vbat_low_irq_enabled;
 	bool			full_soc_irq_enabled;
 	bool			charge_full;
+	bool			charge_full_zte;
 	bool			hold_soc_while_full;
 	bool			input_present;
 	bool			otg_present;
@@ -546,6 +550,7 @@ struct fg_chip {
 	struct delayed_work	update_sram_data;
 	struct delayed_work	update_temp_work;
 	struct delayed_work	check_empty_work;
+	struct delayed_work	start_update_work;//zte add 
 	char			*batt_profile;
 	u8			thermal_coefficients[THERMAL_COEFF_N_BYTES];
 	u32			cc_cv_threshold_mv;
@@ -2025,12 +2030,12 @@ static void fg_handle_battery_insertion(struct fg_chip *chip)
 	schedule_delayed_work(&chip->update_sram_data, msecs_to_jiffies(0));
 }
 
-
+#if 0
 static int soc_to_setpoint(int soc)
 {
 	return DIV_ROUND_CLOSEST(soc * 255, 100);
 }
-
+#endif
 static void batt_to_setpoint_adc(int vbatt_mv, u8 *data)
 {
 	int val;
@@ -2236,6 +2241,8 @@ static int get_monotonic_soc_raw(struct fg_chip *chip)
 		pr_info_ratelimited("raw: 0x%02x\n", cap[0]);
 	return cap[0];
 }
+static int profile_loaded_zte = 0;
+module_param(profile_loaded_zte, int, 0644);
 
 #define EMPTY_CAPACITY		0
 #define DEFAULT_CAPACITY	50
@@ -2246,7 +2253,14 @@ static int get_prop_capacity(struct fg_chip *chip)
 {
 	int msoc, rc;
 	bool vbatt_low_sts;
-
+	u8 buffer[3];
+	fg_mem_lock(chip);
+	rc = fg_mem_read(chip, buffer, 0x56C, 3, 1, 0);
+	if (rc) {
+		pr_err("Unable to read battery soc: %d\n", rc);
+	}
+	fg_mem_release(chip);
+	pr_debug("get_monotonic_soc_raw:%d,buffer[2]:%d,charge_full_zte:%d,charge_full:%d\n",get_monotonic_soc_raw(chip),buffer[2],chip->charge_full_zte,chip->charge_full);
 	if (chip->use_last_soc && chip->last_soc) {
 		if (chip->last_soc == FULL_SOC_RAW)
 			return FULL_CAPACITY;
@@ -2260,6 +2274,12 @@ static int get_prop_capacity(struct fg_chip *chip)
 
 	if (!chip->profile_loaded && !chip->use_otp_profile)
 		return DEFAULT_CAPACITY;
+	if((chip->charge_full_zte)&&(get_monotonic_soc_raw(chip) < 252))
+	{
+		return FULL_CAPACITY;
+	}else{
+		chip->charge_full_zte = false;
+	}
 
 	if (chip->charge_full)
 		return FULL_CAPACITY;
@@ -2306,12 +2326,16 @@ static u8 bias_ua[] = {
 	[MED_BIAS] = 15,
 	[LOW_BIAS] = 5,
 };
+/*add by zte ssj ,when the battery id read error,set hte fg_get_battery_id_error to 1,
+then it will set ship mode while the phone is powered off*/
+int fg_get_battery_id_error = 0;
 
 static int64_t get_batt_id(unsigned int battery_id_uv, u8 bid_info)
 {
 	u64 battery_id_ohm;
 
 	if ((bid_info & 0x3) == 0) {
+		fg_get_battery_id_error = 1;
 		pr_err("can't determine battery id 0x%02x\n", bid_info);
 		return -EINVAL;
 	}
@@ -2322,8 +2346,24 @@ static int64_t get_batt_id(unsigned int battery_id_uv, u8 bid_info)
 }
 
 #define DEFAULT_TEMP_DEGC	250
+//zte add strat
+static unsigned long last_bms_update = 0;
+static int update_sram_data(struct fg_chip *chip, int *resched_ms);
+static void start_update_work_func(struct work_struct *work)
+{
+	struct fg_chip *chip = container_of(work,struct fg_chip,
+				start_update_work.work);
+	int resched_ms;
+	if (time_after(jiffies, last_bms_update+2*HZ)) {
+		update_sram_data(chip,&resched_ms);
+		last_bms_update = jiffies;
+		pr_debug("updating bms sram\n");
+	}
+}
+//zte add end
 static int get_sram_prop_now(struct fg_chip *chip, unsigned int type)
 {
+	schedule_delayed_work(&chip->start_update_work, 0);//zte add 
 	if (fg_debug_mask & FG_POWER_SUPPLY)
 		pr_info("addr 0x%02X, offset %d value %d\n",
 			fg_data[type].address, fg_data[type].offset,
@@ -5509,6 +5549,12 @@ static void set_resume_soc_work(struct work_struct *work)
 	if (is_input_present(chip) && !chip->resume_soc_lowered) {
 		if (!chip->charge_done)
 			goto done;
+		//ZTE MODIFY
+		if(chip->health == POWER_SUPPLY_HEALTH_GOOD)
+		{
+			resume_soc_raw = settings[FG_MEM_RESUME_SOC].value;
+		}
+		else
 		resume_soc_raw = get_monotonic_soc_raw(chip)
 			- (0xFF - settings[FG_MEM_RESUME_SOC].value);
 		if (resume_soc_raw > 0 && resume_soc_raw < FULL_SOC_RAW) {
@@ -6360,16 +6406,22 @@ wait:
 		pr_info("battery id = %d\n",
 				get_sram_prop_now(chip, FG_DATA_BATT_ID));
 	profile_node = of_batterydata_get_best_profile(batt_node, "bms",
-							fg_batt_type);
-	if (IS_ERR_OR_NULL(profile_node)) {
-		rc = PTR_ERR(profile_node);
-		if (rc == -EPROBE_DEFER) {
-			goto reschedule;
-		} else {
-			pr_err("couldn't find profile handle rc=%d\n", rc);
-			goto no_profile;
-		}
+							fg_batt_type_batteryid_1);
+	if (!profile_node) {
+		pr_err("couldn't find profile handle ,battery_type1 is %s\n",fg_batt_type_batteryid_1);
+		profile_node = of_batterydata_get_best_profile(batt_node, "bms",
+							fg_batt_type_default);
+	if (!profile_node) {
+			pr_err("couldn't find profile handle ,battery_type_default is %s\n",fg_batt_type_default);
+		rc = -ENODATA;
+		goto no_profile;
+		}else{
+			fg_batt_type = fg_batt_type_default;
+		}	
+	}else{
+		fg_batt_type = fg_batt_type_batteryid_1;
 	}
+	pr_debug("fg_batt_type is %s\n",fg_batt_type);
 
 	/* read rslow compensation values if they're available */
 	rc = of_property_read_u32(profile_node, "qcom,chg-rs-to-rslow",
@@ -6577,6 +6629,7 @@ done:
 
 	chip->first_profile_loaded = true;
 	chip->profile_loaded = true;
+	profile_loaded_zte = true;
 	chip->soc_reporting_ready = true;
 	chip->battery_missing = is_battery_missing(chip);
 	update_chg_iterm(chip);
@@ -6690,6 +6743,8 @@ static void sysfs_restart_work(struct work_struct *work)
 	mutex_unlock(&chip->sysfs_restart_lock);
 }
 
+#define SRAM_MONOTONIC_SOC_REG		0x574
+#define SRAM_MONOTONIC_SOC_OFFSET	2
 #define SRAM_RELEASE_TIMEOUT_MS		500
 static void charge_full_work(struct work_struct *work)
 {
@@ -6699,22 +6754,23 @@ static void charge_full_work(struct work_struct *work)
 	int rc;
 	u8 buffer[3];
 	int bsoc;
-	int resume_soc_raw = settings[FG_MEM_RESUME_SOC].value;
+	int resume_soc_raw = settings[FG_MEM_RESUME_SOC].value -3;
 	bool disable = false;
 	u8 reg;
-
+#if 0
 	if (chip->status != POWER_SUPPLY_STATUS_FULL) {
 		if (fg_debug_mask & FG_STATUS)
 			pr_info("battery not full: %d\n", chip->status);
 		disable = true;
 	}
-
+#endif
 	fg_mem_lock(chip);
 	rc = fg_mem_read(chip, buffer, BATTERY_SOC_REG, 3, 1, 0);
 	if (rc) {
 		pr_err("Unable to read battery soc: %d\n", rc);
 		goto out;
 	}
+	pr_info("chip->status:%d,chip->charge_full:%d,buffer[2]:%d,resume_soc_raw:%d,\n",chip->status,chip->charge_full,buffer[2],resume_soc_raw);
 	if (buffer[2] <= resume_soc_raw) {
 		if (fg_debug_mask & FG_STATUS)
 			pr_info("bsoc = 0x%02x <= resume = 0x%02x\n",
@@ -6752,8 +6808,10 @@ static void charge_full_work(struct work_struct *work)
 	fg_mem_read(chip, &reg, PROFILE_INTEGRITY_REG, 1, 0, 0);
 out:
 	fg_mem_release(chip);
-	if (disable)
+	if (disable){
 		chip->charge_full = false;
+		chip->charge_full_zte = true;
+	}
 }
 
 static void update_bcl_thresholds(struct fg_chip *chip)
@@ -8044,7 +8102,8 @@ static int fg_common_hw_init(struct fg_chip *chip)
 	}
 
 	rc = fg_mem_masked_write(chip, settings[FG_MEM_DELTA_SOC].address, 0xFF,
-			soc_to_setpoint(settings[FG_MEM_DELTA_SOC].value),
+			//soc_to_setpoint(settings[FG_MEM_DELTA_SOC].value),
+			settings[FG_MEM_DELTA_SOC].value,
 			settings[FG_MEM_DELTA_SOC].offset);
 	if (rc) {
 		pr_err("failed to write delta soc rc=%d\n", rc);
@@ -8779,7 +8838,7 @@ static int fg_probe(struct spmi_device *spmi)
 	init_completion(&chip->first_soc_done);
 	init_completion(&chip->fg_reset_done);
 	dev_set_drvdata(&spmi->dev, chip);
-
+	INIT_DELAYED_WORK(&chip->start_update_work, start_update_work_func); //zte add 
 	spmi_for_each_container_dev(spmi_resource, spmi) {
 		if (!spmi_resource) {
 			pr_err("qpnp_chg: spmi resource absent\n");
