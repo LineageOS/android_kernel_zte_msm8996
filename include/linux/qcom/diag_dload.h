@@ -27,6 +27,8 @@ struct dload_struct {
 	uint32_t	pid;
 	char		serial_number[SERIAL_NUMBER_LENGTH];
 	struct magic_num_struct magic_struct;
+	/* Use Qualcomm's usb vid and pid if enters download due to panic. */
+	uint8_t   dload_info_free[2];
 };
 
 /* Use Qualcomm's usb vid and pid if enters download due to panic. */
