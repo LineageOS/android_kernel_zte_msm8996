@@ -25,6 +25,8 @@
 #include <linux/delay.h>
 #include <linux/qpnp/power-on.h>
 #include <linux/of_address.h>
+/* Use Qualcomm's usb vid and pid if enters download due to panic. */
+#include <linux/qcom/diag_dload.h>
 
 #include <asm/cacheflush.h>
 #include <asm/system_misc.h>
@@ -68,6 +70,7 @@ static const int download_mode;
 #ifdef CONFIG_MSM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
 #define DL_MODE_PROP "qcom,msm-imem-download_mode"
+#define SDDUMP_MODE_PROP "qcom,msm-imem-sd_dump_mode"
 
 static int in_panic;
 static void *dload_mode_addr;
@@ -76,6 +79,10 @@ static void *emergency_dload_mode_addr;
 static bool scm_dload_supported;
 static struct kobject dload_kobj;
 static void *dload_type_addr;
+
+static void *sd_dump_mode_addr;
+static int ignore_sd_dump = 0;
+
 
 static int dload_set(const char *val, struct kernel_param *kp);
 /* interface for exporting attributes */
@@ -95,10 +102,47 @@ struct reset_attribute {
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
 
+static int dload_ignore_sd_dump_set(const char *val, struct kernel_param *kp);
+module_param_call(ignore_sd_dump, dload_ignore_sd_dump_set, param_get_int,
+			&ignore_sd_dump, 0644);
+
+static int dload_ignore_sd_dump_set(const char *val, struct kernel_param *kp)
+{
+	int ret;
+	int old_val = ignore_sd_dump;
+    pr_err("dload_ignore_sd_dump_set old ignore_sd_dump %d\n", ignore_sd_dump);
+
+	ret = param_set_int(val, kp);
+    pr_err("dload_ignore_sd_dump_set new ignore_sd_dump %d\n", ignore_sd_dump);
+
+	if (ret)
+		return ret;
+
+	/* If ignor_sd_dump is not zero or one, ignore. */
+	if (ignore_sd_dump >> 1) {
+		ignore_sd_dump = old_val;
+		return -EINVAL;
+	}
+
+  //set_dload_mode(download_mode);
+	return 0;
+}
+
+void msm_ignore_sd_dump(int enable)
+{
+	ignore_sd_dump = !!enable;
+}
+
+
+EXPORT_SYMBOL(msm_ignore_sd_dump);
+
+
 static int panic_prep_restart(struct notifier_block *this,
 			      unsigned long event, void *ptr)
 {
 	in_panic = 1;
+	/* Use Qualcomm's usb vid and pid if enters download due to panic. */
+	use_qualcomm_usb_product_id();
 	return NOTIFY_DONE;
 }
 
@@ -139,12 +183,20 @@ static void set_dload_mode(int on)
 		       dload_mode_addr + sizeof(unsigned int));
 		mb();
 	}
+  
+	if (sd_dump_mode_addr) {
+		__raw_writel((on && !ignore_sd_dump) ? 0x20121221 : 0, sd_dump_mode_addr);
+		mb();
+	}
+
 
 	ret = scm_set_dload_mode(on ? SCM_DLOAD_MODE : 0, 0);
 	if (ret)
 		pr_err("Failed to set secure DLOAD mode: %d\n", ret);
 
 	dload_mode_enabled = on;
+	/* zte add kernel log below */
+	pr_notice("zte_restart set_dload_mode %d, param=%d\n", dload_mode_enabled, on);
 }
 
 static bool get_dload_mode(void)
@@ -207,6 +259,12 @@ static void enable_emergency_dload_mode(void)
 {
 	pr_err("dload mode is not enabled on target\n");
 }
+
+void msm_ignore_sd_dump(int enable)
+{
+	pr_err("msm_ignore_sd_dump:not support\n");
+}
+EXPORT_SYMBOL(msm_ignore_sd_dump);
 
 static bool get_dload_mode(void)
 {
@@ -275,8 +333,11 @@ static void msm_restart_prepare(const char *cmd)
 	 * Kill download mode if master-kill switch is set
 	 */
 
-	set_dload_mode(download_mode &&
-			(in_panic || restart_mode == RESTART_DLOAD));
+	/*
+	 * ZTE Modify: Always set download mode when restart_mode == RESTART_DLOAD.
+	 */
+	set_dload_mode((download_mode && in_panic)
+			|| restart_mode == RESTART_DLOAD);
 #endif
 
 	if (qpnp_pon_check_hard_reset_stored()) {
@@ -293,6 +354,9 @@ static void msm_restart_prepare(const char *cmd)
 
 	/* Hard reset the PMIC unless memory contents must be maintained. */
 	if (need_warm_reset) {
+	/* zte add reset type print to assist reset issue's analysis */
+		pr_notice("zte_restart flag %d, %d, %d\n",
+			in_panic, download_mode, restart_mode);
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 	} else {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
@@ -332,6 +396,15 @@ static void msm_restart_prepare(const char *cmd)
 					     restart_reason);
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
+		} else if (!strncmp(cmd, "disemmcwp", 9)){
+		/*Add interface to enable/disable emmc write protct function */
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_DISEMMCWP);
+			__raw_writel(0x776655aa, restart_reason);
+		} else if (!strncmp(cmd, "emmcwpenab", 10)){
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_EMMCWPENAB);
+			__raw_writel(0x776655bb, restart_reason);
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}
@@ -370,10 +443,13 @@ static void deassert_ps_hold(void)
 	__raw_writel(0, msm_ps_hold);
 }
 
+extern int qpnp_s2_reset_en(void);
 static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
 {
 	pr_notice("Going down for restart now\n");
 
+    qpnp_s2_reset_en();
+	
 	msm_restart_prepare(cmd);
 
 #ifdef CONFIG_MSM_DLOAD_MODE
@@ -393,10 +469,14 @@ static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
 	mdelay(10000);
 }
 
+
+
 static void do_msm_poweroff(void)
 {
 	pr_notice("Powering off the SoC\n");
 
+    qpnp_s2_reset_en();
+	
 	set_dload_mode(0);
 	scm_disable_sdi();
 	qpnp_pon_system_pwr_off(PON_POWER_OFF_SHUTDOWN);
@@ -519,6 +599,16 @@ static int msm_restart_probe(struct platform_device *pdev)
 			pr_err("unable to map imem EDLOAD mode offset\n");
 	}
 
+    //Add by ruijiagui, map sddump flag address
+	np = of_find_compatible_node(NULL, NULL, SDDUMP_MODE_PROP);
+	if (!np) {
+		pr_err("unable to find DT imem sd dump mode node\n");
+	} else {
+		sd_dump_mode_addr = of_iomap(np, 0);
+		if (!sd_dump_mode_addr)
+			pr_err("unable to map imem sddump mode offset\n");
+	}
+
 	np = of_find_compatible_node(NULL, NULL,
 				"qcom,msm-imem-dload-type");
 	if (!np) {
@@ -589,6 +679,7 @@ err_restart_reason:
 #ifdef CONFIG_MSM_DLOAD_MODE
 	iounmap(emergency_dload_mode_addr);
 	iounmap(dload_mode_addr);
+	iounmap(sd_dump_mode_addr);
 #endif
 	return ret;
 }

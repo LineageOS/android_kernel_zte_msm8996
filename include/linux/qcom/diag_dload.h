@@ -29,4 +29,7 @@ struct dload_struct {
 	struct magic_num_struct magic_struct;
 };
 
+/* Use Qualcomm's usb vid and pid if enters download due to panic. */
+void use_qualcomm_usb_product_id(void);
+
 #endif
