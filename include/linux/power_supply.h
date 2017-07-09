@@ -531,4 +531,8 @@ static inline bool power_supply_is_watt_property(enum power_supply_property psp)
 	return 0;
 }
 
+#ifdef CONFIG_USB_HD3SS3220
+extern void interfere_id_irq_from_usb(int enable);
+#endif
+
 #endif /* __LINUX_POWER_SUPPLY_H__ */
