@@ -245,6 +245,12 @@
 			reg = <0 0xb1c00000 0 0>;
 			label = "cont_splash_mem_hdmi";
 		};
+
+		ramoops_mem: ramoops_region@92900000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x92900000 0x0 0x00100000>;
+		};
 	};
 };
 
@@ -4066,6 +4072,20 @@
 		pinctrl-0 = <&pinctrl_pps>;
 		gpios = <&tlmm 128 0>;
 		status = "okay";
+	};
+
+	ramoops {
+		compatible = "ramoops";
+		status = "ok";
+
+		android,ramoops-buffer-start = <0x92900000>;
+		android,ramoops-buffer-size = <0x00100000>;
+		android,ramoops-console-size = <0x00080000>;
+		android,ramoops-pmsg-size = <0x00040000>;
+		android,ramoops-record-size = <0x00008000>;
+		android,ramoops-ftrace-size = <0x00020000>;
+		android,ramoops-dump-oops = <0x1>;
+		linux,contiguous-region = <&ramoops_mem>;
 	};
 };
 
