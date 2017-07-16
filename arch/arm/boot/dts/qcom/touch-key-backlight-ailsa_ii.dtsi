@@ -1,0 +1,132 @@
+/ {
+	aliases {
+		i2c12 = &i2c_12;
+	};
+};
+
+&soc {
+	i2c_12: i2c@75ba000 {
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x75ba000 0x1000>;
+		interrupt-names = "qup_irq";
+		interrupts = <0 106 0>;
+		dmas = <&dma_blsp2 22 64 0x20000020 0x20>,
+			<&dma_blsp2 23 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
+		qcom,master-id = <84>;
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp2_qup6_i2c_apps_clk>;
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_12_active>;
+		pinctrl-1 = <&i2c_12_sleep>;
+	};
+};
+
+&soc {
+	i2c@75ba000 {
+		synaptics@20 {
+			compatible = "synaptics,dsx-i2c";
+			reg = <0x20>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <125 0x2008>;
+			vdd_ana-supply = <&pm8994_l14>;
+			vcc_i2c-supply= <&pm8994_l22>;
+			synaptics,pwr-reg-name = "vdd_ana";
+			synaptics,bus-reg-name = "vcc_i2c";
+			pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+			pinctrl-0 = <&ts_active>;
+			pinctrl-1 = <&ts_suspend>;
+			//synaptics,display-coords = <0 0 1599 2559>;
+			//synaptics,panel-coords = <0 0 1599 2703>;
+			synaptics,reset-gpio = <&tlmm 89 0x00>;
+			synaptics,irq-gpio = <&tlmm 125 0x2008>;
+			synaptics,irq-on-state = <0>;
+			synaptics,irq-flags = <0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+			synaptics,power-delay-ms = <100>;
+			synaptics,reset-delay-ms = <100>;
+			synaptics,reset-on-state = <0>;
+			synaptics,reset-active-ms = <20>;
+			synaptics,cap-button-codes = <158 102 187>;
+			//synaptics,disable-gpios;
+			//synaptics,fw-name = "PR1702898-s3528t_00350002.img";
+			/* Underlying clocks used by secure touch */
+			//clock-names = "iface_clk", "core_clk";
+			//clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			//	 <&clock_gcc clk_gcc_blsp2_qup6_i2c_apps_clk>;
+		};
+		/*ergate*/
+	ndt_stress@50 {
+	    compatible = "ndt,stress-i2c";
+		reg = <0x50>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <122 0x2008>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&ndt_power_active &ndt_int_active &ndt_reset_active>;
+		pinctrl-1 = <&ndt_power_suspend &ndt_int_suspend &ndt_reset_suspend>;
+		ndt,irq-gpio = <&tlmm 122 0x00>;
+		ndt,irq-on-state = <0>;
+		ndt,irq-flags = <0x2008>;
+		//ndt,pwr-reg-name = "vdd";
+		//ndt,bus-reg-name = "vcc_i2c";
+		ndt,power-gpio = <&tlmm 69 0x00>;
+		ndt,power-on-state = <1>;
+		ndt,power-delay-ms = <20>;
+		ndt,reset-gpio = <&tlmm 121 0x00>;
+		ndt,reset-on-state = <0>;
+		ndt,reset-active-ms = <10>;
+		ndt,reset-delay-ms = <10>;
+		};
+	};
+
+	gen-vkeys {
+		compatible = "zte,gen-vkeys";
+		label = "synaptics_dsx";
+		zte,disp-maxy_px = <2560>;
+		zte,disp-maxy_mm = <1210>;//0.1mm
+		zte,disp-maxx_mm = <680>;//0.1mm
+		zte,x1=<205>;
+		zte,x2=<345>;
+		zte,x3=<485>;
+		zte,lcd_offset=<25>;
+		zte,y_max_offset=<150>;
+		zte,dx=<100>;
+		zte,key-codes = <158 102 187>;
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm8994_gpios 2 0x1>;
+			linux,input-type = <1>;
+			linux,code = <114>;
+			//gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+		vol_down {
+			label = "volume_down";
+			gpios = <&pm8994_gpios 3 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			//gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+		/*cam_focus {
+			label = "cam_focus";
+			gpios = <&pm8994_gpios 5 0x1>;
+			linux,input-type = <1>;
+			linux,code = <528>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};*/
+	};
+};
