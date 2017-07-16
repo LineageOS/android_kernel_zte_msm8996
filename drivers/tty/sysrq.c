@@ -51,6 +51,10 @@
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
 
+#ifdef CONFIG_POWER_RESET_MSM
+#include <soc/qcom/restart.h>
+#endif
+
 /* Whether we react on sysrq keys or just ignore them */
 static int __read_mostly sysrq_enabled = CONFIG_MAGIC_SYSRQ_DEFAULT_ENABLE;
 static bool __read_mostly sysrq_always_enabled;
@@ -143,6 +147,9 @@ static void sysrq_handle_crash(int key)
 	 * complaint from the kernel before the panic.
 	 */
 	rcu_read_unlock();
+#ifdef CONFIG_POWER_RESET_MSM
+	msm_set_restart_mode(RESTART_DLOAD);
+#endif
 	panic_on_oops = 1;	/* force panic */
 	wmb();
 	*killer = 1;
