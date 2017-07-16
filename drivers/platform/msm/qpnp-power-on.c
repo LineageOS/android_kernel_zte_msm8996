@@ -29,6 +29,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/qpnp/power-on.h>
+#include <linux/reboot.h>  //ZTE
+#include <soc/qcom/socinfo.h>
 
 #define CREATE_MASK(NUM_BITS, POS) \
 	((unsigned char) (((1 << (NUM_BITS)) - 1) << (POS)))
@@ -226,7 +228,78 @@ struct qpnp_pon {
 	bool			store_hard_reset_reason;
 	bool			kpdpwr_dbc_enable;
 	ktime_t			kpdpwr_last_release_time;
+	//zte jiangfeng add
+	struct timer_list timer;
+	struct work_struct 		pwrkey_poweroff_work;
+	struct work_struct		pwrkey_release_work;
+	struct delayed_work		check_pwrkey_work;
+	//zte jiangfeng add, end
 };
+
+//zte jiangfeng add
+#define POWER_KEY_CHECK_MS 1000
+extern int socinfo_get_ftm_flag(void);
+
+static void pwrkey_timer(unsigned long data)
+{
+	struct qpnp_pon *pon = (struct qpnp_pon *)data;
+	schedule_work(&pon->pwrkey_poweroff_work);
+}
+
+extern int zte_volume_key;
+static void pwrkey_poweroff(struct work_struct *work)
+{
+#if 0
+	if(socinfo_get_ftm_flag()) {
+		pr_info("%s: power key long pressed, reboot because of FTM mode\n",__func__);
+		kernel_restart(NULL);
+	} else {
+		pr_info("%s: power key long pressed, just print this info\n",__func__);
+	}
+#else
+	pr_emerg("%s: power key long pressed, trigger reboot\n",__func__);
+    if(zte_volume_key)
+	  kernel_restart("ZTE-LONGPRESS");
+#endif
+}
+
+static void pwrkey_release(struct work_struct *work)
+{
+	struct qpnp_pon *pon = container_of(work,
+				struct qpnp_pon, pwrkey_release_work);
+	cancel_delayed_work_sync(&pon->check_pwrkey_work);
+}
+
+static void check_pwrkey(struct work_struct *work)
+{
+	u8 pon_rt_sts = 0;
+	int rc = 0;
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct qpnp_pon *pon = container_of(dwork,
+				struct qpnp_pon, check_pwrkey_work);
+
+	rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid,
+			QPNP_PON_RT_STS(pon), &pon_rt_sts, 1);
+	if (rc) {
+		pr_err("%s, Unable to read PON RT status\n",__func__);
+		del_timer(&pon->timer);
+		return;
+	}
+
+	if(pon_rt_sts & QPNP_PON_KPDPWR_N_SET)
+	{
+		schedule_delayed_work(&pon->check_pwrkey_work,
+				  round_jiffies_relative(msecs_to_jiffies
+							 (POWER_KEY_CHECK_MS)));
+		pr_emerg("%s, power key not released, check it again\n", __func__);
+	}
+	else
+	{
+		del_timer(&pon->timer);
+		pr_emerg("%s, power key not pressed, delete timer of power key\n", __func__);
+	}
+}
+//zte jiangfeng add, end
 
 static struct qpnp_pon *sys_reset_dev;
 static DEFINE_SPINLOCK(spon_list_slock);
@@ -305,6 +378,23 @@ static const char * const qpnp_poff_reason[] = {
  */
 static int warm_boot;
 module_param(warm_boot, int, 0);
+
+static int
+qpnp_pon_read_byte(struct qpnp_pon *pon, u16 addr, u8 *val)
+{
+	int rc;
+
+	rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid,
+							addr, val, 1);
+	if (rc) {
+		dev_err(&pon->spmi->dev,
+			"Unable to read from addr=%hx, rc(%d)\n",
+			addr, rc);
+		return rc;
+	}
+
+	return rc;
+}
 
 static int
 qpnp_pon_masked_write(struct qpnp_pon *pon, u16 addr, u8 mask, u8 val)
@@ -868,20 +958,52 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	return 0;
 }
 
+//============== pwrkey crash ==========================
+static int pwrkey_crash = 0;//zte
+module_param(pwrkey_crash, int, 0644);//zte
 static irqreturn_t qpnp_kpdpwr_irq(int irq, void *_pon)
 {
 	int rc;
 	struct qpnp_pon *pon = _pon;
+	u8 pon_rt_sts = 0;	//zte jiangfeng add
 
 	rc = qpnp_pon_input_dispatch(pon, PON_KPDPWR);
 	if (rc)
 		dev_err(&pon->spmi->dev, "Unable to send input event\n");
 
+	//zte jiangfeng add
+	rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid,
+				QPNP_PON_RT_STS(pon), &pon_rt_sts, 1);
+	if(pon_rt_sts & QPNP_PON_KPDPWR_N_SET)
+	{
+		//if(socinfo_get_ftm_flag() == 1){
+		if(socinfo_get_ftm_flag()==1){
+			pon->timer.expires = jiffies + 3 * HZ;
+			pr_info("%s: FTM mode,start 3s timer for reboot\n",__func__);
+		}
+		else {
+			pon->timer.expires = jiffies + 10 * HZ;
+			pr_info("%s: Normal mode,start 8s timer for reboot\n",__func__);
+		}
+		mod_timer(&pon->timer, pon->timer.expires);
+		schedule_delayed_work(&pon->check_pwrkey_work,
+			round_jiffies_relative(msecs_to_jiffies
+				(POWER_KEY_CHECK_MS)));
+		printk("power key pressed\n");
+	}
+	else
+	{
+		del_timer(&pon->timer);
+		schedule_work(&pon->pwrkey_release_work);
+		printk("power key released\n");
+	}
+	//zte jiangfeng add, end
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t qpnp_kpdpwr_bark_irq(int irq, void *_pon)
 {
+	pr_info("power key bark trigge\n");		//zte jiangfeng add
 	return IRQ_HANDLED;
 }
 
@@ -906,6 +1028,7 @@ static irqreturn_t qpnp_cblpwr_irq(int irq, void *_pon)
 	int rc;
 	struct qpnp_pon *pon = _pon;
 
+	printk("%s qpnp_cblpwr_irq  trigger \n",__func__); //ZTE_XJB
 	rc = qpnp_pon_input_dispatch(pon, PON_CBLPWR);
 	if (rc)
 		dev_err(&pon->spmi->dev, "Unable to send input event\n");
@@ -1029,6 +1152,7 @@ static irqreturn_t qpnp_resin_bark_irq(int irq, void *_pon)
 	/* disable the bark interrupt */
 	disable_irq_nosync(irq);
 
+	pr_info("ZTE_PM resin_bark\n");
 	cfg = qpnp_get_cfg(pon, PON_RESIN);
 	if (!cfg) {
 		dev_err(&pon->spmi->dev, "Invalid config pointer\n");
@@ -1984,6 +2108,45 @@ static int read_gen2_pon_off_reason(struct qpnp_pon *pon, u16 *reason,
 	return 0;
 }
 
+
+#if 1
+int qpnp_s2_reset_en(void)
+{
+	int rc;
+	u8 s2_en = 0;
+	rc = spmi_ext_register_readl(sys_reset_dev->spmi->ctrl, sys_reset_dev->spmi->sid, 0x843, &s2_en,1);
+	if (rc) {
+		pr_info("qpnp_s2_reset_en read failed\n");
+		return rc;
+	}
+
+	if(s2_en!=0x80)
+	{
+	   s2_en=0x80;
+	   rc = spmi_ext_register_writel(sys_reset_dev->spmi->ctrl, sys_reset_dev->spmi->sid, 0x843, &s2_en,1);
+       if (rc) {
+		pr_info("qpnp_s2_reset_en write failed\n");
+		return rc;
+	   }
+	}
+
+	pr_info("qpnp_s2_reset_en ok...");
+	return 0;
+}
+
+extern int smb_set_shipmode(void);
+static struct qpnp_pon *zte_pon=NULL;
+int zte_read_s3_type(u8* s3_src_reg)
+{
+   int rc = 0;
+   
+   if(zte_pon)
+     rc=qpnp_pon_read_byte(zte_pon, QPNP_PON_S3_SRC(zte_pon), s3_src_reg);
+
+   return rc;
+}	
+#endif
+
 static int qpnp_pon_probe(struct spmi_device *spmi)
 {
 	struct qpnp_pon *pon;
@@ -2228,10 +2391,30 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 		dev_err(&spmi->dev, "Unable to program s3 source rc: %d\n", rc);
 		return rc;
 	}
-
+	
+#if 1	
+	rc = qpnp_pon_read_byte(pon, QPNP_PON_S3_SRC(pon), &s3_src_reg);
+	if (rc) {
+		dev_err(&spmi->dev, "Unable to program s3 source rc: %d\n", rc);
+		return rc;
+	}
+	dev_info(&spmi->dev, "s3_src_reg: %d\n", s3_src_reg);
+//	if (s3_src_reg != 2)
+//		smb_set_shipmode();
+#endif
+		
 	dev_set_drvdata(&spmi->dev, pon);
 
 	INIT_DELAYED_WORK(&pon->bark_work, bark_work_func);
+
+	//zte jiangfeng add
+	init_timer(&pon->timer);
+	pon->timer.data = (unsigned long)pon;
+	pon->timer.function = pwrkey_timer;
+	INIT_WORK(&pon->pwrkey_poweroff_work, pwrkey_poweroff);
+	INIT_WORK(&pon->pwrkey_release_work, pwrkey_release);
+	INIT_DELAYED_WORK(&pon->check_pwrkey_work, check_pwrkey);
+	//zte jiangfeng added
 
 	/* register the PON configurations */
 	rc = qpnp_pon_config_init(pon);
@@ -2351,6 +2534,10 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 					"qcom,store-hard-reset-reason");
 
 	qpnp_pon_debugfs_init(spmi);
+
+    if(zte_pon==NULL)
+	   zte_pon=pon;
+	
 	return 0;
 }
 
