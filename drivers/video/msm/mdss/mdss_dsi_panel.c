@@ -27,13 +27,96 @@
 #ifdef TARGET_HW_MDSS_HDMI
 #include "mdss_dba_utils.h"
 #endif
+
+#include <linux/proc_fs.h>
+static struct proc_dir_entry * d_entry;
+static struct proc_dir_entry *d_entry_frame_count;
+static char  module_name[50]={"0"};
+extern u32 zte_frame_count;/*pan*/
 #define DT_CMD_HDR 6
 #define MIN_REFRESH_RATE 48
 #define DEFAULT_MDP_TRANSFER_TIME 14000
 
 #define VSYNC_DELAY msecs_to_jiffies(17)
 
+
+struct mutex zte_display_lock;
+int zte_display_init=0;
+
+
 DEFINE_LED_TRIGGER(bl_led_trigger);
+
+ssize_t mdss_dsi_panel_lcd_read_proc(struct file *file, char __user *page, size_t size, loff_t *ppos)
+{
+	int len = 0;
+	printk("LCD %s:---enter---\n",__func__);
+
+	/* ADB call again */
+	if (*ppos)
+		return 0;
+
+	len = sprintf(page, "%s\n", module_name);
+	*ppos += len;
+
+	return len;
+}
+
+static const struct file_operations proc_ops = {
+	.owner = THIS_MODULE,
+	.read = mdss_dsi_panel_lcd_read_proc,
+	.write = NULL,
+};
+
+static ssize_t mdss_dsi_panel_lcd_read_frame_count(struct file *file, char __user *page, size_t size, loff_t *ppos)
+{
+	int len = 0;
+
+	/* ADB call again */
+	if (*ppos)
+		return 0;
+
+	len = snprintf(NULL, 0, "%d\n", zte_frame_count);
+	len = snprintf(page, len, "%d\n", zte_frame_count);
+	*ppos += len;
+
+	return len;
+}
+
+static const struct file_operations proc_ops_frame_count = {
+		.owner = THIS_MODULE,
+		.read = mdss_dsi_panel_lcd_read_frame_count,
+		.write = NULL,
+};
+
+void  mdss_dsi_panel_lcd_proc(struct device_node *node)
+{
+	const char *panel_name;
+	static int initial_flag =0;
+
+	if(initial_flag==1)
+		return ;
+	else
+		initial_flag = 1;
+
+	d_entry=proc_create("msm_lcd", 0664, NULL, &proc_ops);
+	if (d_entry == NULL)
+		printk("LCD proc_create panel information failed!\n");
+
+	d_entry_frame_count = proc_create("msm_frame_count", 0664, NULL, &proc_ops_frame_count);
+	if (!d_entry_frame_count)
+		pr_debug("LCD proc_create msm_frame_count failed!\n");
+
+	panel_name = of_get_property(node,
+		"qcom,mdss-dsi-panel-name", NULL);
+	if (!panel_name){
+		pr_info("LCD %s:%d, panel name not found!\n",
+						__func__, __LINE__);
+		strcpy(module_name,"0");
+	}else{
+		pr_info("LCD %s: Panel Name = %s\n", __func__, panel_name);
+		strcpy(module_name,panel_name);
+	}
+}
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -208,36 +291,586 @@ static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
-
+static char power_on_flag=0;
+/*samsung 5.5inch 2k panel ic defect,have to send 2 times for BL changing*/
 static char led_pwm1[2] = {0x51, 0x0};	/* DTYPE_DCS_WRITE1 */
-static struct dsi_cmd_desc backlight_cmd = {
-	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm1)},
-	led_pwm1
+static char led_pwm2[2] = {0x53, 0x20};
+static struct dsi_cmd_desc backlight_cmd[] = {
+	{{DTYPE_DCS_WRITE1, 0, 0, 0, 0, sizeof(led_pwm1)},
+	led_pwm1},
+	{{DTYPE_DCS_WRITE1, 0, 0, 0, 0, sizeof(led_pwm1)},
+	led_pwm1},
+	{{DTYPE_DCS_WRITE1, 0, 0, 0, 0, sizeof(led_pwm1)},
+	led_pwm1},
+	{{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(led_pwm2)},
+	led_pwm2,}
 };
 
 static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dcs_cmd_req cmdreq;
 	struct mdss_panel_info *pinfo;
+	int bl_level;
 
 	pinfo = &(ctrl->panel_data.panel_info);
+
+	mutex_lock(&zte_display_lock);
+
 	if (pinfo->dcs_cmd_by_left) {
 		if (ctrl->ndx != DSI_CTRL_LEFT)
+		{
+			mutex_unlock(&zte_display_lock);
 			return;
+		}
 	}
 
-	pr_debug("%s: level=%d\n", __func__, level);
+	if (level <11)
+		bl_level = level;
+	else if (level == 11)
+		bl_level = 10;
+	else
+		bl_level = (15*level*level + 6059*level+29580)/10000;
 
-	led_pwm1[1] = (unsigned char)level;
+	pr_err("LCD %s: flag=%d level=%d -> new_level=%d\n", __func__, power_on_flag, level, bl_level);
+
+	led_pwm1[1] = (unsigned char)bl_level;
+
+	if (power_on_flag == 1) {
+		led_pwm2[1] = 0x20;
+		power_on_flag = 2;
+	} else if (power_on_flag == 2) {
+		led_pwm2[1] = 0x20;
+		power_on_flag = 0;
+	} else
+		led_pwm2[1] = 0x28;
 
 	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds = &backlight_cmd;
-	cmdreq.cmds_cnt = 1;
-	cmdreq.flags = CMD_REQ_COMMIT;
+	cmdreq.cmds = backlight_cmd;
+	cmdreq.cmds_cnt = 4;
+	cmdreq.flags = CMD_REQ_COMMIT | CMD_REQ_HS_MODE;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+
+	mutex_unlock(&zte_display_lock);
+}
+
+static char enable_R_AID[] = {0xF0, 0x5A, 0x5A};
+static char R_AID_config_1[] = {0xB0, 0x0D};
+static char R_AID_config_2[] = {0xB1, 0x08};
+static char R_AID_disable_2[] = {0xB1, 0x80};
+static char R_AID_config_3[] = {0xB0, 0x08};
+//static char R_AID_config_4[] = {0xB1, 0x40, 0x06};
+static char R_AID_config_4[] = {0xB1, 0x30, 0x56};
+static char R_AID_disable_4[] = {0xB1, 0x20, 0x03};
+static char R_AID_config_5[] = {0xCB, 0x10, 0x01, 0x80, 0x00, 0x00, 0x80, 0x60, 0x00,
+		0x00, 0x06, 0x05, 0x00, 0x00, 0x00, 0x00, 0x0D, 0x00,
+		0x15, 0x9A, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00,
+		0x00, 0x00, 0x9D, 0x00, 0x00, 0xCA, 0x0A, 0x0A, 0x03,
+		0xC5, 0x84, 0xCA, 0x0A, 0x0A, 0x0A, 0xCA, 0xCA, 0xCF,
+		0xD1, 0xCD, 0xC3, 0xC5, 0xC4, 0x0A, 0x0A, 0x0A, 0x0A,
+		0x0A, 0x0A, 0x00, 0x00, 0x0C, 0x01, 0x7B, 0x4D, 0x00,
+		0x00, 0x10, 0x00};
+static char R_AID_disable_5[] = {0xCB, 0x10, 0x01, 0x80, 0x00, 0x00, 0x80, 0x60, 0x00,
+						0x00, 0x06, 0x05, 0x00, 0x00, 0x00, 0x06, 0x05, 0x00,
+						0x15, 0x9A, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+						0x00, 0x00, 0x9D, 0x00, 0x00, 0xCA, 0x0A, 0x0A, 0x03,
+						0xC5, 0x84, 0xCA, 0x0A, 0x0A, 0x0A, 0xCA, 0xCA, 0xCF,
+						0xD1, 0x4D, 0xC3, 0xC5, 0xC4, 0x0A, 0x0A, 0x0A, 0x0A,
+						0x0A, 0x0A, 0x00, 0x00, 0x0A, 0x01, 0x7B, 0x4D, 0x00,
+						0x00, 0x08, 0x00};
+
+#define VR_BRIGHTNESS 0x50
+//#define VR_BRIGHTNESS 0x73
+static char vr_vrightness[] = {0x51, VR_BRIGHTNESS};
+static char R_AID_config_7[] = {0xF7, 0x03};
+static char complete_R_AID[] = {0xF0, 0xA5, 0xA5};
+
+#if 1
+static char sleep_in[] = {0x10};
+static char sleep_out[] = {0x11};
+static char dispay_on[] = {0x29};
+static char display_off[] = {0x28};
+
+static struct dsi_cmd_desc sleep_in_cmd[] = {
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(sleep_in)}, sleep_in},
+};
+
+static struct dsi_cmd_desc sleep_out_cmd[] = {
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(sleep_out)}, sleep_out},
+};
+
+static struct dsi_cmd_desc display_on_cmd[] = {
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(dispay_on)}, dispay_on},
+};
+
+static struct dsi_cmd_desc display_off_cmd[] = {
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(display_off)}, display_off},
+};
+
+#endif
+
+static struct dsi_cmd_desc R_AID_config_cmd[] = {
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(enable_R_AID)}, enable_R_AID},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(enable_R_AID)}, enable_R_AID},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_1)}, R_AID_config_1},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_2)}, R_AID_config_2},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_3)}, R_AID_config_3},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_4)}, R_AID_config_4},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_5)}, R_AID_config_5},
+};
+
+static struct dsi_cmd_desc R_AID_config_cmd_1[] = {
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(vr_vrightness)}, vr_vrightness},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(vr_vrightness)}, vr_vrightness},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_7)}, R_AID_config_7},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(complete_R_AID)}, complete_R_AID},
+};
+
+//120nit
+//static char read_R_AID_offset_120[] = {0xC8, 0x00};
+
+static char read_R_AID_offset_addr_120[] = {0xB0, 0x23};
+static struct dsi_cmd_desc read_R_AID_offset_addr_120_cmd[] = {
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_120)},read_R_AID_offset_addr_120},
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_120)},read_R_AID_offset_addr_120},
+};
+static char read_R_AID_offset_120[] = {0xC8};
+static struct dsi_cmd_desc read_R_AID_offset_120_cmd[] = {
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_120)},read_R_AID_offset_120},
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_120)},read_R_AID_offset_120},
+	};
+
+static char write_R_AID_offset_120[] = {0xC8,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,};
+static struct dsi_cmd_desc write_R_AID_offset_120_cmd[] = {
+	{{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(read_R_AID_offset_addr_120)},read_R_AID_offset_addr_120},
+	{{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(read_R_AID_offset_addr_120)},read_R_AID_offset_addr_120},
+	{{DTYPE_DCS_LWRITE, 1, 0, 1, 5, sizeof(write_R_AID_offset_120)},write_R_AID_offset_120},
+};
+static char offset_120_default[] = {
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,};
+	static char offset_120[] = {0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0,
+		0, 0, -16, -4,-2,
+		-18,  4, -67, -34, 0};
+
+//90nit
+#if 1
+static char read_R_AID_offset_addr_90[] = {0xB0, 0x43};
+static struct dsi_cmd_desc read_R_AID_offset_addr_90_cmd[] = {
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_90)},read_R_AID_offset_addr_90},
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_90)},read_R_AID_offset_addr_90},
+};
+
+static char read_R_AID_offset_90[] = {0xC8};
+static struct dsi_cmd_desc read_R_AID_offset_90_cmd[] = {
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_90)},read_R_AID_offset_90},
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_90)},read_R_AID_offset_90},
+};
+
+static char write_R_AID_offset_90[] = {0xC8,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,};
+static struct dsi_cmd_desc write_R_AID_offset_90_cmd[] = {
+	{{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(read_R_AID_offset_addr_90)},read_R_AID_offset_addr_90},
+	{{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(read_R_AID_offset_addr_90)},read_R_AID_offset_addr_90},
+	{{DTYPE_DCS_LWRITE, 1, 0, 1, 5, sizeof(write_R_AID_offset_90)},write_R_AID_offset_90},
+};
+
+static char offset_90_default[] = {
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,};
+
+static char offset_90[] = {0, 0, 0,	0, 0,
+	0,	0, 0, 0, 0,
+	0,  0, 0, -4, -2,
+	0, -2, -7, -1, -8,
+	-8, -4, -55, -34, -28};
+#endif
+
+/////////////////////disable command start///////////////////////////////////
+static struct dsi_cmd_desc R_AID_disable_cmd[] ={
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(enable_R_AID)}, enable_R_AID},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(enable_R_AID)}, enable_R_AID},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_1)}, R_AID_config_1},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_disable_2)}, R_AID_disable_2},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_3)}, R_AID_config_3},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_disable_4)}, R_AID_disable_4},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_disable_5)}, R_AID_disable_5},
+};
+static struct dsi_cmd_desc R_AID_disable_120_cmd[] ={
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_120)},read_R_AID_offset_addr_120},
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_120)},read_R_AID_offset_addr_120},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(write_R_AID_offset_120)}, write_R_AID_offset_120},
+};
+static struct dsi_cmd_desc R_AID_disable_90_cmd[] ={
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_90)},read_R_AID_offset_addr_90},
+	{{DTYPE_DCS_READ, 1, 0, 1, 1, sizeof(read_R_AID_offset_addr_90)},read_R_AID_offset_addr_90},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(write_R_AID_offset_90)}, write_R_AID_offset_90},
+};
+static struct dsi_cmd_desc R_AID_disable_complete_cmd[] ={
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_7)}, R_AID_config_7},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(R_AID_config_7)}, R_AID_config_7},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(complete_R_AID)}, complete_R_AID},
+};
+/////////////////////disable command end///////////////////////////////////
+
+int mdss_dsi_read_R_AID_offset(struct mdss_dsi_ctrl_pdata *ctrl, struct dsi_cmd_desc* read_cmd,
+	char *rbuf, char* offset, char* result, int len)
+{
+	struct dcs_cmd_req cmdreq;
+	struct mdss_panel_info *pinfo;
+	int ret;
+	int index;
+
+	pinfo = &(ctrl->panel_data.panel_info);
+	if (pinfo->dcs_cmd_by_left) {
+		if (ctrl->ndx != DSI_CTRL_LEFT) {
+			//printk("jiangfeng %s, line %d, return!!!\n", __func__, __LINE__);
+			return -EINVAL;
+		}
+	}
+
+	memset(&cmdreq, 0, sizeof(cmdreq));
+	cmdreq.cmds = read_cmd;
+	cmdreq.cmds_cnt = 2;
+	cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
+	cmdreq.rlen = len;
+	cmdreq.rbuf = rbuf;
+	cmdreq.cb = NULL;
+
+	ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+	if (ret)
+		return ret;
+
+#if 0
+	for (index = 0;index < len; index++) {
+		printk("jiangfeng %s, line %d, index %d, value %d\n", __func__, __LINE__, index, rbuf[index]);
+	}
+#endif
+
+	for (index = 0;index < len; index++) {
+		result[index] = rbuf[index] - offset[index];
+	}
+
+#if 0
+	for (index = 0;index < len; index++) {
+		printk("jiangfeng %s, line %d, index %d, value %d\n", __func__, __LINE__, index, result[index]);
+	}
+#endif
+	return 0;
+}
+
+static void mdss_dsi_enable_R_AID(struct mdss_dsi_ctrl_pdata *ctrl, int enable)
+{
+	int ret;
+	struct mdss_panel_info *pinfo;
+
+	struct dcs_cmd_req cmdreq_config;
+	struct dcs_cmd_req cmdreq_config_complete;
+
+	struct dcs_cmd_req cmdreq_read_offset_addr_120;
+	struct dcs_cmd_req cmdreq_write_offset_120;
+	struct dcs_cmd_req cmdreq_read_offset_addr_90;
+	struct dcs_cmd_req cmdreq_write_offset_90;
+	//struct dcs_cmd_req cmdreq_write_offset_60;
+
+	struct dcs_cmd_req cmdreq_disable;
+	struct dcs_cmd_req cmdreq_disable_complete;
+	struct dcs_cmd_req cmdreq_disable_120;
+	struct dcs_cmd_req cmdreq_disable_90;
+	//struct dcs_cmd_req cmdreq_disable_60;
+
+	static int inited_120 = 0;
+	static int inited_90 = 0;
+
+	//static int inited_60 = 0;
+
+	pinfo = &(ctrl->panel_data.panel_info);
+
+	if (pinfo->dcs_cmd_by_left) {
+		if (ctrl->ndx != DSI_CTRL_LEFT)
+		{
+		    printk("jiangfeng %s, line %d, ret %d, return!!!\n", __func__, __LINE__, ret);
+			return;
+		}
+	}
+
+	if (enable) {
+		memset(&cmdreq_config, 0, sizeof(cmdreq_config));
+		cmdreq_config.cmds_cnt = 7;
+		cmdreq_config.flags = CMD_REQ_COMMIT;
+		cmdreq_config.rlen = 0;
+		cmdreq_config.cb = NULL;
+
+		cmdreq_config.cmds = R_AID_config_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_config);
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+
+		//120nit
+		if (!inited_120) {
+			memset(&cmdreq_read_offset_addr_120, 0, sizeof(cmdreq_read_offset_addr_120));
+			cmdreq_read_offset_addr_120.cmds_cnt = 2;
+			cmdreq_read_offset_addr_120.flags = CMD_REQ_COMMIT;
+			cmdreq_read_offset_addr_120.rlen = 0;
+			cmdreq_read_offset_addr_120.cb = NULL;
+			cmdreq_read_offset_addr_120.cmds = read_R_AID_offset_addr_120_cmd;
+			ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_read_offset_addr_120);
+
+			mdss_dsi_read_R_AID_offset(ctrl,read_R_AID_offset_120_cmd, offset_120_default, offset_120, write_R_AID_offset_120 +1, 25);
+			inited_120 = 1;
+			if (ret) {
+				printk("jiangfeng %s, line %d, ret %d, return!!!\n", __func__, __LINE__, ret);
+				return;
+			}
+		}
+
+		memset(&cmdreq_write_offset_120, 0, sizeof(cmdreq_write_offset_120));
+		cmdreq_write_offset_120.cmds_cnt = 3;
+		cmdreq_write_offset_120.flags = CMD_REQ_COMMIT;
+		cmdreq_write_offset_120.rlen = 0;
+		cmdreq_write_offset_120.cb = NULL;
+		cmdreq_write_offset_120.cmds = write_R_AID_offset_120_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_write_offset_120);
+
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+
+		//90nit
+#if 1
+		if (!inited_90) {
+			memset(&cmdreq_read_offset_addr_90, 0, sizeof(cmdreq_read_offset_addr_90));
+			cmdreq_read_offset_addr_90.cmds_cnt = 2;
+			cmdreq_read_offset_addr_90.flags = CMD_REQ_COMMIT;
+			cmdreq_read_offset_addr_90.rlen = 0;
+			cmdreq_read_offset_addr_90.cb = NULL;
+			cmdreq_read_offset_addr_90.cmds = read_R_AID_offset_addr_90_cmd;
+			ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_read_offset_addr_90);
+			printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+
+			mdss_dsi_read_R_AID_offset(ctrl,read_R_AID_offset_90_cmd, offset_90_default, offset_90, write_R_AID_offset_90 + 1, 25);
+			inited_90 = 1;
+			if (ret) {
+				printk("jiangfeng %s, line %d, ret %d, return!!!\n", __func__, __LINE__, ret);
+				return;
+			}
+		}
+
+		memset(&cmdreq_write_offset_90, 0, sizeof(cmdreq_write_offset_90));
+		cmdreq_write_offset_90.cmds_cnt = 3;
+		cmdreq_write_offset_90.flags = CMD_REQ_COMMIT;
+		cmdreq_write_offset_90.rlen = 0;
+		cmdreq_write_offset_90.cb = NULL;
+		cmdreq_write_offset_90.cmds = write_R_AID_offset_90_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_write_offset_90);
+
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+#endif
+#if 0
+		//60nit
+		if (!inited_60) {
+			mdss_dsi_read_R_AID_offset(ctrl,read_R_AID_offset_60_cmd, offset_60_default, offset_60, write_R_AID_offset_60 +1, 25);
+			inited_60 = 1;
+		}
+
+		memset(&cmdreq_write_offset_60, 0, sizeof(cmdreq_write_offset_60));
+		cmdreq_write_offset_60.cmds_cnt = 2;
+		cmdreq_write_offset_60.flags = CMD_REQ_COMMIT;
+		cmdreq_write_offset_60.rlen = 0;
+		cmdreq_write_offset_60.cb = NULL;
+		cmdreq_write_offset_60.cmds = write_R_AID_offset_60_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_write_offset_60);
+
+		//printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+#endif
+
+		//complete config
+		memset(&cmdreq_config_complete, 0, sizeof(cmdreq_config_complete));
+		cmdreq_config_complete.cmds_cnt = 4;
+		cmdreq_config_complete.flags = CMD_REQ_COMMIT;
+		cmdreq_config_complete.rlen = 0;
+		cmdreq_config_complete.cb = NULL;
+
+		cmdreq_config_complete.cmds = R_AID_config_cmd_1;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_config_complete);
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+	} else if (ctrl->ctrl_state & CTRL_STATE_MDP_ACTIVE) {
+		memset(&cmdreq_disable, 0, sizeof(cmdreq_disable));
+		cmdreq_disable.cmds_cnt = 7;
+		cmdreq_disable.flags = CMD_REQ_COMMIT;
+		cmdreq_disable.rlen = 0;
+		cmdreq_disable.cb = NULL;
+
+		cmdreq_disable.cmds = R_AID_disable_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_disable);
+
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+
+		//120nit
+		memcpy(write_R_AID_offset_120 + 1, offset_120_default, 25);
+
+		memset(&cmdreq_disable_120, 0, sizeof(cmdreq_disable_120));
+		cmdreq_disable_120.cmds_cnt = 3;
+		cmdreq_disable_120.flags = CMD_REQ_COMMIT;
+		cmdreq_disable_120.rlen = 0;
+		cmdreq_disable_120.cb = NULL;
+
+		cmdreq_disable_120.cmds = R_AID_disable_120_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_disable_120);
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+
+		//90nit
+		memcpy(write_R_AID_offset_90 + 1, offset_90_default, 25);
+
+		memset(&cmdreq_disable_90, 0, sizeof(cmdreq_disable_90));
+		cmdreq_disable_90.cmds_cnt = 3;
+		cmdreq_disable_90.flags = CMD_REQ_COMMIT;
+		cmdreq_disable_90.rlen = 0;
+		cmdreq_disable_90.cb = NULL;
+
+		cmdreq_disable_90.cmds = R_AID_disable_90_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_disable_90);
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+
+		memset(&cmdreq_disable_complete, 0, sizeof(cmdreq_disable_complete));
+		cmdreq_disable_complete.cmds_cnt = 3;
+		cmdreq_disable_complete.flags = CMD_REQ_COMMIT;
+		cmdreq_disable_complete.rlen = 0;
+		cmdreq_disable_complete.cb = NULL;
+
+		cmdreq_disable_complete.cmds = R_AID_disable_complete_cmd;
+		ret = mdss_dsi_cmdlist_put(ctrl, &cmdreq_disable_complete);
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+	} else {
+		printk("jiangfeng %s, line %d, ret %d\n", __func__, __LINE__, ret);
+	}
+
+	printk("jiangfeng %s, line %d, ret %d, enable %d\n", __func__, __LINE__, ret, enable);
+}
+
+int g_vr_mode = 0;
+int g_vr_cnt = 0;
+void zte_wake_up_display(int enable);
+
+static void zte_mdss_dsi_panel_enable_R_AID(struct mdss_panel_data *pdata, bool enable)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
+	int status=0;
+
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+
+	if (!mdss_dsi_sync_wait_enable(ctrl_pdata)) {
+		mdss_dsi_enable_R_AID(ctrl_pdata, enable);
+		return;
+	}
+
+	sctrl = mdss_dsi_get_other_ctrl(ctrl_pdata);
+	if (mdss_dsi_sync_wait_trigger(ctrl_pdata)) {
+		status|=0x01;
+		if (sctrl)
+			{
+			status|=0x02;
+			mdss_dsi_enable_R_AID(sctrl, enable);
+			}
+		mdss_dsi_enable_R_AID(ctrl_pdata, enable);
+	} else {
+	    status|=0x04;
+		mdss_dsi_enable_R_AID(ctrl_pdata, enable);
+		if (sctrl)
+			{
+			status|=0x08;
+			mdss_dsi_enable_R_AID(sctrl, enable);
+			}
+	}
+}
+
+static void mdss_dsi_panel_enable_R_AID(struct mdss_panel_data *pdata, bool enable)
+{
+	struct dcs_cmd_req cmdreq_config;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+
+	int ret;
+
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+			panel_data);
+
+	mutex_lock(&zte_display_lock);
+	zte_wake_up_display(0);
+
+	g_vr_mode = 1;
+	g_vr_cnt++;
+
+	printk("zte_display +++++++++: %s, vrmode=%d g_vr_cnt=%d\n", __func__, enable,g_vr_cnt);
+
+	memset(&cmdreq_config, 0, sizeof(cmdreq_config));
+	cmdreq_config.cmds_cnt = 1;
+	cmdreq_config.flags = CMD_REQ_COMMIT;
+	cmdreq_config.rlen = 0;
+	cmdreq_config.cb = NULL;
+
+	cmdreq_config.cmds = display_off_cmd;
+	ret = mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq_config);
+
+	msleep(50);
+
+	memset(&cmdreq_config, 0, sizeof(cmdreq_config));
+	cmdreq_config.cmds_cnt = 1;
+	cmdreq_config.flags = CMD_REQ_COMMIT;
+	cmdreq_config.rlen = 0;
+	cmdreq_config.cb = NULL;
+
+	cmdreq_config.cmds = sleep_in_cmd;
+	ret = mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq_config);
+
+	msleep(150);
+
+	memset(&cmdreq_config, 0, sizeof(cmdreq_config));
+	cmdreq_config.cmds_cnt = 1;
+	cmdreq_config.flags = CMD_REQ_COMMIT;
+	cmdreq_config.rlen = 0;
+	cmdreq_config.cb = NULL;
+
+	cmdreq_config.cmds = sleep_out_cmd;
+	ret = mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq_config);
+
+    msleep(20);
+
+	zte_mdss_dsi_panel_enable_R_AID(pdata,enable);
+
+	msleep(150);
+
+    memset(&cmdreq_config, 0, sizeof(cmdreq_config));
+	cmdreq_config.cmds_cnt = 1;
+	cmdreq_config.flags = CMD_REQ_COMMIT;
+	cmdreq_config.rlen = 0;
+	cmdreq_config.cb = NULL;
+
+	cmdreq_config.cmds = display_on_cmd;
+	ret = mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq_config);
+
+	g_vr_mode=0;
+	zte_wake_up_display(1);
+
+	 printk("zte_display ---------: %s, vrmode=%d\n", __func__, enable);
+	 mutex_unlock(&zte_display_lock);
 }
 
 static void mdss_dsi_panel_set_idle_mode(struct mdss_panel_data *pdata,
@@ -535,13 +1168,17 @@ static int mdss_dsi_roi_merge(struct mdss_dsi_ctrl_pdata *ctrl,
 	return ans;
 }
 
+static char key_enable[] = {0xf0, 0x5a, 0x5a};
 static char caset[] = {0x2a, 0x00, 0x00, 0x03, 0x00};	/* DTYPE_DCS_LWRITE */
 static char paset[] = {0x2b, 0x00, 0x00, 0x05, 0x00};	/* DTYPE_DCS_LWRITE */
+static char key_disable[] = {0xf0, 0xa5, 0xa5};
 
 /* pack into one frame before sent */
 static struct dsi_cmd_desc set_col_page_addr_cmd[] = {
-	{{DTYPE_DCS_LWRITE, 0, 0, 0, 1, sizeof(caset)}, caset},	/* packed */
-	{{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(paset)}, paset},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(key_enable)}, key_enable},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(caset)}, caset},	/* packed */
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(paset)}, paset},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(key_disable)}, key_disable},
 };
 
 static void mdss_dsi_send_col_page_addr(struct mdss_dsi_ctrl_pdata *ctrl,
@@ -553,16 +1190,16 @@ static void mdss_dsi_send_col_page_addr(struct mdss_dsi_ctrl_pdata *ctrl,
 	caset[2] = (((roi->x) & 0xFF));
 	caset[3] = (((roi->x - 1 + roi->w) & 0xFF00) >> 8);
 	caset[4] = (((roi->x - 1 + roi->w) & 0xFF));
-	set_col_page_addr_cmd[0].payload = caset;
+	set_col_page_addr_cmd[1].payload = caset;
 
 	paset[1] = (((roi->y) & 0xFF00) >> 8);
 	paset[2] = (((roi->y) & 0xFF));
 	paset[3] = (((roi->y - 1 + roi->h) & 0xFF00) >> 8);
 	paset[4] = (((roi->y - 1 + roi->h) & 0xFF));
-	set_col_page_addr_cmd[1].payload = paset;
+	set_col_page_addr_cmd[2].payload = paset;
 
 	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds_cnt = 2;
+	cmdreq.cmds_cnt = 4;
 	cmdreq.flags = CMD_REQ_COMMIT;
 	if (unicast)
 		cmdreq.flags |= CMD_REQ_UNICAST;
@@ -714,6 +1351,38 @@ static int mdss_dsi_panel_apply_display_setting(struct mdss_panel_data *pdata,
 
 	pr_debug("%s: Persistence mode %d applied\n", __func__, mode);
 	return 0;
+}
+
+void mdss_dsi_panel_3v_power(struct mdss_panel_data *pdata, int enable)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return;
+	}
+
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+
+	printk("LCD 3v_power GPIO(vsp):%d , Enable:%d\n",ctrl_pdata->lcd_3v_vsp_en_gpio, enable);
+
+	if (enable) {
+		if (gpio_is_valid(ctrl_pdata->lcd_3v_vsp_en_gpio)){
+			//gpio_set_value((ctrl_pdata->lcd_5v_vsp_en_gpio), 1);
+			gpio_direction_output((ctrl_pdata->lcd_3v_vsp_en_gpio), 1);
+		} else {
+			pr_debug("%s:%d, lcd_3v_vsp_en_gpio not configured\n",
+			  	 __func__, __LINE__);
+		}
+		msleep(5);
+	} else {
+			if (gpio_is_valid(ctrl_pdata->lcd_3v_vsp_en_gpio)) {
+				//gpio_set_value((ctrl_pdata->lcd_5v_vsp_en_gpio), 0);
+				gpio_direction_output((ctrl_pdata->lcd_3v_vsp_en_gpio), 0);
+			}
+			msleep(2);
+	}
 }
 
 static void mdss_dsi_panel_switch_mode(struct mdss_panel_data *pdata,
@@ -871,7 +1540,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		if (ctrl->ndx != DSI_CTRL_LEFT)
 			goto end;
 	}
-
+	power_on_flag=1;
 	on_cmds = &ctrl->on_cmds;
 
 	if ((pinfo->mipi.dms_mode == DYNAMIC_MODE_SWITCH_IMMEDIATE) &&
@@ -893,7 +1562,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	mdss_dsi_panel_apply_display_setting(pdata, pinfo->persist_mode);
 
 end:
-	pr_debug("%s:-\n", __func__);
+	printk("LCD %s:-\n", __func__);
 	return ret;
 }
 
@@ -996,7 +1665,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 end:
 	/* clear idle state */
 	ctrl->idle = false;
-	pr_debug("%s:-\n", __func__);
+	printk("%s:-\n", __func__);
 	return 0;
 }
 
@@ -1910,6 +2579,16 @@ static void mdss_dsi_parse_esd_params(struct device_node *np,
 
 	if (!pinfo->esd_check_enabled)
 		return;
+
+	if (mdss_dsi_is_left_ctrl(ctrl)) {
+		ctrl->lcd_esd_interrupt_gpio = of_get_named_gpio(np, "zte,esd-interrupt-gpio", 0);
+		if (gpio_is_valid(ctrl->lcd_esd_interrupt_gpio))
+			pr_err("LCD %s:, zte,esd-interrupt-gpio found:%d!\n", __func__, ctrl->lcd_esd_interrupt_gpio);
+		else
+			pr_err("LCD %s:, zte,esd-interrupt-gpio not specified :%d\n",
+					__func__, ctrl->lcd_esd_interrupt_gpio);
+	}
+	/*zte,esd interrupt mode 0205  end */
 
 	ctrl->status_mode = ESD_MAX;
 	rc = of_property_read_string(np,
@@ -2878,5 +3557,13 @@ int mdss_dsi_panel_init(struct device_node *node,
 			mdss_dsi_panel_apply_display_setting;
 	ctrl_pdata->switch_mode = mdss_dsi_panel_switch_mode;
 	ctrl_pdata->panel_data.get_idle = mdss_dsi_panel_get_idle_mode;
+	ctrl_pdata->panel_data.vr_mode_enable = mdss_dsi_panel_enable_R_AID;
+
+	if (zte_display_init == 0) {
+      mutex_init(&zte_display_lock);
+	  zte_display_init=1;
+	}
+
+	mdss_dsi_panel_lcd_proc(node);
 	return 0;
 }

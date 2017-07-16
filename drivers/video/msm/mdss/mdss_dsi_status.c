@@ -103,6 +103,18 @@ irqreturn_t hw_vsync_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+/*zte,esd interrupt mode 0205  start */
+irqreturn_t esd_gpio_interrupt_handler(int irq, void *data)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata =
+			(struct mdss_dsi_ctrl_pdata *)data;
+
+	ctrl_pdata->lcd_esd_panel_error_flag++;
+
+	return IRQ_HANDLED;
+}
+/*zte,esd interrupt mode 0205  start */
+
 /*
  * disable_esd_thread() - Cancels work item for the esd check.
  */

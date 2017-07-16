@@ -56,6 +56,7 @@
 #include "mdss_mdp.h"
 #include "mdp3_ctrl.h"
 
+u32 zte_frame_count;/*pan*/
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
 #else
@@ -275,6 +276,7 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 
 static int lcd_backlight_registered;
 
+#define MAX_BRIGHTNESS_EXIT_VRMODE 200
 static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 				      enum led_brightness value)
 {
@@ -289,6 +291,9 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
+	if(mfd->vr_mode_exiting && value > MAX_BRIGHTNESS_EXIT_VRMODE)
+		value = MAX_BRIGHTNESS_EXIT_VRMODE;
+
 	/* This maps android backlight level 0 to 255 into
 	   driver backlight level 0 to bl_max with rounding */
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
@@ -296,6 +301,9 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
+
+	if(mfd->vr_mode)
+		return;
 
 	if (!IS_CALIB_MODE_BL(mfd) && (!mfd->ext_bl_ctrl || !value ||
 							!mfd->bl_level)) {
@@ -1220,8 +1228,10 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		pr_err("can't allocate framebuffer info data!\n");
 		return -ENOMEM;
 	}
-
+	zte_frame_count = 0;/*pan*/
 	mfd = (struct msm_fb_data_type *)fbi->par;
+	mfd->vr_mode = 0;		//zte jiangfeng add for vr mode
+	mfd->vr_mode_exiting = 0;		//zte jiangfeng add for vr mode
 	mfd->key = MFD_KEY;
 	mfd->fbi = fbi;
 	mfd->panel_info = &pdata->panel_info;
@@ -1844,6 +1854,7 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 {
 	int ret = 0;
 	int cur_power_state;
+	struct mdss_panel_data *pdata;	//zte jiangfeng add for VR mode
 
 	if (!mfd)
 		return -EINVAL;
@@ -1923,6 +1934,18 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 		}
 		mutex_unlock(&mfd->bl_lock);
 	}
+
+	//zte jiangfeng add for VR mode
+	mfd->vr_mode_exiting = 0;
+
+	if(mfd->vr_mode)
+	{
+		pdata = dev_get_platdata(&mfd->pdev->dev);
+		if ((pdata) && (pdata->vr_mode_enable)) {
+			pdata->vr_mode_enable(pdata, mfd->vr_mode);
+		}
+	}
+	//zte jiangfeng add for VR mode, end
 
 error:
 	return ret;
@@ -2655,6 +2678,7 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	atomic_set(&mfd->commits_pending, 0);
 	atomic_set(&mfd->ioctl_ref_cnt, 0);
 	atomic_set(&mfd->kickoff_pending, 0);
+	atomic_set(&mfd->vr_pending, 0);
 
 	init_timer(&mfd->no_update.timer);
 	mfd->no_update.timer.function = mdss_fb_no_update_notify_timer_cb;
@@ -2670,6 +2694,7 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	init_waitqueue_head(&mfd->idle_wait_q);
 	init_waitqueue_head(&mfd->ioctl_q);
 	init_waitqueue_head(&mfd->kickoff_wait_q);
+	init_waitqueue_head(&mfd->vr_wait_q);
 
 	ret = fb_alloc_cmap(&fbi->cmap, 256, 0);
 	if (ret)
@@ -3613,6 +3638,7 @@ static int __mdss_fb_perform_commit(struct msm_fb_data_type *mfd)
 		else
 			mfd->pending_switch = false;
 	}
+	++zte_frame_count ;/*pan*/
 	if (fb_backup->disp_commit.flags & MDP_DISPLAY_COMMIT_OVERLAY) {
 		if (mfd->mdp.kickoff_fnc)
 			ret = mfd->mdp.kickoff_fnc(mfd,
@@ -3663,11 +3689,33 @@ skip_commit:
 	return ret;
 }
 
+struct msm_fb_data_type *g_mfd=NULL; 
+void zte_wake_up_display(int enable)
+{
+    if(g_mfd==NULL)
+    {
+        pr_err("zte_wake_up_display is failed,enable=%d\n",enable);
+    	return;
+    }
+
+	  if(enable)
+         atomic_dec(&g_mfd->vr_pending);
+	  else
+	     atomic_inc(&g_mfd->vr_pending);
+
+	  wake_up_all(&g_mfd->vr_wait_q);
+}
+
+
 static int __mdss_fb_display_thread(void *data)
 {
 	struct msm_fb_data_type *mfd = data;
 	int ret;
 	struct sched_param param;
+
+
+	g_mfd=mfd;
+	
 
 	/*
 	 * this priority was found during empiric testing to have appropriate
@@ -3687,6 +3735,15 @@ static int __mdss_fb_display_thread(void *data)
 
 		if (kthread_should_stop())
 			break;
+
+		
+        wait_event(mfd->vr_wait_q,
+				(!atomic_read(&mfd->vr_pending) ||
+				 kthread_should_stop()));
+		
+		if (kthread_should_stop())
+			break;
+		
 
 		MDSS_XLOG(mfd->index, XLOG_FUNC_ENTRY);
 		ret = __mdss_fb_perform_commit(mfd);
@@ -4769,6 +4826,31 @@ static bool check_not_supported_ioctl(u32 cmd)
 }
 #endif
 
+//zte jiangfeng add for VR mode
+#ifdef CONFIG_BOARD_AILSA_II
+int mdss_fb_vr_mode_switch(struct msm_fb_data_type *mfd, u32 vr_mode)
+{
+	struct mdss_panel_data *pdata;
+
+	mfd->vr_mode = vr_mode;
+
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	if ((pdata) && (pdata->vr_mode_enable)) {
+		pdata->vr_mode_enable(pdata, vr_mode);
+	}
+
+	if(!vr_mode)
+		mfd->vr_mode_exiting = 1;
+	return 0;
+}
+#else
+int mdss_fb_vr_mode_switch(struct msm_fb_data_type *mfd, u32 vr_mode)
+{
+	return 0;
+}
+#endif
+//zte jiangfeng add for VR mode, end
+
 /*
  * mdss_fb_do_ioctl() - MDSS Framebuffer ioctl function
  * @info:	pointer to framebuffer info
@@ -4788,6 +4870,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 	struct mdp_buf_sync buf_sync;
 	unsigned int dsi_mode = 0;
 	struct mdss_panel_data *pdata = NULL;
+	u32 vr_mode;		//zte jiangfeng add for VR mode
 
 	if (!info || !info->par)
 		return -EINVAL;
@@ -4865,6 +4948,18 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 	case MSMFB_ASYNC_POSITION_UPDATE:
 		ret = mdss_fb_async_position_update_ioctl(info, argp);
 		break;
+//zte jiangfeng add for VR mode
+	case MSMFB_VR_MODE:
+		//printk("jiangfeng %s line %d\n", __func__, __LINE__);
+		ret = copy_from_user(&vr_mode, argp, sizeof(vr_mode));
+		if (ret) {
+			pr_err("%s: MSMFB_VR_MODE ioctl failed\n", __func__);
+			goto exit;
+		}
+
+		ret = mdss_fb_vr_mode_switch(mfd, vr_mode);
+		break;
+//zte jiangfeng add for VR mode, end
 
 	default:
 		if (mfd->mdp.ioctl_handler)
