@@ -26,6 +26,8 @@
 
 #define MAX_MIC_DET_RPT 5       //连续检测次数
 
+#define HEADSET_REMOVAL_DELAY 700 /* ZTE_chenjun: ms */
+
 /* These values are copied from Android WiredAccessoryObserver */
 enum headset_state {
 	BIT_NO_HEADSET = 0,
@@ -55,6 +57,10 @@ struct ak4961_mbhc_config {
 	struct delayed_work btn_work;
 #endif
 // ZTE_weizj 20150601 end
+/* ZTE_chenjun: Delay to report headset removal */
+	struct workqueue_struct *headset_removal_wq;
+	struct delayed_work headset_removal_work;
+/* ZTE_chenjun */
 	int (*mclk_cb_fn) (struct snd_soc_codec*, int, bool);
 	unsigned int mclk_rate;
 	int gpio_level_insert;

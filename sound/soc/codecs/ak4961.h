@@ -27,6 +27,9 @@
 extern const u8 ak4961_reg_readable[AK4961_CACHE_SIZE];
 extern const u8 ak4961_reg_defaults[AK4961_CACHE_SIZE];
 
+/* ZTE_chenjun */
+extern bool msm_is_in_voice_call(void);
+
 #ifdef ZTE_FEATURE_AKM_VOICECALL
 #define AKM_VOICE_CALL
 #endif

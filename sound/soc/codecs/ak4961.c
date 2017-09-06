@@ -5944,7 +5944,8 @@ static irqreturn_t ak4961_jde_irq(int irq, void *data)
         struct snd_soc_codec *codec = priv->codec;
         int val, val1;
         int report = last_report_sw;
- 
+	bool in_voice_call = false;
+
         val = snd_soc_read(codec, JACK_DETECTION_STATUS);
         if (val < 0) {
                 snd_soc_write(codec, DETECTION_EVENT_RESET, 0x01);
@@ -5952,7 +5953,9 @@ static irqreturn_t ak4961_jde_irq(int irq, void *data)
                         val);
                 return IRQ_HANDLED;
         }
- 
+
+	in_voice_call = msm_is_in_voice_call();
+
         if (val & 0x02) {
  
                 if (val & 0x80) {
@@ -6008,12 +6011,19 @@ static irqreturn_t ak4961_jde_irq(int irq, void *data)
                 snd_soc_update_bits(codec, DETECTION_POWER_MANAGEMENT, 0x48, 0x00);
                 hs_type = report = 0;
 #ifdef CONFIG_SWITCH
-                if (last_report_sw) {
-                        input_report_switch(priv->mbhc_cfg.btn_idev, SW_HEADPHONE_INSERT, 0);
-                }
-                if (last_report_sw == BIT_HEADSET) {
-                        input_report_switch(priv->mbhc_cfg.btn_idev, SW_MICROPHONE_INSERT, 0);
-                }
+/* ZTE_chenjun */
+		if (last_report_sw == BIT_HEADSET_NO_MIC) {
+			input_report_switch(priv->mbhc_cfg.btn_idev,
+							SW_HEADPHONE_INSERT, 0);
+		}
+
+		if (in_voice_call && (last_report_sw == BIT_HEADSET)) {
+			input_report_switch(priv->mbhc_cfg.btn_idev,
+						SW_HEADPHONE_INSERT, 0);
+			input_report_switch(priv->mbhc_cfg.btn_idev,
+						SW_MICROPHONE_INSERT, 0);
+		}
+
                 if (last_report_key) {
                         input_report_key(priv->mbhc_cfg.btn_idev, last_report_key, 0);
                         last_report_key = 0;
@@ -6021,14 +6031,23 @@ static irqreturn_t ak4961_jde_irq(int irq, void *data)
                 input_sync(priv->mbhc_cfg.btn_idev);
 #endif
         }
-        
-        if (report != last_report_sw) {
-#ifdef CONFIG_SWITCH
-                switch_set_state(priv->mbhc_cfg.h2w_sdev, report);
-#else
+
+	if (report != last_report_sw) {
+	#ifdef CONFIG_SWITCH
+		/* ZTE_chenjun */
+		cancel_delayed_work(&priv->mbhc_cfg.headset_removal_work);
+		if (!in_voice_call && (report == 0)
+			&& (last_report_sw == BIT_HEADSET)) {
+			queue_delayed_work(priv->mbhc_cfg.headset_removal_wq,
+				&priv->mbhc_cfg.headset_removal_work,
+				msecs_to_jiffies(HEADSET_REMOVAL_DELAY));
+		} else {
+			switch_set_state(priv->mbhc_cfg.h2w_sdev, report);
+		}
+	#else
                 snd_soc_jack_report(priv->mbhc_cfg.headset_jack, report,
                                     SND_JACK_HEADSET);
-#endif          
+	#endif
                 last_report_sw = report;
 //ZTE_weizj 20150601 fix:Fake button press while inserting headset
 #if 0
@@ -6258,6 +6277,24 @@ static void ak4961_reject_btn_fn(struct work_struct *work)
 #endif
 // ZTE_weizj 20150601 end
 
+/* ZTE_chenjun */
+static void ak4961_rpt_headset_removal_fn(struct work_struct *work)
+{
+	struct delayed_work *dwork;
+	struct ak4961_mbhc_config *mbhc;
+
+	dwork = to_delayed_work(work);
+	mbhc = container_of(dwork, struct ak4961_mbhc_config,
+					headset_removal_work);
+
+	input_report_switch(mbhc->btn_idev, SW_HEADPHONE_INSERT, 0);
+	input_report_switch(mbhc->btn_idev, SW_MICROPHONE_INSERT, 0);
+	input_sync(mbhc->btn_idev);
+	switch_set_state(mbhc->h2w_sdev, 0);
+
+	pr_info("%s\n", __func__);
+}
+
 int ak4961_hs_detect(struct snd_soc_codec *codec,
 		    const struct ak4961_mbhc_config *cfg)
 {
@@ -6312,6 +6349,13 @@ int ak4961_hs_detect(struct snd_soc_codec *codec,
 	INIT_DELAYED_WORK(&ak4961->mbhc_cfg.btn_work, ak4961_reject_btn_fn);
 #endif
 //ZTE_weizj 20150601 end
+
+/* ZTE_chenjun */
+	ak4961->mbhc_cfg.headset_removal_wq =
+				create_singlethread_workqueue("ak4961_hph_rem");
+	INIT_DELAYED_WORK(&ak4961->mbhc_cfg.headset_removal_work,
+						ak4961_rpt_headset_removal_fn);
+
 #ifdef CONFIG_SWITCH
 	ak4961->mbhc_cfg.h2w_sdev = kzalloc(sizeof(struct switch_dev), GFP_KERNEL);
 	ak4961->mbhc_cfg.h2w_sdev->name = "h2w";
@@ -6493,8 +6537,8 @@ static const struct ak4961_reg_mask_val ak4961_codec_reg_init_val[] = {
 	
 	/* jack detection power on */
 	{DETECTION_POWER_MANAGEMENT, 0x82, 0x80},
-	{DETECTION_SETTING_1, 0x3F, 0x23},
-	{DETECTION_SETTING_2, 0x07, 0x01},
+	{DETECTION_SETTING_1, 0x3F, 0x33},
+	{DETECTION_SETTING_2, 0x07, 0x0},
 
 #ifdef CONFIG_VOICE_WAKEUP
 	{VAD_SETTING_2,  0xFF, 0x1F},
