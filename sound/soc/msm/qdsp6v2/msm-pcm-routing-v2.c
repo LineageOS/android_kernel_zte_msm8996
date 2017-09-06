@@ -1389,6 +1389,21 @@ static bool msm_pcm_routing_route_is_set(u16 be_id, u16 fe_id)
 	return rc;
 }
 
+/* ZTE_chenjun */
+bool msm_is_in_voice_call(void)
+{
+	bool rc = false;
+
+	if ((test_bit(MSM_FRONTEND_DAI_VOICEMMODE1,
+			&msm_bedais[MSM_BACKEND_DAI_SLIMBUS_0_RX].fe_sessions))
+		|| (test_bit(MSM_FRONTEND_DAI_VOICEMMODE2,
+		&msm_bedais[MSM_BACKEND_DAI_SLIMBUS_0_RX].fe_sessions))) {
+		rc = true;
+	}
+
+	return rc;
+}
+
 static void msm_pcm_routing_process_audio(u16 reg, u16 val, int set)
 {
 	int session_type, path_type, topology;
