@@ -258,8 +258,8 @@ static void pwrkey_poweroff(struct work_struct *work)
 	}
 #else
 	pr_emerg("%s: power key long pressed, trigger reboot\n",__func__);
-    if(zte_volume_key)
-	  kernel_restart("ZTE-LONGPRESS");
+	if ((zte_volume_key) || (socinfo_get_ftm_flag() == 1))
+		kernel_restart("ZTE-LONGPRESS");
 #endif
 }
 
