@@ -735,9 +735,9 @@ static int gf_remove(struct platform_device *pdev)
     device_destroy(gf_class, gf_dev->devt);
     clear_bit(MINOR(gf_dev->devt), minors);
     if (gf_dev->users == 0)
-        kfree(gf_dev);
+        memset(gf_dev, 0, sizeof(struct gf_dev));
 
-        mutex_unlock(&device_list_lock);
+mutex_unlock(&device_list_lock);
 
     FUNC_EXIT();
     return 0;
