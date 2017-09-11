@@ -95,3 +95,7 @@ config PN5XX_NFC
 	  To compile this driver as a module, choose m here. The module will
 	  be called pn5xx_i2c.
 	  Say N if unsure.
+
+config NFC_ENABLE_BB_CLK2
+	tristate "NXP PN5XX based driver"
+	default n

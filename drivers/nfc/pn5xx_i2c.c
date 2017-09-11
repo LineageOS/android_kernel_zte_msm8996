@@ -100,6 +100,7 @@ struct pn5xx_dev	{
 	unsigned int		irq_gpio;
 	unsigned int        ese_pwr_gpio; /* gpio used by SPI to provide power to ese via NFCC */
 	unsigned int        swp2_pwr_gpio; /* gpio used by SPI to provide power to ese via NFCC */
+	unsigned int        clkreq_gpio; /*gpio used by NFC to provide clk req*/
 	bool                nfc_ven_enabled; /* stores the VEN pin state powered by Nfc */
 	bool                spi_ven_enabled; /* stores the VEN pin state powered by Spi */
 	bool			irq_enabled;
@@ -471,6 +472,26 @@ static int nxp_pn5xx_reset(void)
 	/*set uicc2 pwr*/
 	gpio_set_value(pn5xx_dev->swp2_pwr_gpio, 1);
 #endif
+#ifdef CONFIG_NFC_ENABLE_BB_CLK2
+	if (gpio_is_valid(pn5xx_dev->clkreq_gpio)) {
+		rc = gpio_request(pn5xx_dev->clkreq_gpio,
+			"nfc_clkreq_gpio");
+		if (rc) {
+			NFC_ERR_MSG("%s: unable to request nfc clkreq gpio [%d]\n",
+				__func__, pn5xx_dev->clkreq_gpio);
+			return -EIO;
+		}
+
+		rc = gpio_direction_input(pn5xx_dev->clkreq_gpio);
+		if (rc) {
+			NFC_ERR_MSG("%s: cannot set direction for nfc clkreq gpio [%d]\n",
+			__func__, pn5xx_dev->clkreq_gpio);
+			return -EIO;
+		}
+	} else {
+		NFC_ERR_MSG("%s: clkreq gpio not provided\n", __func__);
+	}
+#endif
 	return 0;
 }
 
@@ -515,7 +536,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			pn5xx_dev->irq_gpio = ret;
 		} else{
 			NFC_ERR_MSG(" of_property_read(irq_gpio) fail:%d\n", ret);
-			goto err_device_create_failed;
+			goto err_irq_gpio;
 		}
 
 		ret = of_get_named_gpio(of_node, "nxp,pn5xx-fw-dwnld", 0);
@@ -523,7 +544,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			pn5xx_dev->firm_gpio = ret;
 		} else{
 			NFC_ERR_MSG("of_property_read(firm_gpio) fail:%d\n", ret);
-			goto err_device_create_failed;
+			goto err_firm_gpio;
 		}
 
 		ret = of_get_named_gpio(of_node, "nxp,pn5xx-ven", 0);
@@ -531,7 +552,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			pn5xx_dev->ven_gpio = ret;
 		} else{
 			NFC_ERR_MSG("of_property_read(ven_gpio) fail:%d\n", ret);
-			goto err_device_create_failed;
+			goto err_ven_gpio;
 		}
 
 		ret = of_get_named_gpio(of_node, "nxp,pn5xx-ese-pwr", 0);
@@ -539,7 +560,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			pn5xx_dev->ese_pwr_gpio = ret;
 		} else{
 			NFC_ERR_MSG("of_property_read(ese_pwr_gpio) fail:%d\n", ret);
-			goto err_device_create_failed;
+			goto err_ese_pwr_gpio;
 		}
 #ifdef ENABLE_NFC_DOUBLE_SIM_SWITCH
 		ret = of_get_named_gpio(of_node, "nxp,pn5xx-swp2-pwr", 0);
@@ -547,7 +568,16 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			pn5xx_dev->swp2_pwr_gpio = ret;
 		} else{
 			NFC_ERR_MSG("of_property_read(swp2_pwr_gpio) fail:%d\n", ret);
-			goto err_device_create_failed;
+			goto err_swp2_gpio;
+		}
+#endif
+#ifdef CONFIG_NFC_ENABLE_BB_CLK2
+		ret = of_get_named_gpio(of_node, "nxp,pn5xx-clkreq", 0);
+		if (ret > 0) {
+			pn5xx_dev->clkreq_gpio = ret;
+		} else{
+			NFC_ERR_MSG("of_property_read(pn5xx_dev->clkreq_gpio) fail:%d\n", ret);
+			goto err_clkreq_gpio;
 		}
 #endif
 		/* init mutex and queues */
@@ -575,7 +605,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 		}
 #ifdef CONFIG_NFC_ENABLE_BB_CLK2
 		/*bb_clk2 = clk_get(&client->dev, "bb_clk2");*/
-		bb_clk2 = devm_clk_get(&client->dev, "bb_clk2");
+		bb_clk2 = clk_get(&client->dev, "bb_clk2");
 		if (IS_ERR(bb_clk2)) {
 			NFC_DBG_MSG("Error getting bb_clk2\n");
 			bb_clk2 = NULL;
@@ -625,13 +655,26 @@ err_request_irq_failed:
 err_misc_register:
 	mutex_destroy(&pn5xx_dev->read_mutex);
 	mutex_destroy(&pn5xx_dev->write_mutex);
-	kfree(pn5xx_dev);
-err_device_create_failed:
-	kfree(pn5xx_dev);
-	pn5xx_dev = NULL;
+#ifdef ENABLE_NFC_DOUBLE_SIM_SWITCH
+err_swp2_gpio:
+	gpio_free(pn5xx_dev->swp2_pwr_gpio);
+#endif
+#ifdef CONFIG_NFC_ENABLE_BB_CLK2
+err_clkreq_gpio:
+	gpio_free(pn5xx_dev->clkreq_gpio);
+#endif
+err_ese_pwr_gpio:
+	gpio_free(pn5xx_dev->ese_pwr_gpio);
+err_ven_gpio:
+	gpio_free(pn5xx_dev->ven_gpio);
+err_firm_gpio:
+	gpio_free(pn5xx_dev->firm_gpio);
+err_irq_gpio:
+	gpio_free(pn5xx_dev->irq_gpio);
 err_device_create_file_failed:
-    /*device_destroy(pn5xx_dev_class, MKDEV(pn5xx_major, pn5xx_minor));*/
+	/*device_destroy(pn5xx_dev_class, MKDEV(pn5xx_major, pn5xx_minor));*/
 err_exit:
+	kfree(pn5xx_dev);
 	/*gpio_free(platform_data->firm_gpio);*/
 err_single_device:
 	return ret;
@@ -664,6 +707,9 @@ static int pn5xx_remove(struct i2c_client *client)
 	gpio_free(pn5xx_dev->ese_pwr_gpio);
 #ifdef ENABLE_NFC_DOUBLE_SIM_SWITCH
 	gpio_free(pn5xx_dev->swp2_pwr_gpio);
+#endif
+#ifdef CONFIG_NFC_ENABLE_BB_CLK2
+	gpio_free(pn5xx_dev->clkreq_gpio);
 #endif
 	gpio_free(pn5xx_dev->firm_gpio);
 	kfree(pn5xx_dev);
