@@ -281,8 +281,11 @@ static void zte_misc_parse_imem(void)
 
 bool is_haptics_zte(void)
 {
-    return 1;  //ZTE  msm8996 all haptic
-    //return (is_haptics==1);
+#if defined(CONFIG_BOARD_CANDICE)
+	return 0;
+#else
+	return 1;
+#endif
 }
 
 /*************************************************
@@ -501,25 +504,61 @@ module_param_call(shipmode_zte, zte_misc_control_shipmode, zte_misc_get_shipmode
                     &shipmode_zte, 0644);
 
 /*ZTE_PM end***************************************************************************/
+#define CHARGER_BUF_SIZE 0x32
+extern int get_design_capacity(void);
+static int design_capacity = -1;
+
+static int zte_misc_get_design_capacity(char *val, struct kernel_param *kp)
+{
+	int zte_design_capacity = 0;
+
+	zte_design_capacity = get_design_capacity();
+	return  snprintf(val, CHARGER_BUF_SIZE, "%d", zte_design_capacity);
+}
+module_param_call(design_capacity, NULL, zte_misc_get_design_capacity,
+			&design_capacity, 0644);
+static int hw_id = -1;
+
+int check_hw_id(void)
+{
+	struct device_node *np;
+	uint32_t *buf = NULL;
+
+	if (hw_id == -1) {
+		np = of_find_compatible_node(NULL, NULL, "zte,imem-hw-ver-id");
+		if (!np) {
+			pr_err("unable to find DT imem zte,imem-hw-ver-id\n");
+		} else {
+			buf = (uint32_t *)of_iomap(np, 0);
+
+			if (!buf)
+				pr_err("unable to map imem [hw-ver-id]\n");
+			else
+				hw_id = *buf;
+		}
+		pr_info("hw_id=%d\n", hw_id);
+	}
+
+	return hw_id;
+}
+
+module_param(hw_id, int, 0444);
 
 static int zte_misc_probe(struct platform_device *pdev)
 {
-    struct device *dev = &pdev->dev;
-    int error;
+	struct device *dev = &pdev->dev;
+	int error;
 
-    pr_info("%s +++++\n",__func__);
+	error = get_devtree_pdata(dev);
+	if (error)
+		return error;
 
-    error = get_devtree_pdata(dev);
-    if (error)
-        return error;
+	zte_misc_parse_imem();
+	zte_misc_fingerprint_hw_check(dev);
+	check_hw_id();
 
-    zte_misc_parse_imem();
-    zte_misc_fingerprint_hw_check(dev);
-
-    //zte_batt_switch_init();
-
-    pr_info("%s ----\n",__func__);
-    return 0;
+	pr_info("%s ----\n", __func__);
+	return 0;
 }
 
 static int  zte_misc_remove(struct platform_device *pdev)
