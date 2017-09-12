@@ -183,7 +183,7 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 /*
   * by ZTE_YCM_20140728 yi.changming 400015
   */
-// --->	
+/* ---> */
 static int32_t msm_get_info_from_eeprom(
 		struct msm_sensor_ctrl_t *s_ctrl,struct device_node *eeprom_node)
 {
@@ -195,13 +195,13 @@ static int32_t msm_get_info_from_eeprom(
 		pr_err("%s: can't find eeprom sensor phandle\n", __func__);
 		return -1;
 	}
-	
+
 	eeprom_device = of_find_device_by_node(eeprom_node);
 	if (!eeprom_device) {
 			pr_err("%s:%d: can't find the device by node\n", __func__,__LINE__);
 			return -1;
 	}
-		
+
 	sd = platform_get_drvdata(eeprom_device);
 	if(!sd){
 		pr_err("%s:%d: can't find the eeprom sd\n", __func__,__LINE__);
@@ -222,17 +222,90 @@ static int32_t msm_get_info_from_eeprom(
 	s_ctrl->sensordata->eeprom_valid_flag= e_ctrl->valid_flag;
 	if(e_ctrl->sensor_module_name)
 		pr_err("%s:%d: sensor_module_name:%s\n", __func__,__LINE__,e_ctrl->sensor_module_name);
-	
+
 	if(e_ctrl->chromtix_lib_name)
 		pr_err("%s:%d:chromtix_lib_name: %s\n", __func__,__LINE__,e_ctrl->chromtix_lib_name);
-	
+
 	if(e_ctrl->default_chromtix_lib_name)
 		pr_err("%s:%d:default_chromtix_lib_name: %s\n", __func__,__LINE__,e_ctrl->default_chromtix_lib_name);
 
 	return 0;
-	
 }
-// <---400015	
+/*---400015---*/
+
+static int32_t msm_sensor_fill_flash_subdevid(
+				struct msm_sensor_ctrl_t *s_ctrl)
+{
+	int32_t rc = 0;
+	struct device_node *src_node = NULL;
+	int32_t *flash_subdev_id, i;
+	int32_t count = 0;
+	uint32_t val = 0;
+	struct  msm_sensor_info_t *sensor_info;
+	struct device_node *of_node = s_ctrl->of_node;
+	const void *p;
+	struct platform_device *flash_device = NULL;
+	struct v4l2_subdev *sd = NULL;
+
+	if (!of_node)
+		return -EINVAL;
+
+	sensor_info = s_ctrl->sensordata->sensor_info;
+	flash_subdev_id = &sensor_info->subdev_id[SUB_MODULE_LED_FLASH];
+
+	p = of_get_property(of_node, "qcom,led-flash-src", &count);
+	if (!p || !count)
+		return 0;
+
+	count /= sizeof(uint32_t);
+	for (i = 0; i < count; i++) {
+		src_node = of_parse_phandle(of_node, "qcom,led-flash-src", i);
+		if (!src_node) {
+			pr_err("flash src node NULL\n");
+			continue;
+		}
+
+		flash_device = of_find_device_by_node(src_node);
+		if (!flash_device) {
+			pr_err("%s:%d: can't find the device by node\n"
+					, __func__, __LINE__);
+			of_node_put(src_node);
+			src_node = NULL;
+			continue;
+		}
+
+		sd = platform_get_drvdata(flash_device);
+		if (!sd) {
+			pr_err("%s:%d: can't find the flash sd\n"
+				, __func__, __LINE__);
+			of_node_put(src_node);
+			src_node = NULL;
+			continue;
+	       }
+
+		rc = of_property_read_u32(src_node, "cell-index", &val);
+		if (rc < 0) {
+			pr_err("%s qcom,eeprom cell index %d, rc %d\n"
+				, __func__, val, rc);
+			of_node_put(src_node);
+			src_node = NULL;
+			continue;
+		}
+
+		*flash_subdev_id = val;
+		pr_info("%s:%d flash subdevice id is %d\n",
+			__func__, __LINE__, val);
+		of_node_put(src_node);
+		src_node = NULL;
+		break;
+	}
+
+	pr_info("%s:%d flash subdevice id is %d\n",
+		__func__, __LINE__, val);
+
+	return rc;
+}
+
 static int32_t msm_sensor_fill_eeprom_subdevid_by_name(
 				struct msm_sensor_ctrl_t *s_ctrl)
 {
@@ -306,9 +379,9 @@ static int32_t msm_sensor_fill_eeprom_subdevid_by_name(
 /*
   * by ZTE_YCM_20140728 yi.changming 400015
   */
-// --->		
+/* ---> */
 		msm_get_info_from_eeprom(s_ctrl,src_node);
-// <---	400015
+/* <---	400015 */
 		*eeprom_subdev_id = val;
 		CDBG("%s:%d Eeprom subdevice id is %d\n",
 			__func__, __LINE__, val);
@@ -536,7 +609,7 @@ static int32_t msm_sensor_create_pd_settings(void *setting,
 	int c, end;
 	struct msm_sensor_power_setting pd_tmp;
 
-	pr_err("Generating power_down_setting");
+	pr_info("Generating power_down_setting");
 
 #ifdef CONFIG_COMPAT
 	if (is_compat_task()) {
@@ -1080,8 +1153,10 @@ CSID_TG:
  * ZTE_CAM_LIJING_20151020
  */
 #if 1
-	else
+	else{
+		 msm_sensor_fill_flash_subdevid(s_ctrl);
 		 has_flash = 1;
+	}
 	pr_err("has_flash=%ld\n",has_flash);
 #endif
 	/*

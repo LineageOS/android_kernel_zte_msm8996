@@ -1423,6 +1423,12 @@ static int csiphy_probe(struct platform_device *pdev)
 		GFP_KERNEL);
 	if (!new_csiphy_dev->ctrl_reg) {
 		pr_err("%s:%d kzalloc failed\n", __func__, __LINE__);
+
+		/*
+		* Fixed CWE-404, Resource leak(RESOURCE_LEAK), checked by Coverity
+		*/
+		kfree(new_csiphy_dev);
+
 		return -ENOMEM;
 	}
 	v4l2_subdev_init(&new_csiphy_dev->msm_sd.sd, &msm_csiphy_subdev_ops);

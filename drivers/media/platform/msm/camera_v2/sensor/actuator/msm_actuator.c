@@ -16,6 +16,7 @@
 #include "msm_sd.h"
 #include "msm_actuator.h"
 #include "msm_cci.h"
+#include "zte_camera_actuator_util.h"
 
 DEFINE_MSM_MUTEX(msm_actuator_mutex);
 
@@ -109,6 +110,16 @@ static void msm_actuator_parse_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 	size = a_ctrl->reg_tbl_size;
 	write_arr = a_ctrl->reg_tbl;
 	i2c_tbl = a_ctrl->i2c_reg_tbl;
+
+ /*
+  * by ZTE_YCM_20151102 yi.changming 400032
+  */
+ /*-----------*/
+	if (i2c_tbl == NULL) {
+		pr_err("%s: i2c_tbl is NULL , return\n", __func__);
+		return;
+	}
+ /*---400032---*/
 
 	for (i = 0; i < size; i++) {
 		if (write_arr[i].reg_write_type == MSM_ACTUATOR_WRITE_DAC) {
@@ -680,6 +691,10 @@ static int32_t msm_actuator_move_focus(
 	reg_setting.reg_setting = a_ctrl->i2c_reg_tbl;
 	reg_setting.data_type = a_ctrl->i2c_data_type;
 	reg_setting.size = a_ctrl->i2c_tbl_index;
+	if (a_ctrl->i2c_tbl_index == 0) {
+		pr_err("fail reg_setting.size:%d\n", reg_setting.size);
+		return rc;
+	}
 	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table_w_microdelay(
 		&a_ctrl->i2c_client, &reg_setting);
 	if (rc < 0) {
@@ -1422,6 +1437,96 @@ static int msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl)
 	return rc;
 }
 
+static int msm_actuator_cci_set(struct msm_actuator_ctrl_t *a_ctrl,
+				struct msm_actuator_cci_params_t *set_info)
+{
+	struct msm_camera_cci_client *cci_client = NULL;
+
+	if (a_ctrl->act_device_type == MSM_CAMERA_PLATFORM_DEVICE) {
+		cci_client = a_ctrl->i2c_client.cci_client;
+		cci_client->sid = set_info->i2c_addr >> 1;
+		cci_client->retries = 3;
+		cci_client->id_map = 0;
+		cci_client->cci_i2c_master = a_ctrl->cci_master;
+		cci_client->i2c_freq_mode = set_info->i2c_freq_mode;
+	} else {
+		a_ctrl->i2c_client.client->addr = set_info->i2c_addr;
+	}
+
+	a_ctrl->i2c_data_type = set_info->i2c_data_type;
+	a_ctrl->i2c_client.addr_type = set_info->i2c_addr_type;
+	CDBG("%s:%d: addr_type = %d  data_type = %d\n", __func__, __LINE__,
+		set_info->i2c_addr_type, set_info->i2c_data_type);
+
+	return 0;
+}
+
+static int msm_actuator_register_read(struct msm_actuator_ctrl_t *a_ctrl,
+				struct reg_settings_t *reg_info)
+{
+	int32_t rc = 0;
+	uint16_t temp;
+
+	if (a_ctrl->actuator_state != ACT_OPS_ACTIVE) {
+		rc = -1;
+		return rc;
+	}
+
+
+	CDBG("%s:%d: addr_type = %d  data_type = %d\n", __func__, __LINE__,
+		a_ctrl->i2c_client.addr_type, reg_info->data_type);
+
+	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_read(
+			&a_ctrl->i2c_client,
+			reg_info->reg_addr, &temp,
+			reg_info->data_type);
+	if (rc < 0) {
+		pr_err("%s:%d: i2c read failed\n", __func__, __LINE__);
+		return rc;
+	}
+
+	if (reg_info->delay > 20)
+		msleep(reg_info->delay);
+	else if (reg_info->delay != 0)
+		usleep_range(reg_info->delay * 1000, (reg_info->delay * 1000) + 1000);
+
+	reg_info->reg_data = temp;
+
+	CDBG("%s:%d: address = 0x%x  value = 0x%x\n", __func__, __LINE__,
+		reg_info->reg_addr, temp);
+
+	return rc;
+}
+
+static int msm_actuator_register_write(struct msm_actuator_ctrl_t *a_ctrl,
+				struct reg_settings_t *reg_info)
+{
+	int32_t rc = 0;
+
+	if (a_ctrl->actuator_state != ACT_OPS_ACTIVE) {
+		rc = -1;
+		return rc;
+	}
+
+	CDBG("%s:%d: address = 0x%x  value = 0x%x\n", __func__, __LINE__,
+		reg_info->reg_addr, reg_info->reg_data);
+
+	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+			&a_ctrl->i2c_client,
+			reg_info->reg_addr, reg_info->reg_data,
+			reg_info->data_type);
+	if (rc < 0) {
+		pr_err("%s:%d: i2c write failed\n", __func__, __LINE__);
+		return rc;
+	}
+	if (reg_info->delay > 20)
+		msleep(reg_info->delay);
+	else if (reg_info->delay != 0)
+		usleep_range(reg_info->delay * 1000, (reg_info->delay * 1000) + 1000);
+
+	return rc;
+}
+
 static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 	void __user *argp)
 {
@@ -1496,6 +1601,22 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 			pr_err("Failed actuator power up%d\n", rc);
 		break;
 
+	case CFG_ACTUATOR_CCI_INFO:
+		rc = msm_actuator_cci_set(a_ctrl, &cdata->cfg.cci_info);
+		if (rc < 0)
+			pr_err("init table failed %d\n", rc);
+		break;
+	case CFG_ACTUATOR_REGISTER_READ:
+		rc = msm_actuator_register_read(a_ctrl, &cdata->cfg.reg_info);
+		if (rc < 0)
+			pr_err("Failed actuator register read %d\n", rc);
+		break;
+
+	case CFG_ACTUATOR_REGISTER_WRITER:
+		rc = msm_actuator_register_write(a_ctrl, &cdata->cfg.reg_info);
+		if (rc < 0)
+			pr_err("Failed actuator register write %d\n", rc);
+		break;
 	default:
 		break;
 	}
@@ -1724,6 +1845,22 @@ static long msm_actuator_subdev_do_ioctl(
 			memcpy(&actuator_data.cfg.setpos, &(u32->cfg.setpos),
 				sizeof(struct msm_actuator_set_position_t));
 			break;
+		case CFG_ACTUATOR_CCI_INFO:
+			actuator_data.cfgtype = u32->cfgtype;
+			actuator_data.cfg.cci_info.i2c_addr = u32->cfg.cci_info.i2c_addr;
+			actuator_data.cfg.cci_info.i2c_freq_mode = u32->cfg.cci_info.i2c_freq_mode;
+			actuator_data.cfg.cci_info.i2c_addr_type = u32->cfg.cci_info.i2c_addr_type;
+			actuator_data.cfg.cci_info.i2c_data_type = u32->cfg.cci_info.i2c_data_type;
+			break;
+		case CFG_ACTUATOR_REGISTER_READ:
+		case CFG_ACTUATOR_REGISTER_WRITER:
+			actuator_data.cfgtype = u32->cfgtype;
+			actuator_data.cfg.reg_info.reg_addr = u32->cfg.reg_info.reg_addr;
+			actuator_data.cfg.reg_info.addr_type = u32->cfg.reg_info.addr_type;
+			actuator_data.cfg.reg_info.reg_data = u32->cfg.reg_info.reg_data;
+			actuator_data.cfg.reg_info.data_type = u32->cfg.reg_info.data_type;
+			actuator_data.cfg.reg_info.delay = u32->cfg.reg_info.delay;
+			break;
 		default:
 			actuator_data.cfgtype = u32->cfgtype;
 			parg = &actuator_data;
@@ -1747,6 +1884,9 @@ static long msm_actuator_subdev_do_ioctl(
 		case CFG_MOVE_FOCUS:
 			u32->cfg.move.curr_lens_pos =
 				actuator_data.cfg.move.curr_lens_pos;
+			break;
+		case CFG_ACTUATOR_REGISTER_WRITER:
+			u32->cfg.reg_info.reg_data = actuator_data.cfg.reg_info.reg_data;
 			break;
 		default:
 			break;
@@ -2021,6 +2161,8 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 	msm_actuator_t->msm_sd.sd.devnode->fops =
 		&msm_actuator_v4l2_subdev_fops;
 
+	if (msm_actuator_enable_debugfs(msm_actuator_t))
+		pr_err("%s:%d creat debugfs fail\n", __func__, __LINE__);
 	CDBG("Exit\n");
 	return rc;
 }

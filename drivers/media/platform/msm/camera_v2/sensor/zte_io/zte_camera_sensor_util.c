@@ -15,6 +15,8 @@
 #include "msm_ois.h"
 #include "zte_camera_sensor_util.h"
 #include "zte_camera_ois_util.h"
+#include "msm_actuator.h"
+#include "zte_camera_actuator_util.h"
 
 #define CONFIG_ZTE_CAMERA_UTIL_DEBUG
 #undef CDBG
@@ -411,6 +413,173 @@ int msm_ois_enable_debugfs(struct msm_ois_ctrl_t *s_ctrl)
 }
 #endif
 
+
+
+typedef struct {
+	struct msm_actuator_ctrl_t *s_ctrl;
+	enum msm_camera_i2c_data_type data_type;
+	uint64_t address;
+} msm_actuator_debug_info_t;
+
+static int actuator_debugfs_setvalue(void *data, u64 val)
+{
+	msm_actuator_debug_info_t *ptr = (msm_actuator_debug_info_t *) data;
+	struct msm_camera_i2c_client *i2c_client = &(ptr->s_ctrl->i2c_client);
+	int32_t rc = 0;
+
+	CDBG("%s:%d: address = 0x%llx  value = 0x%llx\n", __func__, __LINE__,
+		ptr->address, val);
+
+	if (ptr->s_ctrl->actuator_state != ACT_OPS_ACTIVE) {
+		rc = -1;
+		return rc;
+	}
+
+	rc = i2c_client->i2c_func_tbl->i2c_write(
+			i2c_client,
+			ptr->address, val,
+			ptr->data_type);
+	if (rc < 0) {
+		pr_err("%s:%d: i2c write failed\n", __func__, __LINE__);
+		return rc;
+	}
+
+	return 0;
+}
+
+
+static int actuator_debugfs_getvalue(void *data, u64 *val)
+{
+	msm_actuator_debug_info_t *ptr = (msm_actuator_debug_info_t *) data;
+	struct msm_camera_i2c_client *i2c_client = &(ptr->s_ctrl->i2c_client);
+	int32_t rc = 0;
+	uint16_t temp;
+
+	if (ptr->s_ctrl->actuator_state != ACT_OPS_ACTIVE) {
+		rc = -1;
+		return rc;
+	}
+
+	rc = i2c_client->i2c_func_tbl->i2c_read(
+			i2c_client,
+			ptr->address, &temp,
+			ptr->data_type);
+	if (rc < 0) {
+		pr_err("%s:%d: i2c read failed\n", __func__, __LINE__);
+		return rc;
+	}
+
+	*val = temp;
+
+	CDBG("%s:%d: address = 0x%llx  value = 0x%x\n", __func__, __LINE__,
+		ptr->address, temp);
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(actuator_debugfs_value, actuator_debugfs_getvalue,
+			actuator_debugfs_setvalue, "%llx\n");
+
+static int actuator_debugfs_setaddr(void *data, u64 val)
+{
+	msm_actuator_debug_info_t *ptr = (msm_actuator_debug_info_t *) data;
+
+	ptr->address = val;
+
+	return 0;
+}
+
+static int actuator_debugfs_getaddr(void *data, u64 *val)
+{
+	msm_actuator_debug_info_t *ptr = (msm_actuator_debug_info_t *) data;
+
+	*val = ptr->address;
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(actuator_debugfs_address, actuator_debugfs_getaddr,
+			actuator_debugfs_setaddr, "%llx\n");
+
+static int actuator_debugfs_datatype_s(void *data, u64 val)
+{
+	msm_actuator_debug_info_t *ptr = (msm_actuator_debug_info_t *) data;
+
+	if (val < MSM_CAMERA_I2C_DATA_TYPE_MAX
+			&& val >= MSM_CAMERA_I2C_BYTE_DATA)
+		ptr->data_type = val;
+
+	return 0;
+}
+
+static int actuator_debugfs_datatype_g(void *data, u64 *val)
+{
+	msm_actuator_debug_info_t *ptr = (msm_actuator_debug_info_t *) data;
+
+	*val = ptr->data_type;
+
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(actuator_debugfs_datatype, actuator_debugfs_datatype_g,
+			actuator_debugfs_datatype_s, "%llx\n");
+
+
+struct dentry *actuator_debugfs_base = NULL;
+int msm_actuator_enable_debugfs(struct msm_actuator_ctrl_t *s_ctrl)
+{
+	struct dentry  *debug_dir;
+	msm_actuator_debug_info_t *debug_ptr = NULL;
+
+	CDBG("%s:%d:  E\n", __func__, __LINE__);
+
+	if (!actuator_debugfs_base) {
+		actuator_debugfs_base = debugfs_create_dir("zte_actuator", NULL);
+		if (!actuator_debugfs_base) {
+			pr_err("%s:%d: exit ", __func__, __LINE__);
+			return -ENOMEM;
+		}
+	}
+
+	debug_ptr = kzalloc(sizeof(msm_actuator_debug_info_t), GFP_KERNEL);
+	if (!debug_ptr) {
+		pr_err("failed: no memory s_ctrl %p", debug_ptr);
+		return -ENOMEM;
+	}
+
+	debug_dir = debugfs_create_dir(s_ctrl->msm_sd.sd.name, actuator_debugfs_base);
+	if (!debug_dir) {
+		pr_err("%s:%d: exit", __func__, __LINE__);
+		kfree(debug_ptr);
+		return -ENOMEM;
+	}
+
+	debug_ptr->s_ctrl = s_ctrl;
+	debug_ptr->data_type = MSM_CAMERA_I2C_BYTE_DATA;
+
+	if (!debugfs_create_file("datatype", S_IRUGO | S_IWUSR, debug_dir,
+			(void *) debug_ptr, &actuator_debugfs_datatype)) {
+		kfree(debug_ptr);
+		pr_err("%s:%d: exit ", __func__, __LINE__);
+		return -ENOMEM;
+	}
+
+	if (!debugfs_create_file("address", S_IRUGO | S_IWUSR, debug_dir,
+			(void *) debug_ptr, &actuator_debugfs_address)) {
+		pr_err("%s:%d: exit ", __func__, __LINE__);
+		kfree(debug_ptr);
+		return -ENOMEM;
+	}
+
+	if (!debugfs_create_file("value", S_IRUGO | S_IWUSR, debug_dir,
+			(void *) debug_ptr, &actuator_debugfs_value)) {
+		pr_err("%s:%d: exit ", __func__, __LINE__);
+		kfree(debug_ptr);
+		return -ENOMEM;
+	}
+
+	CDBG("%s:%d: X\n", __func__, __LINE__);
+
+	return 0;
+}
 /*
   * add  camera sensor engineering mode  interface
   *

@@ -98,7 +98,10 @@ struct msm_flash_ctrl_t {
 
 	/* flash state */
 	enum msm_camera_flash_state_t flash_state;
+	uint32_t hw_id;/*0:default;1:a b version (single);*/
 };
+
+extern int check_hw_id(void);
 
 int msm_flash_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id);

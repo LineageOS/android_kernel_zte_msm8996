@@ -2,6 +2,7 @@ ccflags-y += -Idrivers/media/platform/msm/camera_v2/
 ccflags-y += -Idrivers/media/platform/msm/camera_v2/common
 ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor
 ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor/ois
+ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor/actuator
 ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor/cci
 ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor/io
 

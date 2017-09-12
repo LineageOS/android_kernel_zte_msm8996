@@ -361,6 +361,9 @@ enum msm_actuator_cfg_type_t {
 	CFG_ACTUATOR_POWERDOWN,
 	CFG_ACTUATOR_POWERUP,
 	CFG_ACTUATOR_INIT,
+	CFG_ACTUATOR_CCI_INFO,
+	CFG_ACTUATOR_REGISTER_READ,
+	CFG_ACTUATOR_REGISTER_WRITER,
 };
 
 struct msm_ois_opcode {
@@ -452,6 +455,13 @@ struct msm_actuator_params_t {
 	struct park_lens_data_t park_lens;
 };
 
+struct msm_actuator_cci_params_t {
+	uint32_t i2c_addr;
+	enum i2c_freq_mode_t i2c_freq_mode;
+	enum msm_camera_i2c_reg_addr_type i2c_addr_type;
+	enum msm_camera_i2c_data_type i2c_data_type;
+};
+
 struct msm_actuator_set_info_t {
 	struct msm_actuator_params_t actuator_params;
 	struct msm_actuator_tuning_params_t af_tuning_params;
@@ -518,6 +528,8 @@ struct msm_actuator_cfg_data {
 		struct msm_actuator_get_info_t get_info;
 		struct msm_actuator_set_position_t setpos;
 		enum af_camera_name cam_name;
+		struct msm_actuator_cci_params_t cci_info;
+		struct reg_settings_t reg_info;
 	} cfg;
 };
 
@@ -614,6 +626,9 @@ struct sensor_init_cfg_data {
 
 #define VIDIOC_MSM_IR_CUT_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 15, struct msm_ir_cut_cfg_data_t)
+
+#define VIDIOC_MSM_FLASH_HW_ID \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 16, uint32_t)
 
 #endif
 
