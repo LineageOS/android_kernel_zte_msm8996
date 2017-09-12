@@ -707,7 +707,7 @@ static void kgsl_pwrctrl_max_clock_set(struct kgsl_device *device, int val)
 	}
 	mutex_unlock(&device->mutex);
 
-	if (pwr->sysfs_pwr_limit)
+	if ((pwr->sysfs_pwr_limit) && (level >= 0))
 		kgsl_pwr_limits_set_freq(pwr->sysfs_pwr_limit,
 					pwr->pwrlevels[level].gpu_freq);
 	return;
