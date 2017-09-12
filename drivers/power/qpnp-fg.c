@@ -238,7 +238,11 @@ enum fg_mem_data_index {
 static struct fg_mem_setting settings[FG_MEM_SETTING_MAX] = {
 	/*       ID                    Address, Offset, Value*/
 	SETTING(SOFT_COLD,       0x454,   0,      100),
+#ifdef CONFIG_BOARD_CANDICE
+	SETTING(SOFT_HOT,        0x454,   1,      500),
+#else
 	SETTING(SOFT_HOT,        0x454,   1,      450),
+#endif
 	SETTING(HARD_COLD,       0x454,   2,      0),
 	SETTING(HARD_HOT,        0x454,   3,      550),
 	SETTING(RESUME_SOC,      0x45C,   1,      99),
@@ -324,10 +328,13 @@ static int fg_est_dump;
 module_param_named(
 	first_est_dump, fg_est_dump, int, S_IRUSR | S_IWUSR
 );
-static char *fg_batt_type_default = "zte_p894a01_3000mah";
-static char *fg_batt_type_batteryid_1 = "ZTE_BATTERY_DATA_ID_1";
 
-static char *fg_batt_type = "ZTE_BATTERY_DATA_ID_1";//zte add 
+char *fg_batt_type_default = "zte_p894a01_3000mah";
+#if defined(CONFIG_BOARD_CANDICE)
+char *fg_batt_type = "ZTE_BATTERY_DATA_ID_2";
+#else
+char *fg_batt_type = "ZTE_BATTERY_DATA_ID_1";
+#endif
 
 module_param_named(
 	battery_type, fg_batt_type, charp, S_IRUSR | S_IWUSR
@@ -2254,6 +2261,8 @@ static int get_prop_capacity(struct fg_chip *chip)
 	int msoc, rc;
 	bool vbatt_low_sts;
 	u8 buffer[3];
+	int capacity = 0;
+
 	fg_mem_lock(chip);
 	rc = fg_mem_read(chip, buffer, 0x56C, 3, 1, 0);
 	if (rc) {
@@ -2314,8 +2323,11 @@ static int get_prop_capacity(struct fg_chip *chip)
 		return FULL_CAPACITY;
 	}
 
-	return DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY - 2),
+	capacity = DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY + 1),
 			FULL_SOC_RAW - 2) + 1;
+	if (capacity >= FULL_CAPACITY)
+		capacity = FULL_CAPACITY;
+	return capacity;
 }
 
 #define HIGH_BIAS	3
@@ -2397,7 +2409,10 @@ static int set_prop_jeita_temp(struct fg_chip *chip,
 			settings[type].address,
 			settings[type].offset, decidegc);
 
+/* For board candice, Donot accept user space setting from hvdcpd, we use para in this driver */
+#ifndef CONFIG_BOARD_CANDICE
 	settings[type].value = decidegc;
+#endif
 
 	cancel_delayed_work_sync(
 		&chip->update_jeita_setting);
@@ -6403,25 +6418,21 @@ wait:
 	}
 
 	if (fg_debug_mask & FG_STATUS)
-		pr_info("battery id = %d\n",
-				get_sram_prop_now(chip, FG_DATA_BATT_ID));
-	profile_node = of_batterydata_get_best_profile(batt_node, "bms",
-							fg_batt_type_batteryid_1);
+		pr_info("battery id = %d\n", get_sram_prop_now(chip, FG_DATA_BATT_ID));
+
+	profile_node = of_batterydata_get_best_profile(batt_node, "bms", fg_batt_type);
 	if (!profile_node) {
-		pr_err("couldn't find profile handle ,battery_type1 is %s\n",fg_batt_type_batteryid_1);
+		pr_err("couldn't find profile handle ,battery_type1 is %s\n", fg_batt_type);
 		profile_node = of_batterydata_get_best_profile(batt_node, "bms",
 							fg_batt_type_default);
-	if (!profile_node) {
-			pr_err("couldn't find profile handle ,battery_type_default is %s\n",fg_batt_type_default);
-		rc = -ENODATA;
-		goto no_profile;
-		}else{
+		if (!profile_node) {
+			pr_err("couldn't find profile, use %s\n", fg_batt_type_default);
+			rc = -ENODATA;
+			goto no_profile;
+		} else
 			fg_batt_type = fg_batt_type_default;
-		}	
-	}else{
-		fg_batt_type = fg_batt_type_batteryid_1;
 	}
-	pr_debug("fg_batt_type is %s\n",fg_batt_type);
+	pr_debug("fg_batt_type is %s\n", fg_batt_type);
 
 	/* read rslow compensation values if they're available */
 	rc = of_property_read_u32(profile_node, "qcom,chg-rs-to-rslow",
