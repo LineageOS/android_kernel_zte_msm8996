@@ -59,9 +59,6 @@ struct pinctrl_info {
 };
 
 static struct pinctrl_info pinctrl_info;
-#ifdef CONFIG_AK4962_CODEC
-struct mutex ak49xx_spi_mutex;/*add by shengguanghui for spi mutex at 20160719*/
-#endif
 int ak49xx_spi_read(struct ak49xx *ak49xx, unsigned short reg, int bytes, void *dest, bool interface_reg);
 int ak49xx_spi_write(struct ak49xx *ak49xx, unsigned short reg, int bytes, void *src, bool interface_reg);
 static int ak49xx_slim_write_device(struct ak49xx *ak49xx,
@@ -392,9 +389,7 @@ int ak49xx_cram_read(unsigned short reg,
 	if (ak49xx_intf == AK49XX_INTERFACE_TYPE_SPI ||
 		ak49xx_intf == AK49XX_INTERFACE_TYPE_SLIMBUS_SPI) {
 
-		mutex_lock(&ak49xx_spi_mutex);
 		ret = spi_write_then_read(ak49xx_spi, tx, 3, d, bytes);
-		mutex_unlock(&ak49xx_spi_mutex);
 		if (ret != 0) {
 			pr_err("failed to read ak49xx cram\n");
 		}
