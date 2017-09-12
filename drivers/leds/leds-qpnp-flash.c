@@ -207,6 +207,8 @@ struct flash_led_platform_data {
 	u16				vph_pwr_droop_threshold;
 	u16				headroom;
 	u16				clamp_current;
+	u16				flash_max_level;
+	u16				flash_led_max_current_ma;
 	u8				thermal_derate_threshold;
 	u8				vph_pwr_droop_debounce_time;
 	u8				startup_dly;
@@ -267,6 +269,29 @@ static u8 qpnp_flash_led_ctrl_dbg_regs[] = {
 	0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
 	0x4A, 0x4B, 0x4C, 0x4F, 0x51, 0x52, 0x54, 0x55, 0x5A, 0x5C, 0x5D,
 };
+
+
+typedef  int (*check_hw_version_t) (void);
+
+static int check_hw_version_AB(void)
+{
+	int board_id  = check_hw_id();
+
+	if ((board_id == 1) || (board_id == 2))
+		return 1;
+	else
+		return 0;
+}
+
+static int check_hw_version_C(void)
+{
+	int board_id  = check_hw_id();
+
+	if ((board_id == 1) || (board_id == 2))
+		return 0;
+	else
+		return 1;
+}
 
 static int flash_led_dbgfs_file_open(struct qpnp_flash_led *led,
 					struct file *file)
@@ -1633,9 +1658,14 @@ static void qpnp_flash_led_work(struct work_struct *work)
 					(flash_node->prgm_current2 *
 					max_curr_avail_ma) / total_curr_ma;
 			}
-
+#ifdef FLASH_QCOM_ZTE_DEFAULT
 			val = (u8)(flash_node->prgm_current *
 				FLASH_MAX_LEVEL / flash_node->max_current);
+#else
+			val = (u8)(flash_node->prgm_current *
+				led->pdata->flash_max_level
+				/ flash_node->max_current);
+#endif
 			rc = qpnp_led_masked_write(led->spmi_dev,
 				led->current_addr, FLASH_CURRENT_MASK, val);
 			if (rc) {
@@ -1643,9 +1673,15 @@ static void qpnp_flash_led_work(struct work_struct *work)
 					"Current register write failed\n");
 				goto exit_flash_led_work;
 			}
-
+#ifdef FLASH_QCOM_ZTE_DEFAULT
 			val = (u8)(flash_node->prgm_current2 *
-				FLASH_MAX_LEVEL / flash_node->max_current);
+				FLASH_MAX_LEVEL
+				/ flash_node->max_current);
+#else
+			val = (u8)(flash_node->prgm_current2 *
+				led->pdata->flash_max_level
+				/ flash_node->max_current);
+#endif
 			rc = qpnp_led_masked_write(led->spmi_dev,
 				led->current2_addr, FLASH_CURRENT_MASK, val);
 			if (rc) {
@@ -1662,10 +1698,15 @@ static void qpnp_flash_led_work(struct work_struct *work)
 				flash_node->prgm_current =
 					 (u16)max_curr_avail_ma;
 			}
-
+#ifdef FLASH_QCOM_ZTE_DEFAULT
 			val = (u8)(flash_node->prgm_current *
 					 FLASH_MAX_LEVEL
 					/ flash_node->max_current);
+#else
+			val = (u8)(flash_node->prgm_current *
+					 led->pdata->flash_max_level
+					/ flash_node->max_current);
+#endif
 			if (flash_node->id == FLASH_LED_0) {
 				rc = qpnp_led_masked_write(
 					led->spmi_dev,
@@ -1699,10 +1740,15 @@ static void qpnp_flash_led_work(struct work_struct *work)
 				"Safety timer reg write failed\n");
 			goto exit_flash_led_work;
 		}
-
+#ifdef FLASH_QCOM_ZTE_DEFAULT
 		rc = qpnp_led_masked_write(led->spmi_dev,
 			FLASH_MAX_CURRENT(led->base),
 			FLASH_CURRENT_MASK, FLASH_MAX_LEVEL);
+#else
+		rc = qpnp_led_masked_write(led->spmi_dev,
+			FLASH_MAX_CURRENT(led->base),
+			FLASH_CURRENT_MASK, led->pdata->flash_max_level);
+#endif
 		if (rc) {
 			dev_err(&led->spmi_dev->dev,
 				"Max current reg write failed\n");
@@ -2033,8 +2079,13 @@ static int qpnp_flash_led_init_settings(struct qpnp_flash_led *led)
 		return rc;
 	}
 
+#ifdef FLASH_QCOM_ZTE_DEFAULT
 	val = (u8)(led->pdata->clamp_current * FLASH_MAX_LEVEL /
 						FLASH_LED_MAX_CURRENT_MA);
+#else
+	val = (u8)(led->pdata->clamp_current * led->pdata->flash_max_level /
+				led->pdata->flash_led_max_current_ma);
+#endif
 	rc = qpnp_led_masked_write(led->spmi_dev,
 					FLASH_CLAMP_CURRENT(led->base),
 						FLASH_CURRENT_MASK, val);
@@ -2320,6 +2371,22 @@ static int qpnp_flash_led_parse_common_dt(
 		return rc;
 	}
 
+	led->pdata->flash_max_level = FLASH_MAX_LEVEL;
+	rc = of_property_read_u32(node, "zte,flash-max-level", &val);
+	if (!rc) {
+		if (val > FLASH_MAX_LEVEL)
+			val = FLASH_MAX_LEVEL;
+		led->pdata->flash_max_level = (u16)val;
+	}
+
+	led->pdata->flash_led_max_current_ma = FLASH_LED_MAX_CURRENT_MA;
+	rc = of_property_read_u32(node, "zte,flash-led-max-current-ma", &val);
+	if (!rc) {
+		if (val > FLASH_LED_MAX_CURRENT_MA)
+			val = FLASH_LED_MAX_CURRENT_MA;
+		led->pdata->flash_led_max_current_ma = (u16)val;
+	}
+
 	led->pdata->pmic_charger_support =
 			of_property_read_bool(node,
 						"qcom,pmic-charger-support");
@@ -2537,6 +2604,15 @@ static int qpnp_flash_led_parse_common_dt(
 	return 0;
 }
 
+static const struct of_device_id spmi_match_table[] = {
+	{ .compatible = "qcom,qpnp-flash-led", .data = NULL},
+	{ .compatible = "qcom,qpnp-flash-led-single",
+					.data = (void *)check_hw_version_AB},
+	{ .compatible = "qcom,qpnp-flash-led-dual",
+					.data =   (void *)check_hw_version_C},
+	{ },
+};
+
 static int qpnp_flash_led_probe(struct spmi_device *spmi)
 {
 	struct qpnp_flash_led *led;
@@ -2545,12 +2621,19 @@ static int qpnp_flash_led_probe(struct spmi_device *spmi)
 	struct dentry *root, *file;
 	int rc, i = 0, j, num_leds = 0;
 	u32 val;
+	const struct of_device_id *match;
+	check_hw_version_t check_hw_version;
 
 	node = spmi->dev.of_node;
 	if (node == NULL) {
 		dev_info(&spmi->dev, "No flash device defined\n");
 		return -ENODEV;
 	}
+
+	match = of_match_device(spmi_match_table, &spmi->dev);
+	check_hw_version = (check_hw_version_t)match->data;
+	if (check_hw_version && !check_hw_version())
+		return 0;
 
 	flash_resource = spmi_get_resource(spmi, 0, IORESOURCE_MEM, 0);
 	if (!flash_resource) {
@@ -2788,10 +2871,12 @@ static int qpnp_flash_led_remove(struct spmi_device *spmi)
 	return 0;
 }
 
+/*
 static struct of_device_id spmi_match_table[] = {
 	{ .compatible = "qcom,qpnp-flash-led",},
 	{ },
 };
+*/
 
 static struct spmi_driver qpnp_flash_led_driver = {
 	.driver		= {
