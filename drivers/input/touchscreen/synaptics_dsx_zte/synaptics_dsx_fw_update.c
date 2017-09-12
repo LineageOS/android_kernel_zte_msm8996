@@ -2613,6 +2613,8 @@ static enum flash_area fwu_go_nogo(void)
 			"%s: Image firmware ID = %d\n",
 			__func__, image_fw_id);
 
+#ifndef ZTE_TS_FIRMWARE_UPDATE_IMPROVE
+	pr_info("ZTE_TS_FIRMWARE_UPDATE_IMPROVE: no\n");
 	if (image_fw_id > device_fw_id) {
 		flash_area = UI_FIRMWARE;
 		goto exit;
@@ -2623,6 +2625,13 @@ static enum flash_area fwu_go_nogo(void)
 		flash_area = NONE;
 		goto exit;
 	}
+#else
+	pr_info("ZTE_TS_FIRMWARE_UPDATE_IMPROVE: yes\n");
+	if (image_fw_id != device_fw_id) {
+		flash_area = UI_FIRMWARE;
+		goto exit;
+	}
+#endif
 
 	/* Get device config ID */
 	retval = fwu_get_device_config_id();
