@@ -1757,6 +1757,9 @@ int mdss_mode_switch(struct msm_fb_data_type *mfd, u32 mode)
 	struct mdss_mdp_ctl *sctl;
 	int rc = 0;
 
+	l_roi = (struct mdss_rect) {0, 0, 0, 0};
+	r_roi = (struct mdss_rect) {0, 0, 0, 0};
+
 	pr_debug("fb%d switch to mode=%x\n", mfd->index, mode);
 	ATRACE_FUNC();
 
@@ -6776,7 +6779,7 @@ static int mdss_mdp_scaler_lut_init(struct mdss_data_type *mdata,
 		struct mdp_scale_luts_info *lut_tbl)
 {
 	struct mdss_mdp_qseed3_lut_tbl *qseed3_lut_tbl;
-	int ret;
+	int ret = 0;
 
 	if (!mdata->scaler_off)
 		return -EFAULT;
