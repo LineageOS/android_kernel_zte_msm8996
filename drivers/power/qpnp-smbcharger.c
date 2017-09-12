@@ -117,6 +117,7 @@ struct smbchg_chip {
 
 	/* configuration parameters */
 	int				iterm_ma;
+	int				design_capacity;
 	int				usb_max_current_ma;
 	int				typec_current_ma;
 	int				dc_max_current_ma;
@@ -154,6 +155,7 @@ struct smbchg_chip {
 	bool				cfg_override_usb_current;
 	bool				apsd_rerun_config_enable;
 	int				last_enable_to_shutdown_status;
+	bool				probe_rerun_apsd;
 	u8				original_usbin_allowance;
 	struct parallel_usb_cfg		parallel;
 	struct delayed_work		parallel_en_work;
@@ -242,6 +244,7 @@ struct smbchg_chip {
 	int				aicl_done_irq;
 	int				usbid_change_irq;
 	int				chg_error_irq;
+	int				chg_complete_sft;
 	bool				enable_aicl_wake;
 
 	/* psy */
@@ -300,6 +303,7 @@ struct smbchg_chip {
 	struct votable			*hw_aicl_rerun_enable_indirect_votable;
 	struct votable			*aicl_deglitch_short_votable;
 	struct votable			*hvdcp_enable_votable;
+	int				chg_complete_sft_enable;
 };
 struct smbchg_chip *zte_chip	=	NULL;
 #define SOFT_CC_DEBUG 0//1
@@ -363,6 +367,7 @@ enum wake_reason {
 #define ESR_PULSE_FCC_VOTER	"ESR_PULSE_FCC_VOTER"
 #define BATT_TYPE_FCC_VOTER	"BATT_TYPE_FCC_VOTER"
 #define RESTRICTED_CHG_FCC_VOTER	"RESTRICTED_CHG_FCC_VOTER"
+#define THERMAL_FCC_VOTER	"THERMAL_FCC_VOTER"
 
 /* ICL VOTERS */
 #define PSY_ICL_VOTER		"PSY_ICL_VOTER"
@@ -958,6 +963,14 @@ static char *usb_type_str[] = {
 	"DCP",		/* bit 2 */
 	"CDP",		/* bit 3 */
 	"NONE",		/* bit 4 error case */
+};
+
+enum usb_type_idev_sts {
+	SRC_DETECT_SDP,
+	SRC_DETECT_OTHER,
+	SRC_DETECT_DCP,
+	SRC_DETECT_CDP,
+	SRC_DETECT_NONE,
 };
 
 #define N_TYPE_BITS		4
@@ -3260,22 +3273,13 @@ static int smbchg_system_temp_level_set(struct smbchg_chip *chip,
 
 	if (lvl_sel == chip->therm_lvl_sel)
 		return 0;
-#if 1
-    pr_info("lvl_sel:%d,thermal_mitigation:%d,chip->cfg_fastchg_current_ma:%d\n",lvl_sel,(int)chip->thermal_mitigation[lvl_sel - 1],chip->cfg_fastchg_current_ma);
-	mutex_lock(&chip->therm_lvl_lock);
-	prev_therm_lvl = chip->therm_lvl_sel;
-	chip->therm_lvl_sel = lvl_sel;
-	if (chip->therm_lvl_sel == 0) {
-		smbchg_set_fastchg_current_user(chip,chip->cfg_fastchg_current_ma);
-		smbchg_parallel_usb_check_ok(chip);
-	} else {
-		thermal_icl_ma =
-			(int)chip->thermal_mitigation[chip->therm_lvl_sel - 1];
-		smbchg_set_fastchg_current_user(chip,thermal_icl_ma);
-		smbchg_parallel_usb_check_ok(chip);
-	}
-	mutex_unlock(&chip->therm_lvl_lock);
-#else
+
+/* For board candice and , we need more level step
+     we control ibat, not iusb
+*/
+#if defined(CONFIG_BOARD_CANDICE) || defined(CONFIG_BOARD_FUJISAN)
+	pr_info("lvl_sel::%d, thermal_mitigation:%d, chip->cfg_fastchg_current_ma:%d\n",
+			lvl_sel, (int)chip->thermal_mitigation[lvl_sel], chip->cfg_fastchg_current_ma);
 	mutex_lock(&chip->therm_lvl_lock);
 	prev_therm_lvl = chip->therm_lvl_sel;
 	chip->therm_lvl_sel = lvl_sel;
@@ -3284,67 +3288,63 @@ static int smbchg_system_temp_level_set(struct smbchg_chip *chip,
 		 * Disable charging if highest value selected by
 		 * setting the DC and USB path in suspend
 		 */
-		rc = vote(chip->dc_suspend_votable, THERMAL_EN_VOTER, true, 0);
+		rc = vote(chip->battchg_suspend_votable, BATTCHG_USER_EN_VOTER,
+				true, 0);
 		if (rc < 0) {
 			dev_err(chip->dev,
-				"Couldn't set dc suspend rc %d\n", rc);
+				"Couldn't set batchg suspend rc %d\n", rc);
 			goto out;
 		}
-		rc = vote(chip->usb_suspend_votable, THERMAL_EN_VOTER, true, 0);
-		if (rc < 0) {
-			dev_err(chip->dev,
-				"Couldn't set usb suspend rc %d\n", rc);
-			goto out;
-		}
-		goto out;
 	}
-
 	if (chip->therm_lvl_sel == 0) {
-		rc = vote(chip->usb_icl_votable, THERMAL_ICL_VOTER, false, 0);
+		rc = vote(chip->fcc_votable, THERMAL_FCC_VOTER, true,
+							chip->cfg_fastchg_current_ma);
 		if (rc < 0)
-			pr_err("Couldn't disable USB thermal ICL vote rc=%d\n",
-				rc);
-
-		rc = vote(chip->dc_icl_votable, THERMAL_ICL_VOTER, false, 0);
-		if (rc < 0)
-			pr_err("Couldn't disable DC thermal ICL vote rc=%d\n",
-				rc);
+			pr_err("Couldn't disable battchg thermal fcc vote rc=%d\n", rc);
 	} else {
 		thermal_icl_ma =
 			(int)chip->thermal_mitigation[chip->therm_lvl_sel];
-		rc = vote(chip->usb_icl_votable, THERMAL_ICL_VOTER, true,
+		rc = vote(chip->fcc_votable, THERMAL_FCC_VOTER, true,
 					thermal_icl_ma);
 		if (rc < 0)
-			pr_err("Couldn't vote for USB thermal ICL rc=%d\n", rc);
+			pr_err("Couldn't vote for battchg thermal fcc rc=%d\n", rc);
 
-		rc = vote(chip->dc_icl_votable, THERMAL_ICL_VOTER, true,
-					thermal_icl_ma);
-		if (rc < 0)
-			pr_err("Couldn't vote for DC thermal ICL rc=%d\n", rc);
 	}
-
 	if (prev_therm_lvl == chip->thermal_levels - 1) {
 		/*
 		 * If previously highest value was selected charging must have
 		 * been disabed. Enable charging by taking the DC and USB path
 		 * out of suspend.
 		 */
-		rc = vote(chip->dc_suspend_votable, THERMAL_EN_VOTER, false, 0);
+
+		rc = vote(chip->battchg_suspend_votable, BATTCHG_USER_EN_VOTER,
+				false, 0);
 		if (rc < 0) {
 			dev_err(chip->dev,
-				"Couldn't set dc suspend rc %d\n", rc);
-			goto out;
-		}
-		rc = vote(chip->usb_suspend_votable, THERMAL_EN_VOTER,
-								false, 0);
-		if (rc < 0) {
-			dev_err(chip->dev,
-				"Couldn't set usb suspend rc %d\n", rc);
+				"Couldn't set batchg suspend rc %d\n", rc);
 			goto out;
 		}
 	}
 out:
 	mutex_unlock(&chip->therm_lvl_lock);
+#else
+
+	pr_info("lvl_sel:%d,thermal_mitigation:%d,chip->cfg_fastchg_current_ma:%d\n",
+			lvl_sel, (int)chip->thermal_mitigation[lvl_sel], chip->cfg_fastchg_current_ma);
+	mutex_lock(&chip->therm_lvl_lock);
+	prev_therm_lvl = chip->therm_lvl_sel;
+	chip->therm_lvl_sel = lvl_sel;
+	if (chip->therm_lvl_sel == 0) {
+		smbchg_set_fastchg_current_user(chip, chip->cfg_fastchg_current_ma);
+		smbchg_parallel_usb_check_ok(chip);
+	} else {
+		thermal_icl_ma =
+			(int)chip->thermal_mitigation[chip->therm_lvl_sel - 1];
+		smbchg_set_fastchg_current_user(chip, thermal_icl_ma);
+		smbchg_parallel_usb_check_ok(chip);
+	}
+	mutex_unlock(&chip->therm_lvl_lock);
+
 #endif
 	return rc;
 }
@@ -3991,9 +3991,9 @@ static void smbchg_aicl_deglitch_wa_check(struct smbchg_chip *chip)
 	smbchg_aicl_deglitch_wa_en(chip, chip->vbat_above_headroom);
 }
 
-static char *FG_BATT_TYPE_DEFAULT = "zte_p894a01_3000mah";  //ZTE
-static char *FG_BATT_TYPE_BATTERYID_1 = "ZTE_BATTERY_DATA_ID_1";
-#define FG_BATT_TYPE "ZTE_BATTERY_DATA_ID_1"
+extern char *fg_batt_type_default;
+extern char *fg_batt_type;
+
 #define MISC_TEST_REG		0xE2
 #define BB_LOOP_DISABLE_ICL	BIT(2)
 static int smbchg_icl_loop_disable_check(struct smbchg_chip *chip)
@@ -4012,12 +4012,15 @@ static int smbchg_icl_loop_disable_check(struct smbchg_chip *chip)
 
 	return rc;
 }
-
+int get_design_capacity(void)
+{
+	return zte_chip->design_capacity;
+}
 #define UNKNOWN_BATT_TYPE	"Unknown Battery"
 #define LOADING_BATT_TYPE	"Loading Battery Data"
 static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 {
-	int rc = 0, max_voltage_uv = 0, fastchg_ma = 0, ret = 0, iterm_ua = 0;
+	int rc = 0, max_voltage_uv = 0, fastchg_ma = 0, ret = 0, iterm_ua = 0, design_capacity = 0;
 	struct device_node *batt_node, *profile_node;
 	struct device_node *node = chip->spmi->dev.of_node;
 	union power_supply_propval prop = {0,};
@@ -4044,19 +4047,19 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 	}
 
 	profile_node = of_batterydata_get_best_profile(batt_node,
-							"bms", FG_BATT_TYPE_BATTERYID_1);
+							"bms", fg_batt_type);
 	if (!profile_node) {
-		pr_err("couldn't find profile handle ,battery_type1 is %s\n",FG_BATT_TYPE_BATTERYID_1);
+		pr_err("couldn't find profile handle, battery_type1 is %s\n", fg_batt_type);
 		profile_node = of_batterydata_get_best_profile(batt_node, "bms",
-						FG_BATT_TYPE_DEFAULT);
+						fg_batt_type_default);
 	if (!profile_node) {
 		pr_err("couldn't find profile handle\n");
 		return -EINVAL;
 		}else{
-			pr_debug("battery type is %s\n",FG_BATT_TYPE_DEFAULT);
+			pr_debug("battery type is %s\n", fg_batt_type_default);
 		}
 	}else{
-		pr_debug("battery type is %s\n",FG_BATT_TYPE_BATTERYID_1);
+		pr_debug("battery type is %s\n", fg_batt_type);
 	}
 	chip->battery_type = prop.strval;
 
@@ -4102,6 +4105,15 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 			}
 		}
 		chip->iterm_ma = iterm_ua / 1000;
+	}
+	rc = of_property_read_u32(profile_node, "qcom,nom-batt-capacity-mah",
+						&design_capacity);
+	if (rc && rc != -EINVAL) {
+		pr_warn("couldn't read battery term current=%d\n", rc);
+		ret = rc;
+	} else if (!rc) {
+		chip->design_capacity = design_capacity;
+		pr_info("design_capacity:%d\n", design_capacity);
 	}
 
 	/*
@@ -5141,6 +5153,7 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 
 	pr_smb(PR_STATUS, "triggered\n");
 	charge_type_oem = -1;
+	chip->chg_complete_sft_enable = 0;
 	pr_info("chip->apsd_rerun_flag:%d\n",chip->apsd_rerun_flag);
 	if(chip->apsd_rerun_flag == 3)
 		chip->apsd_rerun_flag = 0;
@@ -6867,10 +6880,12 @@ static irqreturn_t chg_error_handler(int irq, void *_chip)
 		dev_err(chip->dev, "Unable to read RT_STS rc = %d\n", rc);
 	} else {
 		pr_smb(PR_INTERRUPT, "triggered: 0x%02x\n", reg);
-		if (reg & CHG_COMP_SFT_BIT)
+		if (reg & CHG_COMP_SFT_BIT) {
+			chip->chg_complete_sft_enable = 1;
 			set_property_on_fg(chip,
 					POWER_SUPPLY_PROP_SAFETY_TIMER_EXPIRED,
 					1);
+		}
 	}
 
 	smbchg_parallel_usb_check_ok(chip);
@@ -7045,6 +7060,16 @@ static irqreturn_t usbin_ov_handler(int irq, void *_chip)
 		}
 	} else {
 		chip->usb_ov_det = false;
+		pr_smb(PR_MISC, "remove usb psy health OV\n");
+		if (chip->usb_psy) {
+			pr_smb(PR_MISC, "setting usb psy health OV\n");
+			rc = power_supply_set_health_state(chip->usb_psy,
+					POWER_SUPPLY_HEALTH_GOOD);
+			if (rc)
+				pr_smb(PR_STATUS,
+					"usb psy does not allow updating prop %d rc = %d\n",
+					POWER_SUPPLY_HEALTH_GOOD, rc);
+		}
 		/* If USB is present, then handle the USB insertion */
 		usb_present = is_usb_present(chip);
 		if (usb_present)
@@ -7181,6 +7206,19 @@ static irqreturn_t src_detect_handler(int irq, void *_chip)
 	if (socinfo_get_charger_flag() && !is_usb_present(chip) && enable_to_shutdown) {
 		pr_info("poweroff in 1000ms,offcharging_flag and charger not present\n");
 		schedule_delayed_work(&chip->poweroff_work,msecs_to_jiffies(1000));
+	}
+
+	/* if apsd_rerun in probe will set  enable_to_shutdown=0 and trigger usb fake removal,
+	 *  this irq will triggered 2 times, first time src_detect =0, this time we should not shutdown,
+	 * second time src_detect=1, then we can enable shutdown if in offcharger mode
+	*/
+	if ((enable_to_shutdown != chip->last_enable_to_shutdown_status)
+		&& chip->probe_rerun_apsd == 1) {
+		pr_info("offcharging_flag:%d,enable_to_shutdown:%d,chip->last_enable_to_shutdown_status:%d\n",
+			socinfo_get_charger_flag(), enable_to_shutdown, chip->last_enable_to_shutdown_status);
+		enable_to_shutdown = chip->last_enable_to_shutdown_status;
+		chip->last_enable_to_shutdown_status = -1;
+		chip->probe_rerun_apsd = 0;
 	}
 
 	if (src_detect)
@@ -8404,6 +8442,8 @@ static int smbchg_request_irqs(struct smbchg_chip *chip)
 		case SMBCHG_LITE_CHGR_SUBTYPE:
 			REQUEST_IRQ(chip, spmi_resource, chip->chg_error_irq,
 				"chg-error", chg_error_handler, flags, rc);
+			REQUEST_IRQ(chip, spmi_resource, chip->chg_complete_sft,
+				"chg-complete-chg-sft", chg_error_handler, flags, rc);
 			REQUEST_IRQ(chip, spmi_resource, chip->taper_irq,
 				"chg-taper-thr", taper_handler,
 				(IRQF_TRIGGER_RISING | IRQF_ONESHOT), rc);
@@ -8417,6 +8457,7 @@ static int smbchg_request_irqs(struct smbchg_chip *chip)
 				"chg-p2f-thr", fastchg_handler, flags, rc);
 			enable_irq_wake(chip->chg_term_irq);
 			enable_irq_wake(chip->chg_error_irq);
+			enable_irq_wake(chip->chg_complete_sft);
 			enable_irq_wake(chip->fastchg_irq);
 			break;
 		case SMBCHG_BAT_IF_SUBTYPE:
@@ -8902,8 +8943,6 @@ static int set_heartbeat_ms(const char *val, struct kernel_param *kp)
 module_param_call(heartbeat_ms, set_heartbeat_ms, param_get_uint,
 					&heartbeat_ms, 0644);
 
-
-//int  offcharging_flag = 1;  //For OFFCHARGING  flag
 static void apsd_rerun_work(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -8960,12 +8999,14 @@ static void update_heartbeat(struct work_struct *work)
 		pr_err("pmic fatal error:the_chip=null\n!!");
 		return;
 	}
+
 	if ((enable_to_shutdown != chip->last_enable_to_shutdown_status)
-		&& (chip->last_enable_to_shutdown_status != -1)) {
+		&& chip->probe_rerun_apsd == 1) {
 		pr_info("offcharging_flag:%d,enable_to_shutdown:%d,chip->last_enable_to_shutdown_status:%d\n",
 			socinfo_get_charger_flag(), enable_to_shutdown, chip->last_enable_to_shutdown_status);
 		enable_to_shutdown = chip->last_enable_to_shutdown_status;
 		chip->last_enable_to_shutdown_status = -1;
+		chip->probe_rerun_apsd = 0;
 	}
 
 	if(smbchg_debug_mask == 0xFF)   //ZTE_PM used smbchg_debug_mask for log debug.
@@ -8985,7 +9026,8 @@ static void update_heartbeat(struct work_struct *work)
 		printk_counter++;
 
 		if ((usb_present) && (chg_current > 0) && ((charge_type_oem == 1) || (charge_type_oem == 2))
-			&& (chip->apsd_rerun_flag == 0) && (!socinfo_get_charger_flag())) {
+			&& (chip->apsd_rerun_flag == 0) && (!socinfo_get_charger_flag())
+			&& (chip->chg_complete_sft_enable == 0)) {
 			if (((status == POWER_SUPPLY_STATUS_CHARGING)
 				&& (charge_type == POWER_SUPPLY_CHARGE_TYPE_FAST))
 				|| ((status == POWER_SUPPLY_STATUS_DISCHARGING)
@@ -9155,7 +9197,8 @@ extern int zte_read_s3_type(u8* s3_src_reg);
 
 static int smbchg_probe(struct spmi_device *spmi)
 {
-	int rc, type;
+	int rc;
+	enum usb_type_idev_sts usb_type;
 	struct smbchg_chip *chip;
 	struct power_supply *usb_psy, *typec_psy = NULL;
 	struct qpnp_vadc_chip *vadc_dev = NULL, *vchg_vadc_dev = NULL;
@@ -9326,6 +9369,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 	chip->typec_psy = typec_psy;
 	chip->fake_battery_soc = -EINVAL;
 	chip->usb_online = -EINVAL;
+	chip->chg_complete_sft_enable = 0;
 	dev_set_drvdata(&spmi->dev, chip);
 
 	spin_lock_init(&chip->sec_access_lock);
@@ -9491,13 +9535,21 @@ static int smbchg_probe(struct spmi_device *spmi)
 #endif
 
 	chip->last_enable_to_shutdown_status = -1;
-	type = get_type(reg);
-	pr_info("type:%d,chip->apsd_rerun_config_enable:%d\n", type, chip->apsd_rerun_config_enable);
-	if (((type == 0) || (type == 4)) && chip->apsd_rerun_config_enable) {
-		pr_info("rerun apsd\n");
-		chip->last_enable_to_shutdown_status = enable_to_shutdown;
-		enable_to_shutdown = 0;
-		smbchg_apsd_rerun(chip);
+	chip->probe_rerun_apsd = 0;
+	if (socinfo_get_charger_flag()) {
+		rc = smbchg_read(chip, &reg, chip->misc_base + IDEV_STS, 1);
+		if (rc < 0)
+			pr_err("Could not read IDEV_STS rc = %d\n", rc);
+		usb_type = get_type(reg);
+		pr_info("type:%d, chip->apsd_rerun_config_enable:%d\n", usb_type, chip->apsd_rerun_config_enable);
+		if (((usb_type == SRC_DETECT_SDP) || (usb_type == SRC_DETECT_OTHER) ||
+			(usb_type == SRC_DETECT_NONE)) && chip->apsd_rerun_config_enable) {
+			pr_info("rerun apsd\n");
+			chip->last_enable_to_shutdown_status = enable_to_shutdown;
+			enable_to_shutdown = 0;
+			chip->probe_rerun_apsd = 1;
+			smbchg_apsd_rerun(chip);
+		}
 	}
 	return 0;
 
@@ -9586,6 +9638,7 @@ static void smbchg_shutdown(struct spmi_device *spmi)
 	disable_irq(chip->batt_missing_irq);
 	disable_irq(chip->batt_warm_irq);
 	disable_irq(chip->chg_error_irq);
+	disable_irq(chip->chg_complete_sft);
 	disable_irq(chip->chg_hot_irq);
 	disable_irq(chip->chg_term_irq);
 	disable_irq(chip->dcin_uv_irq);
