@@ -1,1 +1,7 @@
+
+
+
+
+#include "zte-camera-sensor-mtp.dtsi" //yichangming 400001
+
 #include "touch-key-backlight-ailsa_ii.dtsi"

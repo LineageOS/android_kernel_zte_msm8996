@@ -12,7 +12,6 @@
 
 #include "msm8996-pinctrl.dtsi"
 //#include "msm8996-camera-sensor-mtp.dtsi"
-#include "zte-camera-sensor-mtp.dtsi" //yichangming 400001
 #include "zte-usb-type-c.dtsi"
 #include "msm8996-wsa881x.dtsi"
 

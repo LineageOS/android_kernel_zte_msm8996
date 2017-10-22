@@ -38,3 +38,6 @@
         };
     };
 };
+&pmi8994_charger {
+	qcom,fastchg-current-comp = <250>;
+};

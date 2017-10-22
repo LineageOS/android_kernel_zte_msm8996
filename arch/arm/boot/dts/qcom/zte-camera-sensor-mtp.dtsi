@@ -39,10 +39,11 @@
 		compatible = "qcom,actuator";
 		qcom,cci-master = <0>;
 		cam_vaf-supply = <&pm8994_l23>;
-		qcom,cam-vreg-name = "cam_vaf";
-		qcom,cam-vreg-min-voltage = <2800000>;
-		qcom,cam-vreg-max-voltage = <2800000>;
-		qcom,cam-vreg-op-mode = <100000>;
+		cam_cci-supply = <&pm8994_lvs1>;
+		qcom,cam-vreg-name = "cam_vaf", "cam_cci";
+		qcom,cam-vreg-min-voltage = <2800000 0>;
+		qcom,cam-vreg-max-voltage = <2800000 0>;
+		qcom,cam-vreg-op-mode = <100000 0>;
 	};
 
 	actuator1: qcom,actuator@1 {
