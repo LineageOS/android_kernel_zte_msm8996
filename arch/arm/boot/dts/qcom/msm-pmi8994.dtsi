@@ -572,7 +572,7 @@
 			qcom,pmic-revid = <&pmi8994_revid>;
 			vcc_pon-supply = <&pon_perph_reg>;
 			qcom,play-mode = "buffer";
-			qcom,wave-play-rate-us = <4255>;
+			qcom,wave-play-rate-us = <5000>;
 			qcom,actuator-type = "lra";
 			qcom,wave-shape = "sine";
 			qcom,vmax-mv = <2668>;
