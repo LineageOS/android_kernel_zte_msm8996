@@ -38,12 +38,11 @@
 #include <soc/qcom/pm.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
-#include <linux/wakelock.h>
 
 #define BYTE_BIT_MASK(nr)		(1UL << ((nr) % BITS_PER_BYTE))
 #define BIT_BYTE(nr)			((nr) / BITS_PER_BYTE)
 #define AK49XX_SYSTEM_RESUME_TIMEOUT_MS 100
-#define AK49XX_SPI_WAKE_LOCK_TIMEOUT_MS		2000
+
 #ifndef NO_IRQ
 #define NO_IRQ	(-1)
 #endif
@@ -214,8 +213,6 @@ static irqreturn_t ak49xx_irq_thread(int irq, void *data)
 	struct ak49xx_core_resource *ak49xx_res = data;
 	u8 status[AK49XX_NUM_IRQ_REGS];
 	int i;
-
-	wake_lock_timeout(&ak49xx_res->spi_wake_lock, AK49XX_SPI_WAKE_LOCK_TIMEOUT_MS);
 
 	if (unlikely(ak49xx_lock_sleep(ak49xx_res) == false)) {
 /* ZTE_chenjun */
@@ -405,8 +402,6 @@ int ak49xx_irq_init(struct ak49xx_core_resource *ak49xx_res)
 		if (ret)
 			free_irq(ak49xx_res->irq, ak49xx_res);
 	}
-
-	wake_lock_init(&ak49xx_res->spi_wake_lock, WAKE_LOCK_SUSPEND, "zte_ak49xx_spi_event");
 
 	if (ret) {
 		pr_err("%s: Failed to init ak49xx irq\n", __func__);
