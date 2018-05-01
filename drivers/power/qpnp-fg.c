@@ -238,11 +238,7 @@ enum fg_mem_data_index {
 static struct fg_mem_setting settings[FG_MEM_SETTING_MAX] = {
 	/*       ID                    Address, Offset, Value*/
 	SETTING(SOFT_COLD,       0x454,   0,      100),
-#ifdef CONFIG_BOARD_CANDICE
-	SETTING(SOFT_HOT,        0x454,   1,      500),
-#else
 	SETTING(SOFT_HOT,        0x454,   1,      450),
-#endif
 	SETTING(HARD_COLD,       0x454,   2,      0),
 	SETTING(HARD_HOT,        0x454,   3,      550),
 	SETTING(RESUME_SOC,      0x45C,   1,      99),
@@ -253,7 +249,7 @@ static struct fg_mem_setting settings[FG_MEM_SETTING_MAX] = {
 	SETTING(IRQ_VOLT_EMPTY,	 0x458,   3,      3100),
 	SETTING(CUTOFF_VOLTAGE,	 0x40C,   0,      3200),
 	SETTING(VBAT_EST_DIFF,	 0x000,   0,      30),
-	SETTING(DELTA_SOC,	 0x450,   3,      2),
+	SETTING(DELTA_SOC,	 0x450,   3,      1),
 	SETTING(BATT_LOW,	 0x458,   0,      4200),
 	SETTING(THERM_DELAY,	 0x4AC,   3,      0),
 };
@@ -2323,7 +2319,7 @@ static int get_prop_capacity(struct fg_chip *chip)
 		return FULL_CAPACITY;
 	}
 
-	capacity = DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY + 1),
+	capacity = DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY - 2),
 			FULL_SOC_RAW - 2) + 1;
 	if (capacity >= FULL_CAPACITY)
 		capacity = FULL_CAPACITY;
@@ -2409,10 +2405,7 @@ static int set_prop_jeita_temp(struct fg_chip *chip,
 			settings[type].address,
 			settings[type].offset, decidegc);
 
-/* For board candice, Donot accept user space setting from hvdcpd, we use para in this driver */
-#ifndef CONFIG_BOARD_CANDICE
 	settings[type].value = decidegc;
-#endif
 
 	cancel_delayed_work_sync(
 		&chip->update_jeita_setting);
@@ -6418,19 +6411,18 @@ wait:
 	}
 
 	if (fg_debug_mask & FG_STATUS)
-		pr_info("battery id = %d\n", get_sram_prop_now(chip, FG_DATA_BATT_ID));
-
-	profile_node = of_batterydata_get_best_profile(batt_node, "bms", fg_batt_type);
-	if (!profile_node) {
-		pr_err("couldn't find profile handle ,battery_type1 is %s\n", fg_batt_type);
-		profile_node = of_batterydata_get_best_profile(batt_node, "bms",
-							fg_batt_type_default);
-		if (!profile_node) {
-			pr_err("couldn't find profile, use %s\n", fg_batt_type_default);
-			rc = -ENODATA;
+		pr_info("battery id = %d\n",
+				get_sram_prop_now(chip, FG_DATA_BATT_ID));
+	profile_node = of_batterydata_get_best_profile(batt_node, "bms",
+							fg_batt_type);
+	if (IS_ERR_OR_NULL(profile_node)) {
+		rc = PTR_ERR(profile_node);
+		if (rc == -EPROBE_DEFER) {
+			goto reschedule;
+		} else {
+			pr_err("couldn't find profile handle rc=%d\n", rc);
 			goto no_profile;
-		} else
-			fg_batt_type = fg_batt_type_default;
+		}
 	}
 	pr_debug("fg_batt_type is %s\n", fg_batt_type);
 
@@ -6754,8 +6746,6 @@ static void sysfs_restart_work(struct work_struct *work)
 	mutex_unlock(&chip->sysfs_restart_lock);
 }
 
-#define SRAM_MONOTONIC_SOC_REG		0x574
-#define SRAM_MONOTONIC_SOC_OFFSET	2
 #define SRAM_RELEASE_TIMEOUT_MS		500
 static void charge_full_work(struct work_struct *work)
 {
@@ -8636,7 +8626,7 @@ static int fg_memif_init(struct fg_chip *chip)
 
 		/* check for error condition */
 		rc = fg_check_ima_exception(chip, true);
-		if (rc) {
+		if (rc && rc != -EAGAIN) {
 			pr_err("Error in clearing IMA exception rc=%d", rc);
 			return rc;
 		}
