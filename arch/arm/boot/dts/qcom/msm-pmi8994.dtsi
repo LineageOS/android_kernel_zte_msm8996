@@ -194,17 +194,6 @@
 				qcom,hw-settle-time = <0>;
 				qcom,fast-avg-setup = <0>;
 			};
-
-			chan@3 {
-				label = "vchg_sns";
-				reg = <3>;
-				qcom,decimation = <0>;
-				qcom,pre-div-channel-scaling = <1>;
-				qcom,calibration-type = "absolute";
-				qcom,scale-function = <0>;
-				qcom,hw-settle-time = <0>;
-				qcom,fast-avg-setup = <0>;
-			};
 		};
 
 		pmi8994_charger: qcom,qpnp-smbcharger {
@@ -224,7 +213,7 @@
 			qcom,dc-psy-ma = <1500>;
 			qcom,rparasitic-uohm = <100000>;
 			qcom,bms-psy-name = "bms";
-			qcom,thermal-mitigation = <2500 1500>;
+			qcom,thermal-mitigation = <3000 2500 1500 1500>;
 			qcom,parallel-usb-min-current-ma = <1000>;
 			qcom,parallel-usb-9v-min-current-ma = <900>;
 			qcom,parallel-allowed-lowering-ma = <500>;
@@ -238,6 +227,7 @@
 			qcom,vchg-adc-channel-id = <3>;
 			qcom,vchg_sns-vadc = <&pmi8994_vadc>;
 			qcom,apsd_rerun_config_enable;
+			//qcom,design_capacity = <3200>;
 
 			qcom,chgr@1000 {
 				reg = <0x1000 0x100>;
@@ -351,7 +341,7 @@
 			qcom,capacity-learning-feedback;
 			qcom,hold-soc-while-full;     /*ZTE_PM*/
 			qcom,fg-delta-soc = <2>;
-			qcom,vbat-estimate-diff-mv = <150>;
+			qcom,vbat-estimate-diff-mv = <200>;
 			qcom,fg-soc@4000 {
 				status = "okay";
 				reg = <0x4000 0x100>;
@@ -553,7 +543,7 @@
 					"qpnp-wled-lab-base";
 			interrupts = <0x3 0xd8 0x2>;
 			interrupt-names = "sc-irq";
-			status = "disabled";
+			status = "ok";
 			linux,name = "wled";
 			linux,default-trigger = "bkl-trigger";
 			qcom,fdbk-output = "auto";
@@ -621,8 +611,7 @@
 				qcom,lut-flags = <31>;
 				qcom,pause-lo = <2200>;
 				qcom,pause-hi = <1300>;
-				qcom,duty-pcts = [00 05 0A 0F 14
-			                 19 1E 23 28 2D];
+				qcom,duty-pcts = [00 05 0A 0F 14 19 1E 23 28 2D];
 				qcom,max-current = <6>;
 				qcom,default-state = "off";
 				linux,name = "red";
@@ -643,8 +632,7 @@
 				qcom,lut-flags = <31>;
 				qcom,pause-lo = <2200>;
 				qcom,pause-hi = <1300>;
-				qcom,duty-pcts = [00 05 0A 0F 14
-			                 19 1E 23 28 2D];
+				qcom,duty-pcts = [00 05 0A 0F 14 19 1E 23 28 2D];
 				qcom,max-current = <6>;
 				qcom,default-state = "off";
 				linux,name = "green";
@@ -664,8 +652,7 @@
 				qcom,lut-flags = <31>;
 				qcom,pause-lo = <2200>;
 				qcom,pause-hi = <1300>;
-				qcom,duty-pcts = [00 05 0A 0F 14
-			                 19 1E 23 28 2D];
+				qcom,duty-pcts = [00 05 0A 0F 14 19 1E 23 28 2D];
 				qcom,max-current = <6>;
 				qcom,default-state = "off";
 				linux,name = "blue";

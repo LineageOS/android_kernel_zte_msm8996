@@ -1,7 +1,30 @@
 
-
-
-
 #include "zte-camera-sensor-mtp.dtsi" //yichangming 400001
 
 #include "touch-key-backlight-ailsa_ii.dtsi"
+
+&firmware {
+	android {
+		compatible = "android,firmware";
+		fstab {
+			compatible = "android,fstab";
+			vendor {
+				compatible = "android,vendor";
+				dev = "/dev/block/platform/soc/7464900.sdhci/by-name/vendor";
+				type = "ext4";
+				mnt_flags = "ro,barrier=1,discard";
+				fsmgr_flags = "wait";
+				status = "disabled";
+			 };
+			 system {
+				compatible = "android,system";
+				dev = "/dev/block/platform/soc/624000.ufshc/by-name/system";
+				type = "ext4";
+				mnt_flags = "ro,barrier=1,discard";
+				fsmgr_flags = "wait";
+				status = "ok";
+			};
+
+		};
+	};
+};

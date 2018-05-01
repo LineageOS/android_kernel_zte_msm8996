@@ -58,14 +58,6 @@
 			23 1e 08 09 05 03 04 a0
 			23 1a 08 09 05 03 04 a0];
 		//qcom,mdss-dsi-panel-status-check-mode = "te_signal_check";
-		qcom,mdss-dsi-panel-status-read-length = <1>;
-		qcom,esd-check-enabled; //enables ESD
-		qcom,mdss-dsi-panel-status-command = [06 01 00 01 05 00 01 0A ]; //read command to be sent
-		qcom,mdss-dsi-panel-status-command-state = "dsi_hs_mode"; //link state for the read command
-		qcom,mdss-dsi-panel-status-check-mode = "reg_read"; //register read approach
-		qcom,mdss-dsi-panel-status-value = <0xb4>; //expected success value if the panel is in good state
-		//zte,lcd-esd-gpio = <&tlmm 53 0>; //zte,esd 0122,gpio mode depends on "reg_read" mode
-		//zte,lcd-esd-gpio-enable; //zte,esd 0122
 
 		zte,esd-interrupt-gpio = <&tlmm 53 0>;/*zte,esd interrupt mode 0205 */
 

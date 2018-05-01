@@ -1947,24 +1947,14 @@
 			reg = <0x10 8>;
 		};
 
-		pm_count_time@5c {
-			compatible = "qcom,msm-imem-pm-count-time";
-			reg = <0x5c 24>;
-		};
-
-		sd_dump_mode@78 {
-			compatible = "qcom,msm-imem-sd_dump_mode";
-			reg = <0x78 4>;
-		};
-
-                hw_ver_id@a0 {
-                        compatible = "zte,imem-hw-ver-id";
-                        reg = <0xa0 4>;
-                };
-
 		dload_type@18 {
 			compatible = "qcom,msm-imem-dload-type";
 			reg = <0x18 4>;
+		};
+
+		pm_count_time@5c {
+			compatible = "qcom,msm-imem-pm-count-time";
+			reg = <0x5c 24>;
 		};
 
 		restart_reason@65c {
@@ -2905,6 +2895,15 @@
 			qcom,sensor-name = "tsens_tz_sensor20";
 			qcom,scaling-factor = <10>;
 		};
+		sensor_information36: qcom,sensor-information-36 {
+			qcom,sensor-type = "adc";
+			qcom,sensor-name = "xo_therm_buf";
+		};
+		sensor_information37: qcom,sensor-information-37 {
+			qcom,sensor-type = "adc";
+			qcom,sensor-name = "battery";
+			qcom,scaling-factor = <1000>;
+		};
 	};
 
 	mitigation_profile0: qcom,limit_info-0 {
@@ -2940,8 +2939,8 @@
 		qcom,temp-hysteresis = <10>;
 		qcom,therm-reset-temp = <115>;
 		qcom,freq-step = <4>;
-		qcom,core-limit-temp = <70>;
-		qcom,core-temp-hysteresis = <10>;
+		qcom,core-limit-temp = <95>;
+		qcom,core-temp-hysteresis = <5>;
 		qcom,hotplug-temp = <105>;
 		qcom,hotplug-temp-hysteresis = <40>;
 		qcom,freq-mitigation-temp = <90>;
@@ -2988,8 +2987,8 @@
 			qcom,low-threshold-uamp = <3400000>;
 			qcom,high-threshold-uamp = <4200000>;
 			qcom,mitigation-freq-khz = <576000>;
-			qcom,vph-high-threshold-uv = <3500000>;
-			qcom,vph-low-threshold-uv = <3300000>;
+			qcom,vph-high-threshold-uv = <3200000>;
+			qcom,vph-low-threshold-uv = <3100000>;
 			qcom,soc-low-threshold = <0>;
 			qcom,thermal-handle = <&msm_thermal_freq>;
 		};
@@ -3114,12 +3113,12 @@
 		qcom,ak4961-mclk-clk-freq = <9600000>;
 		asoc-platform = <&pcm0>, <&pcm1>, <&pcm2>, <&voip>, <&voice>,
 				<&loopback>, <&compress>, <&hostless>,
-				<&afe>, <&lsm>, <&routing>, <&cpe>, <&compr>;
+				<&afe>, <&lsm>, <&routing>, <&cpe>, <&compr>, <&pcmnoirq>;
 		asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1", "msm-pcm-dsp.2",
 				"msm-voip-dsp", "msm-pcm-voice", "msm-pcm-loopback",
 				"msm-compress-dsp", "msm-pcm-hostless", "msm-pcm-afe",
 				"msm-lsm-client", "msm-pcm-routing", "msm-cpe-lsm",
-				"msm-compr-dsp";
+				"msm-compr-dsp", "msm-pcm-dsp-noirq";
 		asoc-cpu = <&dai_pri_auxpcm>, <&dai_sec_auxpcm>, <&dai_hdmi>, <&dai_mi2s>,<&dai_mi2s_quat>,
 				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
 				<&sb_2_rx>, <&sb_2_tx>, <&sb_3_rx>, <&sb_3_tx>,

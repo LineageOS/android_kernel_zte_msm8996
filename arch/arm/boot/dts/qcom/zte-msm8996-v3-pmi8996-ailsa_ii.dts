@@ -25,18 +25,46 @@
 	qcom,board-id = <100 0>;
 };
 &soc {
-    zte_misc {
-        compatible = "zte-misc";
-    };
-    zte-hall {
-        compatible = "zte-hall";
-        pinctrl-names = "zte_hall_gpio_active";
-        pinctrl-0 = <&zte_hall_gpio_active>;
-        hall_en{
-            label = "hall_en";
-            gpios = <&tlmm 124 0x0>;
-        };
-    };
+	zte_misc {
+		compatible = "zte-misc";
+	};
+
+	tlmm: pinctrl@01010000 {
+		zte_hall: zte_hall {
+			zte_hall_gpio_active: zte_hall_gpio_active {
+				mux {
+					pins = "gpio124";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio124";
+					drive-strength = <2>; /* 2 mA */
+					bias-disable = <0>; /* no pull */
+					input-enable; /* input */
+				};
+			};
+		};
+	};
+
+	zte-hall {
+		compatible = "zte-hall";
+		pinctrl-names = "zte_hall_gpio_active";
+		pinctrl-0 = <&zte_hall_gpio_active>;
+		vddio-supply = <&pm8994_lvs2>;
+		linux,min-uv = <1800000>;
+		linux,max-uv = <1800000>;
+		hall_en{
+			label = "hall_en";
+			gpios = <&tlmm 124 0x0>;
+		};
+	};
+
+	hall_sensor {
+		compatible = "ah,hall_ic";
+		ah,gpio_irq = <&tlmm 124 0x0>;
+		linux,name = "hall_sensor";
+	};
+
 };
 &pmi8994_charger {
 	qcom,fastchg-current-comp = <250>;

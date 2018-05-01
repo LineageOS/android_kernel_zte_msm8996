@@ -3,7 +3,7 @@ qcom,zte_p996A01_3250mah {
 	/* #2319795_ZTE_P996A01_3250mAh_150mA_averaged_MasterSlave_Feb23rd2016*/
 	qcom,max-voltage-uv = <4400000>;
 	qcom,nom-batt-capacity-mah = <3250>;
-	qcom,batt-id-kohm = <0>;    /*no used zte_pm*/
+	qcom,batt-id-kohm = <180>;
 	qcom,battery-beta = <3435>;
 	/*qcom,battery-type = "zte_p996a01_3250mah";*/
 	qcom,battery-type = "ZTE_BATTERY_DATA_ID_1";  /*ZTE all batterys used the same type name */

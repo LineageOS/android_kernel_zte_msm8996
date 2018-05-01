@@ -1056,15 +1056,6 @@ config BUILD_ARM64_UNCOMPRESSED_KERNEL
 endchoice
 
 
-#
-# Add support for ZTE boot configuration by ZTE_BOOT 20160918
-#
-config ZTE_BOOT_MODE
-       bool "ZTE BOOT MODE"
-       default y
-        help
-          Enable special boot feature added by vendor ZTE.
-
 config DMI
 	bool "Enable support for SMBIOS (DMI) tables"
 	depends on EFI

@@ -565,7 +565,6 @@
 					<5820000 6820000 550 650 650>,
 					<6820000 7820000 550 700 600>,
 					<7820000 8500000 550 700 550>;
-	qcom,battery-data = <&mtp_batterydata>;
 };
 
 &i2c_7 {
@@ -698,44 +697,31 @@
 };
 
 &soc {
-	vfs74xx@0 {
-        compatible = "validity,metallica";
-        //reg = <0x0>;
-        spi-max-frequency = <19200000>;
-        interrupt-parent = <&tlmm>;
-        interrupts = <123 0x2>;
-        qcom,qup_id=<5>;
-        validity,drdy-gpio = <&tlmm 123 0>;
-        validity,sleep-gpio = <&tlmm 39 0>;
-        validity,cs-gpio = <&tlmm 83 0>;
-        validity,id-gpio = <&tlmm 21 0>;
-        validity,vfsspi-vdd18_en = <&tlmm 85 0>;
-        validity,vfsspi-vdd33_en = <&tlmm 85 0>;
-    };
-    goodix_gf3118@1 {
-        compatible = "goodix,fingerprint";
-        //reg = <0x1>;
-        spi-max-frequency = <4800000>;
-        interrupt-parent = <&tlmm>;
-        interrupts = <123 0x0>;
-        goodix,gpio_pwr = <&tlmm 85 0>;
-        goodix,gpio_reset = <&tlmm 39 0>;
-        goodix,gpio_id = <&tlmm 21 0>;
-        goodix,gpio_irq = <&tlmm 123 0>;
-    };
+	goodix_gf3118@1 {
+		compatible = "goodix,fingerprint";
+		spi-max-frequency = <4800000>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <123 0x0>;
+		goodix,gpio_pwr = <&tlmm 85 0>;
+		goodix,gpio_reset = <&tlmm 39 0>;
+		goodix,gpio_id = <&tlmm 21 0>;
+		goodix,gpio_irq = <&tlmm 123 0>;
+	};
 
 // ZTE_chenjun
 	i2c@7577000 { /* BLSP1 QUP3 */
 		ak4490@10 {
-                        ak4490,pdn-gpio = <&pmi8994_gpios 1 0>;
-                        qcom,isl-sw-pwr-gpio = <&pmi8994_gpios 10 0>;
-                        ak4490,isl-ldo-pwr-gpio = <&pmi8994_mpps 4 0>;
-                };
+			ak4490,pdn-gpio = <&pmi8994_gpios 1 0>;
+			qcom,isl-sw-pwr-gpio = <&pmi8994_gpios 10 0>;
+			ak4490,isl-ldo-pwr-gpio = <&pmi8994_mpps 4 0>;
+		};
 	};
 
-	ak4961_codec {
-		nxp,smartpa-rst1-gpio = <&pmi8994_gpios 2 0>;
-		nxp,smartpa-rst2-gpio = <&pmi8994_gpios 3 0>;
+	slim@91c0000 {
+		ak4961_codec {
+			nxp,smartpa-rst1-gpio = <&pmi8994_gpios 2 0>;
+			nxp,smartpa-rst2-gpio = <&pmi8994_gpios 3 0>;
+		};
 	};
 
 #if 0
@@ -945,7 +931,7 @@
 
 &i2c_7 {
 	silabs4705@11 { /* SiLabs FM chip, slave id 0x11*/
-		status = "disabled";  //yichangming disable because of gpio38 
+		status = "disabled";  //yichangming disable because of gpio38
 		compatible = "silabs,si4705";
 		reg = <0x11>;
 		vdd-supply = <&pm8994_s4>;
@@ -976,8 +962,8 @@
 		reg = <0x28>;
 		qcom,nq-irq = <&tlmm 9 0x00>;
 		qcom,nq-ven = <&tlmm 12 0x00>;
-		qcom,nq-firm = <&tlmm 96 0x00>;
-		//qcom,nq-clkreq = <&pm8994_gpios 10 0x00>;
+		qcom,nq-firm = <&pm8994_gpios 7 0x00>;
+		qcom,nq-clkreq = <&pm8994_gpios 10 0x00>;
 		interrupt-parent = <&tlmm>;
 		qcom,clk-src = "BBCLK2";
 		interrupts = <9 0>;
@@ -989,7 +975,7 @@
 		clock-names = "ref_clk";
 	};*/
 	pn5xx@28{
-		compatible = "nxp,pn548";
+		compatible = "nxp,pn5xx";
 		reg = <0x28>;
 		interrupt-parent = <&tlmm>;
 		interrupts = <9 0>;

@@ -42,8 +42,6 @@
 			pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
 			pinctrl-0 = <&ts_active>;
 			pinctrl-1 = <&ts_suspend>;
-			//synaptics,display-coords = <0 0 1599 2559>;
-			//synaptics,panel-coords = <0 0 1599 2703>;
 			synaptics,reset-gpio = <&tlmm 89 0x00>;
 			synaptics,irq-gpio = <&tlmm 125 0x2008>;
 			synaptics,irq-on-state = <0>;
@@ -53,34 +51,26 @@
 			synaptics,reset-on-state = <0>;
 			synaptics,reset-active-ms = <20>;
 			synaptics,cap-button-codes = <158 102 187>;
-			//synaptics,disable-gpios;
-			//synaptics,fw-name = "PR1702898-s3528t_00350002.img";
-			/* Underlying clocks used by secure touch */
-			//clock-names = "iface_clk", "core_clk";
-			//clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
-			//	 <&clock_gcc clk_gcc_blsp2_qup6_i2c_apps_clk>;
 		};
 		/*ergate*/
-	ndt_stress@50 {
-	    compatible = "ndt,stress-i2c";
-		reg = <0x50>;
-		interrupt-parent = <&tlmm>;
-		interrupts = <122 0x2008>;
-		pinctrl-names = "default","sleep";
-		pinctrl-0 = <&ndt_power_active &ndt_int_active &ndt_reset_active>;
-		pinctrl-1 = <&ndt_power_suspend &ndt_int_suspend &ndt_reset_suspend>;
-		ndt,irq-gpio = <&tlmm 122 0x00>;
-		ndt,irq-on-state = <0>;
-		ndt,irq-flags = <0x2008>;
-		//ndt,pwr-reg-name = "vdd";
-		//ndt,bus-reg-name = "vcc_i2c";
-		ndt,power-gpio = <&tlmm 69 0x00>;
-		ndt,power-on-state = <1>;
-		ndt,power-delay-ms = <20>;
-		ndt,reset-gpio = <&tlmm 121 0x00>;
-		ndt,reset-on-state = <0>;
-		ndt,reset-active-ms = <10>;
-		ndt,reset-delay-ms = <10>;
+		ndt_stress@50 {
+			compatible = "ndt,stress-i2c";
+			reg = <0x50>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <122 0x2008>;
+			pinctrl-names = "default","sleep";
+			pinctrl-0 = <&ndt_power_active &ndt_int_active &ndt_reset_active>;
+			pinctrl-1 = <&ndt_power_suspend &ndt_int_suspend &ndt_reset_suspend>;
+			ndt,irq-gpio = <&tlmm 122 0x00>;
+			ndt,irq-on-state = <0>;
+			ndt,irq-flags = <0x2008>;
+			ndt,power-gpio = <&tlmm 69 0x00>;
+			ndt,power-on-state = <1>;
+			ndt,power-delay-ms = <20>;
+			ndt,reset-gpio = <&tlmm 121 0x00>;
+			ndt,reset-on-state = <0>;
+			ndt,reset-active-ms = <10>;
+			ndt,reset-delay-ms = <10>;
 		};
 	};
 
@@ -108,7 +98,7 @@
 			gpios = <&pm8994_gpios 2 0x1>;
 			linux,input-type = <1>;
 			linux,code = <114>;
-			//gpio-key,wakeup;
+			gpio-key,wakeup;
 			debounce-interval = <15>;
 		};
 		vol_down {
@@ -116,17 +106,8 @@
 			gpios = <&pm8994_gpios 3 0x1>;
 			linux,input-type = <1>;
 			linux,code = <115>;
-			//gpio-key,wakeup;
-			debounce-interval = <15>;
-		};
-
-		/*cam_focus {
-			label = "cam_focus";
-			gpios = <&pm8994_gpios 5 0x1>;
-			linux,input-type = <1>;
-			linux,code = <528>;
 			gpio-key,wakeup;
 			debounce-interval = <15>;
-		};*/
+		};
 	};
 };
