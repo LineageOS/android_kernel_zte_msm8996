@@ -1052,7 +1052,7 @@ static int mdss_mdp_cmd_intf_callback(void *data, int event)
 		 * if we are going to suspended or pp split is not enabled,
 		 * just return
 		 */
-		if (ctx->intf_stopped)
+		if (ctx->intf_stopped || !is_pingpong_split(ctx->ctl->mfd))
 			return -EINVAL;
 		atomic_inc(&ctx->rdptr_cnt);
 

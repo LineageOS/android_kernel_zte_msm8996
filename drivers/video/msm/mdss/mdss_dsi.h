@@ -521,7 +521,6 @@ struct mdss_dsi_ctrl_pdata {
 	char dlane_swap;	/* data lane swap */
 	bool is_phyreg_enabled;
 	bool burst_mode_enabled;
-	bool is_cmdlist_from_mdp;
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;

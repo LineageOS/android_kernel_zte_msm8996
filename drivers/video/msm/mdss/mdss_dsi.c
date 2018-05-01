@@ -295,7 +295,7 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
 		pr_debug("reset disable: pinctrl not enabled\n");
 
-	mdss_dsi_panel_3v_power(pdata, 0);//zte 
+	mdss_dsi_panel_3v_power(pdata, 0);
 
 	ret = msm_dss_enable_vreg(
 		ctrl_pdata->panel_power_data.vreg_config,
@@ -330,8 +330,8 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 		return ret;
 	}
 
-	mdss_dsi_panel_3v_power(pdata, 1);//zte
-	
+	mdss_dsi_panel_3v_power(pdata, 1);
+
 	/*
 	 * If continuous splash screen feature is enabled, then we need to
 	 * request all the GPIOs that have already been configured in the

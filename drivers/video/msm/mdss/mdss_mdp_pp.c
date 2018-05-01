@@ -4095,7 +4095,8 @@ int mdss_mdp_argc_config(struct msm_fb_data_type *mfd,
 				u32 *copyback)
 {
 	int ret = 0;
-	u32 disp_num, num = 0, is_lm = 0;
+	int num = 0;
+	u32 disp_num, is_lm = 0;
 	struct mdp_pgc_lut_data local_cfg;
 	struct mdp_pgc_lut_data *pgc_ptr;
 	u32 tbl_size, r_size, g_size, b_size;
@@ -5144,7 +5145,7 @@ static int pp_hist_collect(struct mdp_histogram_data *hist,
 				u32 block)
 {
 	int ret = 0;
-	u32 sum;
+	int sum = 0;
 	char __iomem *v_base = NULL;
 	unsigned long flag;
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();

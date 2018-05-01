@@ -1052,24 +1052,24 @@ fb_set_var(struct fb_info *info, struct fb_var_screeninfo *var)
 }
 EXPORT_SYMBOL(fb_set_var);
 
-#define FB_AYSNC_PATCH
+#define FB_ASYNC_PATCH
 
-#ifdef FB_AYSNC_PATCH
+#ifdef FB_ASYNC_PATCH
 #include <linux/wakelock.h>
 static struct fb_info           *oem_fb_info = NULL;
 static int fb_blank_keeper = 0;
 static struct wake_lock fb_blank_async_wl;
 static int lcd_status = -1;
-static int lcd_status_uplayer = -1;//the lcd status from uplayer
+static int lcd_status_uplayer = -1;/*the lcd status from uplayer*/
 /*This mutex is used for fb_blank competition from kernel and uplayer */
 static DEFINE_MUTEX(fb_blank_async_mutex);
 /*This lock is used for fp_irq and timer competition*/
 static DEFINE_SPINLOCK(fb_async_lock);
 
 static int fb_async_patch = 1;
-module_param(fb_async_patch, int, 0644);//zte
+module_param(fb_async_patch, int, 0644);
 int lcd_test = 0;
-module_param(lcd_test, int, 0644);//zte
+module_param(lcd_test, int, 0644);
 
 static void oem_update_timeout(unsigned long dummy);
 static void oem_update_status_reset(void);
@@ -1084,13 +1084,19 @@ fb_blank_oem(struct fb_info *info, int blank)
 	if (blank > FB_BLANK_POWERDOWN)
 		blank = FB_BLANK_POWERDOWN;
 
-	if (lcd_status == blank){
-		pr_info("DBG fb_blank_oem, already ok, lcd_status=%d, blank=%d, skip..\n", lcd_status, blank);
-		return 0;
-	} else {
+#ifdef CONFIG_BOARD_FUJISAN
+	if (info->node == 0) {
+#endif
+	if (lcd_status != blank) {
 		pr_info("DBG fb_blank_oem, lcd_status=%d, blank=%d, Start\n", lcd_status, blank);
 		lcd_status = blank;
+	} else {
+		pr_info("DBG fb_blank_oem, already ok, lcd_status=%d, blank=%d, skip..\n", lcd_status, blank);
+		return 0;
 	}
+#ifdef CONFIG_BOARD_FUJISAN
+	}
+#endif
 
 	event.info = info;
 	event.data = &blank;
@@ -1118,17 +1124,22 @@ static void fb_on_async(struct work_struct *work)
 {
 	mutex_lock(&fb_blank_async_mutex);
 	pr_info("DBG fb_on_async(ON)\n");
-	fb_blank_oem(oem_fb_info,FB_BLANK_UNBLANK);
+	fb_blank_oem(oem_fb_info, FB_BLANK_UNBLANK);
 	mutex_unlock(&fb_blank_async_mutex);
 }
 static DECLARE_WORK(fb_on_async_work, fb_on_async);
 
 static void fb_off_async(struct work_struct *work)
 {
+	/* if the lcd is already UNBLANK by uplayer, just return */
+	if (lcd_status_uplayer == FB_BLANK_UNBLANK) {
+		return;
+	}
+
 	mutex_lock(&fb_blank_async_mutex);
 	pr_info("DBG fb_off_async(OFF)\n");
-	fb_blank_oem(oem_fb_info,FB_BLANK_POWERDOWN);
-	//enable suspend at the end of fb_off_async
+	fb_blank_oem(oem_fb_info, FB_BLANK_POWERDOWN);
+	/*enable suspend at the end of fb_off_async*/
 	oem_update_status_reset();
 	mutex_unlock(&fb_blank_async_mutex);
 }
@@ -1145,10 +1156,11 @@ static void oem_update_status_reset(void)
 static void oem_update_timeout(unsigned long dummy)
 {
 	unsigned long flags;
+
 	spin_lock_irqsave(&fb_async_lock, flags);
 	pr_info("DBG oem_update_timeout\n");
-	//this function needs to move to the end of fb_off_async
-	//oem_update_status_reset();
+	/*this function needs to move to the end of fb_off_async
+	oem_update_status_reset();*/
 	if (oem_fb_info != NULL)
 		schedule_work(&fb_off_async_work);
 	spin_unlock_irqrestore(&fb_async_lock, flags);
@@ -1166,15 +1178,16 @@ void fb_blank_update_oem(void)
 	spin_lock_irqsave(&fb_async_lock, flags);
 	pr_info("DBG fb_blank_update_oem, fb_blank_keeper=%d\n", fb_blank_keeper);
 
-	//If the lcd is already UNBLANK, just reset and let it go!
-       //20160402-fix: only when lcd status from uplayer changed to unblank, can let it go
+	/*If the lcd is already UNBLANK, just reset and let it go!
+       20160402-fix: only when lcd status from uplayer changed to unblank, can let it go*/
 	if (lcd_status_uplayer == FB_BLANK_UNBLANK) {
 		pr_info("DBG fb_blank_update_oem, lcd already ON\n");
 		oem_update_status_reset();
 		spin_unlock_irqrestore(&fb_async_lock, flags);
 		return;
 	}
-	/* If the fingerprint event triggered contineously, the UNBLANK status needs to stay and reset the timer to 5s later
+	/* If the fingerprint event triggered contineously,
+	 * the UNBLANK status needs to stay and reset the timer to 5s later
 	 * This is for fingerprint authenticate fail issue.
 	 * Once the fb_blank_keeper is set to 1, the fb_on_async_work no need to schedule again.
 	*/
@@ -1188,37 +1201,43 @@ void fb_blank_update_oem(void)
 	spin_unlock_irqrestore(&fb_async_lock, flags);
 }
 #else
-/*This function called in interrupt context, Add blank function when undef FB_AYSNC_PATCH*/
+/*This function called in interrupt context, Add blank function when undef FB_ASYNC_PATCH*/
 void fb_blank_update_oem(void)
 {
 }
-#endif//end of FB_AYSNC_PATCH
-
+#endif
 int
 fb_blank(struct fb_info *info, int blank)
-{	
+{
 	struct fb_event event;
 	int ret = -EINVAL, early_ret;
 
-#ifdef FB_AYSNC_PATCH
+#ifdef FB_ASYNC_PATCH
+#ifdef CONFIG_BOARD_FUJISAN
+	if (info->node == 0) {
+#endif
 	mutex_lock(&fb_blank_async_mutex);
 	oem_update_status_reset();
-	//pr_info("DBG fb_blank, info address=0x%p id=%s blank=%d\n",info, info->fix.id, blank);
-	if ((info != NULL) && (!strcmp(info->fix.id,"mdssfb_90000")) && (oem_fb_info == NULL)) {
+	if ((info != NULL) && (!strcmp(info->fix.id, "mdssfb_90000")) && (oem_fb_info == NULL)) {
 		pr_info("DBG fb_blank, initialize for only once\n");
 		oem_fb_info = info;
 		wake_lock_init(&fb_blank_async_wl, WAKE_LOCK_SUSPEND, "fb_async_oem");
 	}
-       //20160402-fix: save the lcd status from uplayer
+       /*20160402-fix: save the lcd status from uplayer*/
 	lcd_status_uplayer = blank;
-	if (lcd_status == blank){
-		pr_info("DBG fb_blank, already ok, lcd_status=%d, blank=%d, fb_blank skip..\n", lcd_status,blank);
+	if (lcd_status != blank) {
+		pr_info("DBG fb_blank , lcd_status=%d, blank=%d, Start\n", lcd_status, blank);
+		lcd_status = blank;
+	} else {
+		pr_info("DBG fb_blank, already ok, lcd_status=%d, blank=%d, fb_blank skip..\n", lcd_status, blank);
 		mutex_unlock(&fb_blank_async_mutex);
 		return 0;
-	} else {
-		pr_info("DBG fb_blank, lcd_status=%d, blank=%d, Start\n", lcd_status,blank);
-		lcd_status = blank;
 	}
+#ifdef CONFIG_BOARD_FUJISAN
+	} else {
+		pr_info("DBG fb_blank node=%d, lcd_status=%d, blank=%d, Start\n", info->node, lcd_status, blank);
+	}
+#endif
 #endif
 
  	if (blank > FB_BLANK_POWERDOWN)
@@ -1243,8 +1262,11 @@ fb_blank(struct fb_info *info, int blank)
 			fb_notifier_call_chain(FB_R_EARLY_EVENT_BLANK, &event);
 	}
 
-#ifdef FB_AYSNC_PATCH
-	pr_info("DBG fb_blank, lcd_status=%d, blank=%d, End\n", lcd_status,blank);
+#ifdef FB_ASYNC_PATCH
+	pr_info("DBG fb_blank, lcd_status=%d, blank=%d, End\n", lcd_status, blank);
+#ifdef CONFIG_BOARD_FUJISAN
+	if (info->node == 0)
+#endif
 	mutex_unlock(&fb_blank_async_mutex);
 #endif
  	return ret;
