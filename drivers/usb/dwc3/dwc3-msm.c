@@ -53,7 +53,7 @@
 #include "xhci.h"
 
 #define DWC3_IDEV_CHG_MAX 1500
-#define DWC3_HVDCP_CHG_MAX  1500   //1800 zte_PM protect
+#define DWC3_HVDCP_CHG_MAX 1800
 #define DWC3_WAKEUP_SRC_TIMEOUT 5000
 
 #define MICRO_5V    5000000
@@ -256,7 +256,6 @@ struct dwc3_msm {
 #define MDWC3_ASYNC_IRQ_WAKE_CAPABILITY	BIT(1)
 #define MDWC3_POWER_COLLAPSE		BIT(2)
 
-	bool			xo_vote_for_charger;
 	unsigned int		irq_to_affin;
 	struct notifier_block	dwc3_cpu_notifier;
 	struct notifier_block	usbdev_nb;
@@ -276,6 +275,7 @@ struct dwc3_msm {
 	struct pm_qos_request   pm_qos_req_dma;
 	struct delayed_work     perf_vote_work;
 	enum dwc3_perf_mode	curr_mode;
+
 	/* wall charger in which D+/D- is disconnected
 		would be recognized as usb cable, 1/5 */
 	struct delayed_work	invalid_chg_work;
@@ -309,7 +309,8 @@ static int skip_invalid_chg_work = 0;
 static void dwc3_invalid_chg_work(struct work_struct *w)
 {
 	struct dwc3_msm *mdwc = container_of(w, struct dwc3_msm, invalid_chg_work.work);
-	if (skip_invalid_chg_work){
+
+	if (skip_invalid_chg_work) {
 		dev_info(mdwc->dev, "do skip_invalid_chg_work\n");
 		skip_invalid_chg_work = 0;
 		return;
@@ -317,7 +318,6 @@ static void dwc3_invalid_chg_work(struct work_struct *w)
 
 	dev_info(mdwc->dev, "usb schedule %s\n", __func__);
 	dwc3_msm_gadget_vbus_draw(mdwc, DWC3_IDEV_CHG_INVALID);
-	return;
 }
 /*end*/
 
@@ -328,7 +328,7 @@ static void dwc3_invalid_chg_work(struct work_struct *w)
  */
 static int dwc3_extra_event_from_gadget(struct dwc3_msm *mdwc, unsigned event)
 {
-	if (event == 1){
+	if (event == 1) {
 		dev_info(mdwc->dev, "prepare skip_invalid_chg_work\n");
 		skip_invalid_chg_work = 1;
 	}
@@ -2185,12 +2185,8 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	 */
 	clk_disable_unprepare(mdwc->iface_clk);
 	/* USB PHY no more requires TCXO */
+	clk_disable_unprepare(mdwc->xo_clk);
 
-	if (!mdwc->xo_vote_for_charger) {
-		clk_disable_unprepare(mdwc->xo_clk);
-		 dev_info(mdwc->dev, "%s unvote for TCXO buffer\n",
-		 __func__);
-	 }
 	/* Perform controller power collapse */
 	if (!mdwc->in_host_mode && (!mdwc->vbus_active ||
 				    mdwc->otg_state == OTG_STATE_B_IDLE ||
@@ -2257,17 +2253,10 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 	pm_stay_awake(mdwc->dev);
 
 	/* Vote for TCXO while waking up USB HSPHY */
-	if (!mdwc->xo_vote_for_charger) {
-		ret = clk_prepare_enable(mdwc->xo_clk);
-		if (ret)
-			dev_info(mdwc->dev, "%s failed to vote TCXO buffer%d\n",
-					__func__, ret);
-		else
-			dev_info(mdwc->dev, "%s vote for TCXO buffer\n",
-					__func__);
-	} else
-		dev_info(mdwc->dev, "%s xo_vote_for_charger = %d\n",
-				__func__, mdwc->xo_vote_for_charger);
+	ret = clk_prepare_enable(mdwc->xo_clk);
+	if (ret)
+		dev_err(mdwc->dev, "%s failed to vote TCXO buffer%d\n",
+						__func__, ret);
 
 	/* Restore controller power collapse */
 	if (mdwc->lpm_flags & MDWC3_POWER_COLLAPSE) {
@@ -2596,7 +2585,6 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 	int ret;
 	enum dwc3_id_state id;
 
-	pr_info("%s, event:%d, val:%d\n", __func__, psp, val->intval);
 	switch (psp) {
 	case POWER_SUPPLY_PROP_USB_OTG:
 		id = val->intval ? DWC3_ID_GROUND : DWC3_ID_FLOAT;
@@ -2724,7 +2712,7 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 		if (mdwc->chg_type != DWC3_INVALID_CHARGER)
 			mdwc->chg_state = USB_CHG_STATE_DETECTED;
 
-		dev_info(mdwc->dev, "%s: charger type: %s\n", __func__,
+		dev_dbg(mdwc->dev, "%s: charger type: %s\n", __func__,
 				chg_to_string(mdwc->chg_type));
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
@@ -3010,11 +2998,11 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&mdwc->resume_work, dwc3_resume_work);
 	INIT_WORK(&mdwc->restart_usb_work, dwc3_restart_usb_work);
 	INIT_DELAYED_WORK(&mdwc->sm_work, dwc3_msm_otg_sm_work);
-	INIT_DELAYED_WORK(&mdwc->perf_vote_work, dwc3_msm_otg_perf_vote_work);
 	/* wall charger in which D+/D- is disconnected
 		would be recognized as usb cable, 5/5 */
 	INIT_DELAYED_WORK(&mdwc->invalid_chg_work, dwc3_invalid_chg_work);
 	/* end */
+	INIT_DELAYED_WORK(&mdwc->perf_vote_work, dwc3_msm_otg_perf_vote_work);
 
 	mdwc->sm_usb_wq = create_freezable_workqueue("k_sm_usb");
 	 if (!mdwc->sm_usb_wq) {
@@ -3475,7 +3463,7 @@ static int dwc3_msm_remove(struct platform_device *pdev)
 	clk_disable_unprepare(mdwc->sleep_clk);
 	clk_disable_unprepare(mdwc->xo_clk);
 	clk_put(mdwc->xo_clk);
-	mdwc->xo_vote_for_charger = false;
+
 	dwc3_msm_config_gdsc(mdwc, 0);
 
 	return 0;
@@ -3837,15 +3825,15 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned mA)
 	if (mdwc->charging_disabled)
 		return 0;
 
-	if ((mdwc->chg_type != DWC3_INVALID_CHARGER) && (mA != DWC3_IDEV_CHG_INVALID)) {
-		dev_err(mdwc->dev,
+	if (mdwc->chg_type != DWC3_INVALID_CHARGER) {
+		dev_dbg(mdwc->dev,
 			"SKIP setting power supply type again,chg_type = %d\n",
 			mdwc->chg_type);
 		goto skip_psy_type;
 	}
 
-	dev_info(mdwc->dev, "Requested curr from USB = %u, max-type-c:%u, mdwc->chg_type:%d\n",
-					mA, mdwc->typec_current_max, mdwc->chg_type);
+	dev_dbg(mdwc->dev, "Requested curr from USB = %u, max-type-c:%u\n",
+					mA, mdwc->typec_current_max);
 
 	if (mdwc->chg_type == DWC3_SDP_CHARGER)
 		power_supply_type = POWER_SUPPLY_TYPE_USB;
@@ -3900,39 +3888,10 @@ skip_psy_type:
 
 	power_supply_changed(&mdwc->usb_psy);
 	mdwc->max_power = mA;
-	if (mdwc->chg_type == DWC3_DCP_CHARGER) {
-		if (!mdwc->xo_vote_for_charger) {
-			struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
-
-			if (atomic_read(&dwc->in_lpm)) {
-				int ret;
-
-				ret = clk_prepare_enable(mdwc->xo_clk);
-					if (ret)
-						dev_info(mdwc->dev, "%s failed to vote TCXO buffer%d\n",
-								__func__, ret);
-					else
-						dev_info(mdwc->dev, "%s TCXO enabled\n",
-								__func__);
-			}
-			mdwc->xo_vote_for_charger = true;
-		}
-	} else {
-		if (mdwc->xo_vote_for_charger) {
-			struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
-
-			if (atomic_read(&dwc->in_lpm)) {
-				clk_disable_unprepare(mdwc->xo_clk);
-				dev_info(mdwc->dev, "%s TCXO disabled\n",
-						__func__);
-			}
-			mdwc->xo_vote_for_charger = false;
-		}
-	}
 	return 0;
 
 psy_error:
-	dev_err(mdwc->dev, "power supply error when setting property\n");
+	dev_dbg(mdwc->dev, "power supply error when setting property\n");
 	return -ENXIO;
 }
 
@@ -3941,22 +3900,20 @@ static void dwc3_check_float_lines(struct dwc3_msm *mdwc)
 	int dpdm;
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 
-	dev_info(mdwc->dev, "%s: Check linestate\n", __func__);
+	dev_dbg(mdwc->dev, "%s: Check linestate\n", __func__);
 	dwc3_msm_gadget_vbus_draw(mdwc, 0);
 
 	/* Get linestate with Idp_src enabled */
 	dpdm = usb_phy_dpdm_with_idp_src(mdwc->hs_phy);
-	dev_info(mdwc->dev, "%s: dpdm %d\n", __func__, dpdm);
 	if (dpdm == 0x2) {
 		/* DP is HIGH = lines are floating */
 		mdwc->chg_type = DWC3_PROPRIETARY_CHARGER;
 		mdwc->otg_state = OTG_STATE_B_IDLE;
-		dwc3_msm_gadget_vbus_draw(mdwc, DWC3_IDEV_CHG_INVALID);
 		pm_runtime_put_sync(mdwc->dev);
 		dbg_event(0xFF, "FLT psync",
 				atomic_read(&mdwc->dev->power.usage_count));
 	} else if (dpdm) {
-		dev_info(mdwc->dev, "%s:invalid linestate:%x\n", __func__, dpdm);
+		dev_dbg(mdwc->dev, "%s:invalid linestate:%x\n", __func__, dpdm);
 	}
 }
 
@@ -4025,8 +3982,6 @@ static void dwc3_msm_otg_sm_work(struct work_struct *w)
 		return;
 	}
 
-	dev_info(mdwc->dev, "dwc3 otg_state = %d, inputs = %lx, chg_type = %d\n",
-		mdwc->otg_state, mdwc->inputs, mdwc->chg_type);
 	state = usb_otg_state_string(mdwc->otg_state);
 	dev_dbg(mdwc->dev, "%s state\n", state);
 	dbg_event(0xFF, state, 0);
