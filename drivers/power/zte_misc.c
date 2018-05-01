@@ -415,7 +415,7 @@ typedef enum fingerprint_msg_type {
 static int fp_msg_disable = 0;
 static int fp_msg_type = FINGERPRINT_ERROR;
 
-extern void fb_blank_update_oem(void);//defined in drivers\video\fbdev\core\fbmem.c
+//extern void fb_blank_update_oem(void);//defined in drivers\video\fbdev\core\fbmem.c
 static int fp_msg_type_set(const char *val, struct kernel_param *kp)
 {
     int ret;
@@ -435,7 +435,7 @@ static int fp_msg_type_set(const char *val, struct kernel_param *kp)
     if (fp_msg_type == FINGERPRINT_DETECTED) {
 #endif
         pr_info("DBG fp_msg_set acquired\n");
-        fb_blank_update_oem();
+        //fb_blank_update_oem();
     }
 
     return 0;
