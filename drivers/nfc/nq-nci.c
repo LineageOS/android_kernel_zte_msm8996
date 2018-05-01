@@ -991,7 +991,7 @@ static int nqx_probe(struct i2c_client *client,
 	} else {
 		nqx_dev->ese_gpio = -EINVAL;
 		dev_err(&client->dev,
-			"%s: ese gpio not provided. nqx_dev->ese_gpio = %d. EINVAL = %d.\n", __func__, nqx_dev->ese_gpio, EINVAL);
+			"%s: ese gpio not provided\n", __func__);
 		/* ese gpio optional so we should continue */
 	}
 	if (gpio_is_valid(platform_data->clkreq_gpio)) {
@@ -1003,7 +1003,6 @@ static int nqx_probe(struct i2c_client *client,
 				__func__, platform_data->clkreq_gpio);
 			goto err_ese_gpio;
 		}
-		nqx_dev->clkreq_gpio = platform_data->clkreq_gpio;
 		r = gpio_direction_input(platform_data->clkreq_gpio);
 		if (r) {
 			dev_err(&client->dev,
@@ -1014,13 +1013,13 @@ static int nqx_probe(struct i2c_client *client,
 	} else {
 		dev_err(&client->dev,
 			"%s: clkreq gpio not provided\n", __func__);
-		//goto err_ese_gpio;
+		goto err_ese_gpio;
 	}
 
 	nqx_dev->en_gpio = platform_data->en_gpio;
 	nqx_dev->irq_gpio = platform_data->irq_gpio;
 	nqx_dev->firm_gpio  = platform_data->firm_gpio;
-	//nqx_dev->clkreq_gpio = platform_data->clkreq_gpio;
+	nqx_dev->clkreq_gpio = platform_data->clkreq_gpio;
 	nqx_dev->pdata = platform_data;
 
 	/* init mutex and queues */
@@ -1029,7 +1028,7 @@ static int nqx_probe(struct i2c_client *client,
 	spin_lock_init(&nqx_dev->irq_enabled_lock);
 
 	nqx_dev->nqx_device.minor = MISC_DYNAMIC_MINOR;
-	nqx_dev->nqx_device.name = "pn548";
+	nqx_dev->nqx_device.name = "nq-nci";
 	nqx_dev->nqx_device.fops = &nfc_dev_fops;
 
 	r = misc_register(&nqx_dev->nqx_device);
@@ -1178,7 +1177,7 @@ static int nqx_resume(struct device *device)
 	struct i2c_client *client = to_i2c_client(device);
 	struct nqx_dev *nqx_dev = i2c_get_clientdata(client);
 
-	if (device_may_wakeup(&client->dev) && nqx_dev->irq_enabled && nqx_dev->irq_wake_up) {
+	if (device_may_wakeup(&client->dev) && nqx_dev->irq_wake_up) {
 		if (!disable_irq_wake(client->irq))
 			nqx_dev->irq_wake_up = false;
 	}

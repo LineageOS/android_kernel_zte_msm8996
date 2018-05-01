@@ -82,7 +82,7 @@
 #define MAX_BUFFER_SIZE	512
 
 #define SIG_NFC 44
-#define PN5XX_DRIVER_NAME         "pn548"
+#define PN5XX_DRIVER_NAME         "pn5xx"
 
 #define NFC_RF_CLK_FREQ			(19200000)
 
@@ -436,7 +436,7 @@ static int nxp_pn5xx_reset(void)
 		NFC_ERR_MSG("unable to set output nfc gpio%d(%d)\n", pn5xx_dev->ven_gpio, rc);
 		return -EIO;
 	}
-
+#ifdef ENABLE_NFC_ESE_PWR_GPIO
 	if (!gpio_is_valid(pn5xx_dev->ese_pwr_gpio)) {
 		NFC_ERR_MSG("Could not configure nfc gpio%d\n", pn5xx_dev->ese_pwr_gpio);
 		return -EIO;
@@ -453,6 +453,7 @@ static int nxp_pn5xx_reset(void)
 		NFC_ERR_MSG("unable to set output nfc gpio%d(%d)\n", pn5xx_dev->ese_pwr_gpio, rc);
 		return -EIO;
 	}
+#endif
 #ifdef ENABLE_NFC_DOUBLE_SIM_SWITCH
     /*uicc2 power contrl*/
 	if (!gpio_is_valid(pn5xx_dev->swp2_pwr_gpio)) {
@@ -554,7 +555,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			NFC_ERR_MSG("of_property_read(ven_gpio) fail:%d\n", ret);
 			goto err_ven_gpio;
 		}
-
+#ifdef ENABLE_NFC_ESE_PWR_GPIO
 		ret = of_get_named_gpio(of_node, "nxp,pn5xx-ese-pwr", 0);
 		if (ret > 0) {
 			pn5xx_dev->ese_pwr_gpio = ret;
@@ -562,6 +563,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 			NFC_ERR_MSG("of_property_read(ese_pwr_gpio) fail:%d\n", ret);
 			goto err_ese_pwr_gpio;
 		}
+#endif
 #ifdef ENABLE_NFC_DOUBLE_SIM_SWITCH
 		ret = of_get_named_gpio(of_node, "nxp,pn5xx-swp2-pwr", 0);
 		if (ret > 0) {
@@ -588,7 +590,7 @@ static int pn5xx_probe(struct i2c_client *client, const struct i2c_device_id *id
 
 		/*nfc_wake_lock = wakeup_source_register("nfctimer");*/
 		pn5xx_dev->pn5xx_device.minor = MISC_DYNAMIC_MINOR;
-		pn5xx_dev->pn5xx_device.name = "pn548";
+		pn5xx_dev->pn5xx_device.name = "pn5xx";
 		pn5xx_dev->pn5xx_device.fops = &pn5xx_dev_fops;
 
 		ret = misc_register(&pn5xx_dev->pn5xx_device);
@@ -663,8 +665,10 @@ err_swp2_gpio:
 err_clkreq_gpio:
 	gpio_free(pn5xx_dev->clkreq_gpio);
 #endif
+#ifdef ENABLE_NFC_ESE_PWR_GPIO
 err_ese_pwr_gpio:
 	gpio_free(pn5xx_dev->ese_pwr_gpio);
+#endif
 err_ven_gpio:
 	gpio_free(pn5xx_dev->ven_gpio);
 err_firm_gpio:
@@ -704,7 +708,9 @@ static int pn5xx_remove(struct i2c_client *client)
 	mutex_destroy(&pn5xx_dev->write_mutex);
 	gpio_free(pn5xx_dev->irq_gpio);
 	gpio_free(pn5xx_dev->ven_gpio);
+#ifdef ENABLE_NFC_ESE_PWR_GPIO
 	gpio_free(pn5xx_dev->ese_pwr_gpio);
+#endif
 #ifdef ENABLE_NFC_DOUBLE_SIM_SWITCH
 	gpio_free(pn5xx_dev->swp2_pwr_gpio);
 #endif
@@ -729,6 +735,7 @@ static const struct of_device_id nfc_match_table[] = {
 	{.compatible = "nxp,pn544",},
 	{.compatible = "nxp,pn547",},
 	{.compatible = "nxp,pn548",},
+	{.compatible = "nxp,pn5xx",},
 	{ },
 };
 
@@ -737,7 +744,7 @@ static struct i2c_driver pn5xx_driver = {
 	.probe		= pn5xx_probe,
 	.remove		= pn5xx_remove,
 	.driver		= {
-		.name   = "pn548",
+		.name   = "pn5xx",
 		.owner = THIS_MODULE,
 		.of_match_table = nfc_match_table,
 	},
@@ -761,5 +768,5 @@ static void __exit pn5xx_dev_exit(void)
 module_exit(pn5xx_dev_exit);
 
 MODULE_AUTHOR("Sylvain Fonteneau");
-MODULE_DESCRIPTION("NFC PN548 driver");
+MODULE_DESCRIPTION("NFC PN5xx driver");
 MODULE_LICENSE("GPL");
