@@ -6105,7 +6105,8 @@ static irqreturn_t ak4961_rce_irq(int irq, void *data)
 			report = SND_JACK_BTN_0;
 #endif
 
-		} else if (mic_level < 0x08) {
+		} else if (mic_level < 0x07) {
+/* ZTE_chenjun:orig:0x08 */
 #ifdef CONFIG_SWITCH
 			report = KEY_VOLUMEUP;
 #else
