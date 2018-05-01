@@ -636,7 +636,7 @@ int snd_soc_suspend(struct device *dev)
 					  SND_SOC_DAPM_STREAM_SUSPEND);
 	}
 
-// chenjun:NO need suspend
+/* ZTE_chenjun:NO need suspend */
 #if 0
 	/* Recheck all analogue paths too */
 	dapm_mark_io_dirty(&card->dapm);
@@ -806,7 +806,7 @@ static void soc_resume_deferred(struct work_struct *work)
 	/* userspace can access us now we are back as we were before */
 	snd_power_change_state(card->snd_card, SNDRV_CTL_POWER_D0);
 
-// chenjun:NO need suspend
+/* ZTE_chenjun:NO need suspend */
 #if 0
 	/* Recheck all analogue paths too */
 	dapm_mark_io_dirty(&card->dapm);
