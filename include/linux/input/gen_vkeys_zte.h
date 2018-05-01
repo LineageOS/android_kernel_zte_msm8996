@@ -25,6 +25,5 @@ struct vkeys_platform_data {
 	int dx;
 	int *keycodes;
 	int num_keys;
-	//int y_offset;
 };
 #endif
