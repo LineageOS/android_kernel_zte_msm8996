@@ -24,7 +24,7 @@
 #include <asm/cputype.h>
 
 /*ZTE_BOOT_20141011 huang.yanjun*/
-#ifdef CONFIG_ZTE_BOOT_MODE
+//#ifdef CONFIG_ZTE_BOOT_MODE
 
 #define ANDROID_BOOT_MODE              "androidboot.mode="
 #define ANDROID_BOOT_MODE_NORMAL       "normal"
@@ -55,7 +55,7 @@ int socinfo_get_ftm_flag(void);
 int socinfo_get_ffbm_flag(void);
 int socinfo_get_charger_flag(void);
 
-#endif
+//#endif
 /*
  * SOC version type with major number in the upper 16 bits and minor
  * number in the lower 16 bits.  For example:
@@ -297,5 +297,11 @@ void socinfo_set_hw_ver(char *ver);
 void socinfo_set_fp_hw(int val);
 int socinfo_get_fp_hw(void);
 #endif
+
+/*
+ * Support for PV mode for hall
+ */
+void socinfo_set_pv_flag(int val);
+int socinfo_get_pv_flag(void);
 
 #endif

@@ -616,7 +616,7 @@ static struct socinfo_v0_1 dummy_socinfo = {
 	.version = 1,
 };
 
-#ifdef CONFIG_ZTE_BOOT_MODE
+//#ifdef CONFIG_ZTE_BOOT_MODE
 static int __init bootmode_init(char *mode)
 {
         int boot_mode = 0;
@@ -659,7 +659,20 @@ static int __init bootmode_init(char *mode)
 }
 __setup(ANDROID_BOOT_MODE, bootmode_init);
 
-///lkej add code for pv version
+/*zte_pm add code for pv version*/
+static int pv_flag = 0;
+
+void socinfo_set_pv_flag(int val)
+{
+	pv_flag = val;
+}
+
+int socinfo_get_pv_flag(void)
+{
+    return pv_flag;
+}
+EXPORT_SYMBOL(socinfo_get_pv_flag);
+
 #define SOCINFO_CMDLINE_PV_FLAG "androidboot.pv-version="
 #define SOCINFO_CMDLINE_PV_VERSION   "1"
 #define SOCINFO_CMDLINE_NON_PV_VERSION      "0"
@@ -677,6 +690,28 @@ static int __init zte_pv_flag_init(char *ver)
 }
 __setup(SOCINFO_CMDLINE_PV_FLAG, zte_pv_flag_init);
 
+/*
+#define SOCINFO_CMDLINE_FP_HW               "androidboot.fingerprinthw="
+#define SOCINFO_CMDLINE_FP_HW_SYNAFP        "synafp"
+#define SOCINFO_CMDLINE_FP_HW_GOODIX        "goodix"
+static int __init zte_fingerprint_hw_init(char *ver)
+{
+	int fp_hw = FINGERPRINT_HW_UNKOWN;
+
+	if (!strncmp(ver, SOCINFO_CMDLINE_FP_HW_SYNAFP, strlen(SOCINFO_CMDLINE_FP_HW_SYNAFP)))
+	{
+		fp_hw = FINGERPRINT_HW_SYNAFP;
+	}
+	else if (!strncmp(ver, SOCINFO_CMDLINE_FP_HW_GOODIX, strlen(SOCINFO_CMDLINE_FP_HW_GOODIX)))
+	{
+		fp_hw = FINGERPRINT_HW_GOODIX;
+	}
+	printk(KERN_ERR "boot_stats fingerprint_hw: %d ", fp_hw);
+	socinfo_set_fp_hw(fp_hw);
+	return 0;
+}
+__setup(SOCINFO_CMDLINE_FP_HW, zte_fingerprint_hw_init);
+*/
 static int g_boot_mode = 0;
 
 void socinfo_set_boot_mode(int boot_mode)
@@ -708,20 +743,23 @@ int socinfo_get_charger_flag(void)
 }
 EXPORT_SYMBOL(socinfo_get_charger_flag);
 
-//zte_pm_20151126 add  for pv version // boot add
-static int pv_flag = 0;
 
-void socinfo_set_pv_flag(int val)
+
+//ZTE fingerprint hw setting
+/*
+static int fingprint_hw_type = -1;
+void socinfo_set_fp_hw(int val)
 {
-	pv_flag = val;
+    fingprint_hw_type = val;
 }
 
-int socinfo_get_pv_flag(void)
+int socinfo_get_fp_hw(void)
 {
-    return pv_flag;
+    return fingprint_hw_type;
 }
-EXPORT_SYMBOL(socinfo_get_pv_flag);
-#endif
+EXPORT_SYMBOL(socinfo_get_fp_hw);
+*/
+//#endif
 
 uint32_t socinfo_get_id(void)
 {
