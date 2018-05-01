@@ -258,10 +258,7 @@ void led_trigger_event(struct led_trigger *trig,
 	struct list_head *entry;
 	if (!trig)
 		return;
-/*
-  * by ZTE_YCM_20151102 yi.changming 400091-3
-  */
-// --->
+
 #if 0
 	read_lock(&trig->leddev_list_lock);
 	list_for_each_entry(led_cdev, &trig->led_cdevs, trig_list)
@@ -277,7 +274,6 @@ void led_trigger_event(struct led_trigger *trig,
 	}
 	read_unlock(&trig->leddev_list_lock);
 #endif
-// <---400091-3
 }
 EXPORT_SYMBOL_GPL(led_trigger_event);
 

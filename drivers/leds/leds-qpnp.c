@@ -10,7 +10,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#define pr_fmt(fmt) "[LED] %s(%d): " fmt, __func__,__LINE__
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -250,6 +249,8 @@
 #define KPDBL_MODULE_EN_MASK		0x80
 #define NUM_KPDBL_LEDS			4
 #define KPDBL_MASTER_BIT_INDEX		0
+
+#define LED_BLINK_SHOW_LENGTH 10
 
 /**
  * enum qpnp_leds - QPNP supported led ids
@@ -2657,13 +2658,13 @@ static void led_blink(struct qpnp_led_data *led,
 	mutex_unlock(&led->lock);
 }
 
-//zte_led add 20150210
-static ssize_t blink_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t blink_show(struct device *dev, struct device_attribute *attr, char *buf) /*zte_led*/
 {
 	struct qpnp_led_data *led;
 	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+
 	led = container_of(led_cdev, struct qpnp_led_data, cdev);
-	return sprintf(buf, "blink = %d\n", led->cdev.blink_value);
+	return snprintf(buf, LED_BLINK_SHOW_LENGTH, "blink=%d\n", led->cdev.blink_value);
 }
 
 static ssize_t blink_store(struct device *dev,
@@ -2681,13 +2682,13 @@ static ssize_t blink_store(struct device *dev,
 	led = container_of(led_cdev, struct qpnp_led_data, cdev);
 	led->cdev.brightness = blinking ? led->cdev.max_brightness : 0;
 
-	//zte_led liyf 20150213 for 2 blink-period, transmit blinking from HAL to lut_params
-	//pr_info("from HAL blinking=%lu\n", blinking);  //too many print
-	if(led->rgb_cfg->pwm_cfg->use_blink){
+	if (led->rgb_cfg->pwm_cfg->use_blink) {
 		led->cdev.blink_value = blinking;
-		led->rgb_cfg->pwm_cfg->lut_params.blink_value = blinking;
+		/*zte_led
+		//if 2 blink-period, transmit blinking from HAL to lut_params
+		//led->rgb_cfg->pwm_cfg->lut_params.blink_value = blinking;
+		*/
 	}
-	//zte_led end
 
 	switch (led->id) {
 	case QPNP_ID_LED_MPP:
@@ -2717,7 +2718,7 @@ static DEVICE_ATTR(start_idx, 0664, NULL, start_idx_store);
 static DEVICE_ATTR(ramp_step_ms, 0664, NULL, ramp_step_ms_store);
 static DEVICE_ATTR(lut_flags, 0664, NULL, lut_flags_store);
 static DEVICE_ATTR(duty_pcts, 0664, NULL, duty_pcts_store);
-static DEVICE_ATTR(blink, 0664, blink_show, blink_store);
+static DEVICE_ATTR(blink, 0664, blink_show, blink_store);/*zte_led*/
 
 static struct attribute *led_attrs[] = {
 	&dev_attr_led_mode.attr,
@@ -4135,7 +4136,8 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 				qpnp_led_turn_off(led);
 		} else {
 			led->cdev.brightness = LED_OFF;
-			__qpnp_led_work(led, led->cdev.brightness);//zte add off led when power on in kernel , on in bootloader
+			/*zte_led*//*off when power on in kernel , on in bootloader*/
+			__qpnp_led_work(led, led->cdev.brightness);
 		}
 
 		parsed_leds++;

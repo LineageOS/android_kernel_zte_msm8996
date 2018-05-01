@@ -272,12 +272,14 @@ static u8 qpnp_flash_led_ctrl_dbg_regs[] = {
 
 
 typedef  int (*check_hw_version_t) (void);
+#define HW_BOARD_A_ID 1
+#define HW_BOARD_B_ID 2
 
 static int check_hw_version_AB(void)
 {
 	int board_id  = check_hw_id();
 
-	if ((board_id == 1) || (board_id == 2))
+	if ((board_id == HW_BOARD_A_ID) || (board_id == HW_BOARD_B_ID))
 		return 1;
 	else
 		return 0;
@@ -287,7 +289,7 @@ static int check_hw_version_C(void)
 {
 	int board_id  = check_hw_id();
 
-	if ((board_id == 1) || (board_id == 2))
+	if ((board_id == HW_BOARD_A_ID) || (board_id == HW_BOARD_B_ID))
 		return 0;
 	else
 		return 1;
@@ -2014,16 +2016,13 @@ static void qpnp_flash_led_brightness_set(struct led_classdev *led_cdev,
 			value = FLASH_LED_MIN_CURRENT_MA;
 		flash_node->prgm_current = value;
 	}
-/*
-  * by ZTE_YCM_20151102 yi.changming 400091-3
-  */
-// --->
+
 #if 0
 	queue_work(led->ordered_workq, &flash_node->work);
 #else
-    qpnp_flash_led_work(&flash_node->work);
+	qpnp_flash_led_work(&flash_node->work);
 #endif
-// <---400091-3
+
 	return;
 }
 
