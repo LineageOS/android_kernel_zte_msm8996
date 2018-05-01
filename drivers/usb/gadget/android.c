@@ -36,7 +36,6 @@
 
 #include "gadget_chips.h"
 
-#include <linux/syscalls.h>
 #ifdef CONFIG_MEDIA_SUPPORT
 #include "f_uvc.h"
 #include "u_uvc.h"
@@ -298,12 +297,12 @@ struct usb_parameters zte_usb_parameters = {
 	.noSerialno = 0,
 };
 
-struct pid_no_oem_prefix{
+struct pid_no_oem_prefix {
 	__u16 pid;
 	__u16 pid_no_prefix;
 };
 
-static struct pid_no_oem_prefix pid_no_zte_prefix[] ={
+static struct pid_no_oem_prefix pid_no_zte_prefix[] = {
 	/* {pid, pid_no_prefix} */
 	{0x0504, 0x0360,},
 	{0x0501, 0x0359,},
@@ -345,12 +344,29 @@ static void pid_not_display_oem_prefix(ushort *pid)
 	int index;
 	int size = ARRAY_SIZE(pid_no_zte_prefix);
 	__u16 product_id = *pid;
-	for(index=0; index<size; index++){
-		if(pid_no_zte_prefix[index].pid == product_id)
+
+	for (index = 0; index < size; index++) {
+		if (pid_no_zte_prefix[index].pid == product_id) {
 			product_id = pid_no_zte_prefix[index].pid_no_prefix;
 			pr_debug("%s: 0x%x\n", __func__, product_id);
 			*pid = product_id;
 		}
+	}
+}
+
+/* Use Qualcomm's usb vid and pid if enters download due to panic. */
+void use_qualcomm_usb_product_id(void)
+{
+	if (!diag_dload) {
+		pr_debug("%s: unable to update product id\n", __func__);
+		return;
+	}
+
+	/*
+	 * 0x55 -> 01010101, used for verification in memory
+	 * which could be changed by modem
+	 */
+	diag_dload->dload_info_free[0] = 0x55;
 }
 
 enum android_device_state {
@@ -2177,7 +2193,7 @@ static ssize_t transports_init_store(
 }
 
 static struct device_attribute dev_attr_transports_init =
-				__ATTR(transports_init, S_IRUGO | S_IWUSR,
+				__ATTR(transports_init, S_IWUSR,
 				NULL,
 				transports_init_store);
 
@@ -3899,14 +3915,14 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	mutex_lock(&dev->mutex);
 
 	sscanf(buff, "%d", &enabled);
+	pr_info("usb:%s, enabled=%d\n", __func__, enabled);
 	if (enabled && !dev->enabled) {
 		/*
 		 * Update values in composite driver's copy of
 		 * device descriptor.
 		 */
-		pr_info("usb:%s,enabled=%d\n",__func__,enabled);
 		cdev->desc.idVendor = device_desc.idVendor;
-		if(unlikely(not_display_oem_prefix()))
+		if (unlikely(not_display_oem_prefix()))
 			pid_not_display_oem_prefix(&device_desc.idProduct);
 		cdev->desc.idProduct = device_desc.idProduct;
 		if (device_desc.bcdDevice)
@@ -3962,32 +3978,32 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 * It's used to enable adb, or enable diag with scsi command.
 * Start_adbd has not been implemented yet.
 */
-struct usb_function_info{
+struct usb_function_info {
 	__u16 product_id;
-	char* clients;
-	char* transports;
-	char* functions;
+	char *clients;
+	char *transports;
+	char *functions;
 	int start_adbd;
 };
 
 /* PID related functions we supported, should be modified. */
-static struct usb_function_info function_info[] ={
+static struct usb_function_info function_info[] = {
 	{
-		.product_id	=0x0112,
+		.product_id	= 0x0112,
 		.clients	= "diag",
 		.transports	= NULL,
 		.functions	= "diag",
 		.start_adbd	= 0,
 	},
 	{
-		.product_id	=0x1353, /*PID of MS*/
+		.product_id	= 0x1353, /*PID of MS*/
 		.clients	= NULL,
 		.transports	= NULL,
 		.functions	= "mass_storage",
 		.start_adbd	= 0,
 	},
 	{
-		.product_id	=0x1350, /*PID of DIAG+MODEM+NMEA+MS*/
+		.product_id	= 0x1350, /*PID of DIAG+MODEM+NMEA+MS*/
 		.clients	= "diag",
 		.transports	= "smd,tty",
 		.functions	= "diag,serial,mass_storage",
@@ -3997,18 +4013,19 @@ static struct usb_function_info function_info[] ={
 };
 
 /* Get function info from pid, retuen 1(got), 0(miss). */
-static int get_function_info_from_pid(int pid, struct  usb_function_info** info)
+static int get_function_info_from_pid(int pid, struct  usb_function_info **info)
 {
 	int index;
-	int size=ARRAY_SIZE(function_info);
-	for(index=0; index<size; index++){
-		if(pid == function_info[index].product_id){
+	int size = ARRAY_SIZE(function_info);
+
+	for (index = 0; index < size; index++) {
+		if (pid == function_info[index].product_id) {
 			*info = &function_info[index];
-			pr_err("android_usb: find this pid %04x\n",pid);
+			pr_info("android_usb: find this pid %04x\n", pid);
 			return 1;
-			}
 		}
-	pr_err("android_usb: not support this pid %04x\n",pid);
+	}
+	pr_err("android_usb: not support this pid %04x\n", pid);
 	return 0;
 }
 
@@ -4022,7 +4039,7 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 	struct android_usb_function_holder *f_holder;
 	struct android_configuration *conf;
 	struct list_head *curr_conf = &dev->configs;
-	int target_pid = 0, got_info=0;
+	int target_pid = 0, got_info = 0;
 	char *name;
 	char buf[256], *b;
 	int err;
@@ -4030,12 +4047,14 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 	int is_ffs;
 	int ffs_enabled = 0;
 
-	pr_err("android_usb: %s enter", __func__);
-	sscanf(buff, "%04x\n", &target_pid);
-	if(target_pid)
+	pr_info("android_usb: %s enter", __func__);
+	if (sscanf(buff, "%04x\n", &target_pid) != 1) {
+	    pr_err("android_usb: switch pid failed\n");
+	}
+	if (target_pid)
 		got_info = get_function_info_from_pid(target_pid, &info);
 
-	if(got_info){
+	if (got_info) {
 		/* Remove former config. */
 		android_disable(dev);
 		list_for_each_entry(conf, &dev->configs, list_item)
@@ -4046,18 +4065,16 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 			}
 		msleep(10);
 		/* write in new config. */
-		if(info->clients){
+		if (info->clients) {
 			strlcpy(diag_clients, info->clients, sizeof(diag_clients));
-
-			}
-		if(info->transports){
+		}
+		if (info->transports) {
 			strlcpy(serial_transports, info->transports, sizeof(serial_transports));
-
-			}
+		}
 		/* Change functions is more complex than change clients and transports. */
-		if(info->functions)
-		{
-			pr_err("android_usb: %s enter, functions=%s",__func__,info->functions);
+		if (info->functions) {
+
+			pr_info("android_usb: %s enter, functions = %s", __func__, info->functions);
 
 			/* Clear previous enabled list. */
 			list_for_each_entry(conf, &dev->configs, list_item) {
@@ -4069,14 +4086,14 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 					f_holder->f->android_dev = NULL;
 					list_del(&f_holder->enabled_list);
 					kfree(f_holder);
-					}
+				}
 				INIT_LIST_HEAD(&conf->enabled_functions);
 			}
 
 			/* If the next not equal to the head, take it */
 			if (curr_conf->next != &dev->configs)
 				conf = list_entry(curr_conf->next,
-						  struct android_configuration,list_item);
+						  struct android_configuration, list_item);
 			else
 				conf = alloc_android_config(dev);
 
@@ -4084,7 +4101,7 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 
 			strlcpy(buf, info->functions, sizeof(buf));
 			b = strim(buf);
-			while(b){
+			while (b) {
 				name = strsep(&b, ",");
 				is_ffs = 0;
 				strlcpy(aliases, dev->ffs_aliases, sizeof(aliases));
@@ -4092,6 +4109,7 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 
 				while (a) {
 					char *alias = strsep(&a, ",");
+
 					if (alias && !strcmp(name, alias)) {
 						is_ffs = 1;
 						break;
@@ -4102,25 +4120,24 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 						continue;
 					err = android_enable_function(dev, conf, "ffs");
 					if (err)
-						pr_err("android_usb: Cannot enable ffs (%d)",
-						       err);
+						pr_err("android_usb: Cannot enable ffs (%d)", err);
 					else
 						ffs_enabled = 1;
 					continue;
 				}
 
-			if(name){
-				err = android_enable_function(dev, conf, name);
-				if(err)
-					pr_err("android_usb: %s Cannot enable '%s'",__func__,name);
+				if (name) {
+					err = android_enable_function(dev, conf, name);
+					if (err)
+						pr_err("android_usb: %s Cannot enable '%s'", __func__, name);
 				}
 			}
 
 			/* Free uneeded configurations if exists. */
 			while (curr_conf->next != &dev->configs) {
 				conf = list_entry(curr_conf->next,
-				  struct android_configuration, list_item);
-			free_android_config(dev, conf);
+				struct android_configuration, list_item);
+				free_android_config(dev, conf);
 			}
 		}
 
@@ -4131,7 +4148,7 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;
 		cdev->desc.bDeviceProtocol = device_desc.bDeviceProtocol;
 
-		// Clear serial number
+		/* Clear serial number */
 		strings_dev[STRING_SERIAL_IDX].id = 0;
 		device_desc.iSerialNumber = 0;
 		if (cdev)
@@ -4144,8 +4161,7 @@ switch_pid_store(struct device *pdev, struct device_attribute *attr,
 					f_holder->f->enable(f_holder->f);
 			}
 		android_enable(dev);
-	}
-	else {
+	} else {
 		pr_err("android_usb: switch pid failed\n");
 	}
 	return size;
@@ -4226,24 +4242,24 @@ field ## _store(struct device *pdev, struct device_attribute *attr,	\
 static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
 
 /* USB config attr. */
-#define OEM_USB_CONFIG_ATTR(field, format_string)				\
+#define OEM_USB_CONFIG_ATTR(field, format_string)			\
 static ssize_t								\
 field ## _show(struct device *dev, struct device_attribute *attr,	\
 		char *buf)						\
 {									\
 	return snprintf(buf, PAGE_SIZE,					\
-			format_string, zte_usb_parameters.field);		\
+			format_string, zte_usb_parameters.field);	\
 }									\
 static ssize_t								\
 field ## _store(struct device *dev, struct device_attribute *attr,	\
-		const char *buf, size_t size)		       		\
+		const char *buf, size_t size)				\
 {									\
-	int value;					       		\
+	int value;							\
 	if (sscanf(buf, format_string, &value) == 1) {			\
-		zte_usb_parameters.field = value;				\
+		zte_usb_parameters.field = value;			\
 		return size;						\
 	}								\
-	return -1;							\
+	return -EPERM;							\
 }									\
 static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
 
@@ -4264,7 +4280,7 @@ field ## _store(struct device *dev, struct device_attribute *attr,	\
 		device_desc.field = value;				\
 		return size;						\
 	}								\
-	return -1;							\
+	return -EPERM;							\
 }									\
 static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
 
@@ -4951,16 +4967,3 @@ static void __exit cleanup(void)
 	platform_driver_unregister(&android_platform_driver);
 }
 module_exit(cleanup);
-
-/* Use Qualcomm's usb vid and pid if enters download due to panic. */
-void use_qualcomm_usb_product_id(void)
-{
-	if (!diag_dload) {
-		pr_debug("%s: unable to update product id\n", __func__);
-		return;
-	}
-
-	diag_dload->dload_info_free[0] = 0x55;
-
-}
-
