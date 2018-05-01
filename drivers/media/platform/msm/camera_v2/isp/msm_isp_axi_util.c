@@ -1793,10 +1793,6 @@ static struct msm_isp_buffer *msm_isp_get_stream_buffer(
 	if (rc < 0)
 		return buf;
 
-/*
-  * by ZTE_YCM_20151102 yi.changming 400154
-  */
-// --->
 #if 0
 	if (buf->num_planes != stream_info->num_planes) {
 		pr_err("%s: Invalid buffer\n", __func__);
@@ -1805,7 +1801,6 @@ static struct msm_isp_buffer *msm_isp_get_stream_buffer(
 		buf = NULL;
 	}
 #endif
-// <---400154
 	return buf;
 }
 

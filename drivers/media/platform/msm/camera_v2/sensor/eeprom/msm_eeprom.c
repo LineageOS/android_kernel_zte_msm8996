@@ -1170,13 +1170,6 @@ static int msm_eeprom_spi_setup(struct spi_device *spi)
 	CDBG("cell-index %d, rc %d\n", e_ctrl->subdev_id, rc);
 	if (rc < 0) {
 		pr_err("failed rc %d\n", rc);
-
-		/*
-		* Fixed CWE-404, Resource leak(RESOURCE_LEAK), checked by Coverity
-		*/
-		kfree(spi_client);
-		kfree(e_ctrl);
-
 		return rc;
 	}
 

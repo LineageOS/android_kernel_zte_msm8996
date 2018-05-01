@@ -17,19 +17,10 @@
 #include "camera.h"
 #include "msm_cci.h"
 #include "msm_camera_dt_util.h"
-/*
-  * by ZTE_YCM_20140710 yi.changming 400008
-  */
-// --->
+
 #include "zte_camera_sensor_util.h"
-// <---400008
- /*
-  * by ZTE_YCM_20140728 yi.changming 400015
-  */
-// --->
- #include "zte_eeprom.h"
-  // <---400015
- #include <linux/debugfs.h>
+#include "zte_eeprom.h"
+#include <linux/debugfs.h>
 
 /* Logging macro */
 #undef CDBG
@@ -180,12 +171,9 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 
 	return rc;
 }
-/*
-  * by ZTE_YCM_20140728 yi.changming 400015
-  */
-/* ---> */
+
 static int32_t msm_get_info_from_eeprom(
-		struct msm_sensor_ctrl_t *s_ctrl,struct device_node *eeprom_node)
+		struct msm_sensor_ctrl_t *s_ctrl, struct device_node *eeprom_node)
 {
 	struct platform_device *eeprom_device = NULL;
 	struct v4l2_subdev *sd = NULL;
@@ -193,45 +181,44 @@ static int32_t msm_get_info_from_eeprom(
 
 	if (!eeprom_node) {
 		pr_err("%s: can't find eeprom sensor phandle\n", __func__);
-		return -1;
+		return -EINVAL;
 	}
 
 	eeprom_device = of_find_device_by_node(eeprom_node);
 	if (!eeprom_device) {
-			pr_err("%s:%d: can't find the device by node\n", __func__,__LINE__);
-			return -1;
+			pr_err("%s:%d: can't find the device by node\n", __func__, __LINE__);
+			return -EINVAL;
 	}
 
 	sd = platform_get_drvdata(eeprom_device);
-	if(!sd){
-		pr_err("%s:%d: can't find the eeprom sd\n", __func__,__LINE__);
-		return -1;
+	if (!sd) {
+		pr_err("%s:%d: can't find the eeprom sd\n", __func__, __LINE__);
+		return -EINVAL;
 	}
 
 	e_ctrl = v4l2_get_subdevdata(sd);
 
-	if(!e_ctrl){
-		pr_err("%s:%d: can't find the eeprom sd\n", __func__,__LINE__);
-		return -1;
+	if (!e_ctrl) {
+		pr_err("%s:%d: can't find the eeprom sd\n", __func__, __LINE__);
+		return -EINVAL;
 	}
 
 	s_ctrl->sensordata->sensor_module_name = e_ctrl->sensor_module_name;
-	s_ctrl->sensordata->chromtix_lib_name= e_ctrl->chromtix_lib_name;
-	s_ctrl->sensordata->default_chromtix_lib_name= e_ctrl->default_chromtix_lib_name;
-	s_ctrl->sensordata->eeprom_checksum= e_ctrl->checksum;
-	s_ctrl->sensordata->eeprom_valid_flag= e_ctrl->valid_flag;
-	if(e_ctrl->sensor_module_name)
-		pr_err("%s:%d: sensor_module_name:%s\n", __func__,__LINE__,e_ctrl->sensor_module_name);
+	s_ctrl->sensordata->chromtix_lib_name = e_ctrl->chromtix_lib_name;
+	s_ctrl->sensordata->default_chromtix_lib_name = e_ctrl->default_chromtix_lib_name;
+	s_ctrl->sensordata->eeprom_checksum = e_ctrl->checksum;
+	s_ctrl->sensordata->eeprom_valid_flag = e_ctrl->valid_flag;
+	if (e_ctrl->sensor_module_name)
+		pr_err("%s:%d: sensor_module_name:%s\n", __func__, __LINE__, e_ctrl->sensor_module_name);
 
-	if(e_ctrl->chromtix_lib_name)
-		pr_err("%s:%d:chromtix_lib_name: %s\n", __func__,__LINE__,e_ctrl->chromtix_lib_name);
+	if (e_ctrl->chromtix_lib_name)
+		pr_err("%s:%d:chromtix_lib_name: %s\n", __func__, __LINE__, e_ctrl->chromtix_lib_name);
 
-	if(e_ctrl->default_chromtix_lib_name)
-		pr_err("%s:%d:default_chromtix_lib_name: %s\n", __func__,__LINE__,e_ctrl->default_chromtix_lib_name);
+	if (e_ctrl->default_chromtix_lib_name)
+		pr_err("%s:%d:default_chromtix_lib_name: %s\n", __func__, __LINE__, e_ctrl->default_chromtix_lib_name);
 
 	return 0;
 }
-/*---400015---*/
 
 static int32_t msm_sensor_fill_flash_subdevid(
 				struct msm_sensor_ctrl_t *s_ctrl)
@@ -267,8 +254,8 @@ static int32_t msm_sensor_fill_flash_subdevid(
 
 		flash_device = of_find_device_by_node(src_node);
 		if (!flash_device) {
-			pr_err("%s:%d: can't find the device by node\n"
-					, __func__, __LINE__);
+			pr_err("%s:%d: can't find the device by node\n",
+				__func__, __LINE__);
 			of_node_put(src_node);
 			src_node = NULL;
 			continue;
@@ -276,8 +263,8 @@ static int32_t msm_sensor_fill_flash_subdevid(
 
 		sd = platform_get_drvdata(flash_device);
 		if (!sd) {
-			pr_err("%s:%d: can't find the flash sd\n"
-				, __func__, __LINE__);
+			pr_err("%s:%d: can't find the flash sd\n",
+				__func__, __LINE__);
 			of_node_put(src_node);
 			src_node = NULL;
 			continue;
@@ -285,8 +272,8 @@ static int32_t msm_sensor_fill_flash_subdevid(
 
 		rc = of_property_read_u32(src_node, "cell-index", &val);
 		if (rc < 0) {
-			pr_err("%s qcom,eeprom cell index %d, rc %d\n"
-				, __func__, val, rc);
+			pr_err("%s qcom,eeprom cell index %d, rc %d\n",
+				__func__, val, rc);
 			of_node_put(src_node);
 			src_node = NULL;
 			continue;
@@ -376,12 +363,9 @@ static int32_t msm_sensor_fill_eeprom_subdevid_by_name(
 				return -EINVAL;
 			continue;
 		}
-/*
-  * by ZTE_YCM_20140728 yi.changming 400015
-  */
-/* ---> */
-		msm_get_info_from_eeprom(s_ctrl,src_node);
-/* <---	400015 */
+
+		msm_get_info_from_eeprom(s_ctrl, src_node);
+
 		*eeprom_subdev_id = val;
 		CDBG("%s:%d Eeprom subdevice id is %d\n",
 			__func__, __LINE__, val);
@@ -836,9 +820,7 @@ int32_t msm_sensor_driver_probe(void *setting,
  * add by lijing for flash
  * ZTE_CAM_LIJING_20151020
  */
-#if 1
 	unsigned long                             has_flash = 0;
-#endif
 
 	/* Validate input parameters */
 	if (!setting) {
@@ -890,12 +872,9 @@ int32_t msm_sensor_driver_probe(void *setting,
 		slave_info->sensor_id_info = slave_info32->sensor_id_info;
 
 		slave_info->slave_addr = slave_info32->slave_addr;
-/*
-  * by ZTE_YCM_20140909 yi.changming 400006
-  */
-// --->
+
 	      slave_info->bakeup_slave_addr = slave_info32->bakeup_slave_addr;
-// <---400006
+
 		slave_info->power_setting_array.size =
 			slave_info32->power_setting_array.size;
 		slave_info->power_setting_array.size_down =
@@ -1029,12 +1008,8 @@ int32_t msm_sensor_driver_probe(void *setting,
 		slave_info->sensor_id_info.sensor_id_reg_addr;
 	camera_info->sensor_id = slave_info->sensor_id_info.sensor_id;
 	camera_info->sensor_id_mask = slave_info->sensor_id_info.sensor_id_mask;
-/*
-  * by ZTE_YCM_20140909 yi.changming 400006
-  */
-// --->
+
 	camera_info->sensor_bakeup_slave_addr = slave_info->bakeup_slave_addr;
-// <---400006
 
 	/* Fill CCI master, slave address and CCI default params */
 	if (!s_ctrl->sensor_i2c_client) {
@@ -1092,14 +1067,11 @@ CSID_TG:
 	s_ctrl->sensordata->actuator_name = slave_info->actuator_name;
 	s_ctrl->sensordata->ois_name = slave_info->ois_name;
 	s_ctrl->sensordata->flash_name = slave_info->flash_name;
-/*
-  * by ZTE_YCM_20140728 yi.changming 400015
-  */
-// --->
+
 	s_ctrl->sensordata->sensor_module_name = NULL;
 	s_ctrl->sensordata->chromtix_lib_name = NULL;
 	s_ctrl->sensordata->default_chromtix_lib_name = NULL;
-// <---400015
+
 	/*
 	 * Update eeporm subdevice Id by input eeprom name
 	 */
@@ -1147,18 +1119,12 @@ CSID_TG:
 	if (strlen(slave_info->flash_name) == 0) {
 		s_ctrl->sensordata->sensor_info->
 			subdev_id[SUB_MODULE_LED_FLASH] = -1;
-	}
-/*
- * add by lijing for flash
- * ZTE_CAM_LIJING_20151020
- */
-#if 1
-	else{
+	} else {
 		 msm_sensor_fill_flash_subdevid(s_ctrl);
 		 has_flash = 1;
 	}
-	pr_err("has_flash=%ld\n",has_flash);
-#endif
+	pr_err("has_flash=%ld\n", has_flash);
+
 	/*
 	 * Create /dev/videoX node, comment for now until dummy /dev/videoX
 	 * node is created and used by HAL
@@ -1195,13 +1161,9 @@ CSID_TG:
 		(s_ctrl->sensordata->sensor_info->position << 16) |
 		((s_ctrl->sensordata->
 		sensor_info->sensor_mount_angle / 90) << 8);
-/*
- * add by lijing for flash
- * ZTE_CAM_LIJING_20151020
- */	
-#if 1
+
     mount_pos = mount_pos | (has_flash << 31);
-#endif
+
 	s_ctrl->msm_sd.sd.entity.flags = mount_pos | MEDIA_ENT_FL_DEFAULT;
 
 	/*Save sensor info*/
@@ -1209,20 +1171,16 @@ CSID_TG:
 
 	msm_sensor_fill_sensor_info(s_ctrl, probed_info, entity_name);
 
+	if (msm_sensor_enable_debugfs(s_ctrl))
+		CDBG("%s:%d creat debugfs fail\n", __func__, __LINE__);
+
+	msm_sensor_register_sysdev(s_ctrl);
+
 	/*
 	 * Set probe succeeded flag to 1 so that no other camera shall
 	 * probed on this slot
 	 */
 	s_ctrl->is_probe_succeed = 1;
-/*
-  * by ZTE_YCM_20140710 yi.changming 400008
-  */
-// --->
-	if(msm_sensor_enable_debugfs(s_ctrl))
-		CDBG("%s:%d creat debugfs fail\n", __func__, __LINE__);
-
-	msm_sensor_register_sysdev(s_ctrl);
-// <---400008
 	return rc;
 
 camera_power_down:
@@ -1311,7 +1269,7 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 	sensordata->power_info.ois_en_gpio = of_get_named_gpio(of_node,
 		"qcom,platform-ois-en-gpio", 0);
 	if (!gpio_is_valid(sensordata->power_info.ois_en_gpio))
-		pr_err("%s:%d, ois enable gpio not specified\n",__func__, __LINE__);
+		pr_err("%s:%d, ois enable gpio not specified\n", __func__, __LINE__);
 
 	/* Get CCI master */
 	rc = of_property_read_u32(of_node, "qcom,cci-master",
@@ -1575,12 +1533,8 @@ static int __init msm_sensor_driver_init(void)
 	int32_t rc = 0;
 
 	CDBG("%s Enter\n", __func__);
-/*
-  * by ZTE_YCM_20140909 yi.changming 400006
-  */
-// --->
+
 	msm_sensor_creat_debugfs();
-// <---400006
 
 	rc = platform_driver_register(&msm_sensor_platform_driver);
 	if (rc)

@@ -712,12 +712,6 @@ static int __msm_close_wakeup_all_cmdack_session(void *d1, void *d2)
 	return 0;
 }
 
-/*
-  * recovery camera preview after camera sensor is died
-  *
-  * by ZTE_YCM_20160530 yi.changming 400267
-  */
-// --->
 static int __msm_recovery_session_notify_hal(void *d1, void *d2)
 {
 	struct v4l2_event event;
@@ -733,7 +727,6 @@ static int __msm_recovery_session_notify_hal(void *d1, void *d2)
 
 	return 0;
 }
-// <---400267
 
 static long msm_private_ioctl(struct file *file, void *fh,
 	bool valid_prio, unsigned int cmd, void *arg)
@@ -849,19 +842,13 @@ static long msm_private_ioctl(struct file *file, void *fh,
 			struct msm_session, list,
 			__msm_close_destry_session_notify_apps, NULL);
 		break;
-/*
-  * recovery camera preview after camera sensor is died
-  *
-  * by ZTE_YCM_20160530 yi.changming 400267
-  */
-// --->
+
 	case MSM_CAM_V4L2_IOCTL_NOTIFY_RECOVERY:
 		/* send v4l2_event to HAL next*/
 		msm_queue_traverse_action(msm_session_q,
 			struct msm_session, list,
 			__msm_recovery_session_notify_hal, NULL);
 		break;
-// <---400267
 
 	default:
 		rc = -ENOTTY;

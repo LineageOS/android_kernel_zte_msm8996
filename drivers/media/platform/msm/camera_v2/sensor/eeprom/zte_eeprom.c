@@ -9,11 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-/*
-  * Added  eeprom driver
-  *
-  * by ZTE_YCM_20140724 yi.changming 000025
-  */
+
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/delay.h>
@@ -116,7 +112,6 @@ MODULE_Map_Table OV8856_MODULE_MAP[] = {
 		"sharp_ov8856", "sharp_ov8856", NULL},
 	{ OV8856_SENSOR_INFO_MODULE_ID_MCNEX,
 		"mcnex_ov8856", "mcnex_ov8856", NULL},
-
 };
 
 #define S5K2T8_SENSOR_INFO_MODULE_ID_SUNNY   	0x01
@@ -748,7 +743,7 @@ static void parse_module_name(struct msm_eeprom_ctrl_t *e_ctrl,
 		pr_err("ZTE_CAMERA:%s:%d:sensor_module_name = %s\n",
 			   __func__, __LINE__, e_ctrl->sensor_module_name);
 	} else {
-		pr_err("ZTE_CAMERA:%s:%d:unknow module id : %d\n",
+		pr_err("ZTE_CAMERA:%s:%d:unknown module id : %d\n",
 			   __func__, __LINE__, sensor_module_id);
 	}
 }
@@ -792,6 +787,7 @@ void ov8856_read_eeprom_init(struct msm_eeprom_ctrl_t *e_ctrl)
 void ov8856_read_eeprom_end(struct msm_eeprom_ctrl_t *e_ctrl)
 {
 	uint16_t temp;
+
 	e_ctrl->i2c_client.i2c_func_tbl->i2c_read(&(e_ctrl->i2c_client),
 		0x5001, &temp, MSM_CAMERA_I2C_BYTE_DATA);
 	pr_err("%s:0x5001 temp=0x%X", __func__, temp);
@@ -859,6 +855,7 @@ static int ov8856_read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 	int32_t group_number;
 	uint32_t module_id_addr;
 	int i;
+
 	if (!e_ctrl) {
 		pr_err("%s e_ctrl is NULL", __func__);
 		return -EINVAL;
@@ -1512,6 +1509,7 @@ static int zte_eeprom_generate_map(struct device_node *of,
 	char property[PROPERTY_MAXSIZE];
 	uint32_t count = 6;
 	struct msm_eeprom_memory_map_t *map;
+
 	snprintf(property, PROPERTY_MAXSIZE, "zte,num-blocks");
 	rc = of_property_read_u32(of, property, &data->num_map);
 	CDBG("%s: %s %d\n", __func__, property, data->num_map);
@@ -1575,6 +1573,7 @@ static int zte_eeprom_platform_probe(struct platform_device *pdev)
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	const struct of_device_id *match;
 	zte_read_eeprom_memory_func_t zte_read_eeprom_memory = NULL;
+
 	pr_info("%s E\n", __func__);
 	match = of_match_device(zte_eeprom_dt_match, &pdev->dev);
 	zte_read_eeprom_memory = (zte_read_eeprom_memory_func_t)match->data;
@@ -1729,6 +1728,7 @@ static int zte_eeprom_platform_remove(struct platform_device *pdev)
 {
 	struct v4l2_subdev *sd = platform_get_drvdata(pdev);
 	struct msm_eeprom_ctrl_t  *e_ctrl;
+
 	if (!sd) {
 		pr_err("%s: Subdevice is NULL\n", __func__);
 		return 0;
@@ -1772,6 +1772,7 @@ static struct platform_driver zte_eeprom_platform_driver = {
 static int __init zte_eeprom_init_module(void)
 {
 	int rc = 0;
+
 	CDBG("%s E\n", __func__);
 	rc = platform_driver_probe(&zte_eeprom_platform_driver,
 					zte_eeprom_platform_probe);

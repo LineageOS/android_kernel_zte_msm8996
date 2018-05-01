@@ -112,29 +112,18 @@ int32_t msm_sensor_free_sensor_data(struct msm_sensor_ctrl_t *s_ctrl)
 	return 0;
 }
 
-/*
-  * by ZTE_YCM_20140909 yi.changming 400006
-  */
-// --->
 void camera_sensor_address_swap(struct msm_sensor_ctrl_t *s_ctrl)
 {
-
 	uint16_t temp;
 	
 	temp = s_ctrl->sensordata->slave_info->sensor_slave_addr;
-	
-   	s_ctrl->sensordata->slave_info->sensor_slave_addr
-		= s_ctrl->sensordata->slave_info->sensor_bakeup_slave_addr;
-	
+	s_ctrl->sensordata->slave_info->sensor_slave_addr =
+		s_ctrl->sensordata->slave_info->sensor_bakeup_slave_addr;
 	 s_ctrl->sensordata->slave_info->sensor_bakeup_slave_addr = temp;
-
-
 	s_ctrl->sensor_i2c_client->cci_client->sid = 
 						s_ctrl->sensordata->slave_info->sensor_slave_addr >> 1;
-
-	return;
 }
-// --->400006
+
 int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	struct msm_camera_power_ctrl_t *power_info;
@@ -167,12 +156,7 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 	return msm_camera_power_down(power_info, sensor_device_type,
 		sensor_i2c_client);
 }
- /*
-  * recovery camera preview after camera sensor is died
-  *
-  * by ZTE_YCM_20160530 yi.changming 400267
-  */
-// --->
+
 int msm_sensor_power_reset(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	struct msm_camera_power_ctrl_t *power_info;
@@ -200,7 +184,7 @@ int msm_sensor_power_reset(struct msm_sensor_ctrl_t *s_ctrl)
 	return msm_camera_power_reset(power_info, sensor_device_type,
 		sensor_i2c_client);
 }
-// <---400267
+
 int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int rc;
@@ -262,17 +246,13 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			return rc;
 		rc = msm_sensor_check_id(s_ctrl);
 		if (rc < 0) {
-/*
-  * by ZTE_YCM_20140909 yi.changming 400006
-  */
-// --->
 #if 0
 			msm_camera_power_down(power_info,
 				s_ctrl->sensor_device_type, sensor_i2c_client);
 			msleep(20);
 			continue;
 #else
-			if(s_ctrl->sensordata->slave_info->sensor_bakeup_slave_addr){
+			if (s_ctrl->sensordata->slave_info->sensor_bakeup_slave_addr) {
 				camera_sensor_address_swap(s_ctrl);
 				rc = msm_sensor_check_id(s_ctrl);
 			}
@@ -281,11 +261,10 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 				s_ctrl->sensor_device_type, sensor_i2c_client);
 				msleep(20);
 				continue;
-			}else{
+			} else {
 				break;
 			}
 #endif
-// --->400006
 		} else {
 			break;
 		}
@@ -859,12 +838,7 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			rc = -EFAULT;
 		}
 		break;
- /*
-  * recovery camera preview after camera sensor is died
-  *
-  * by ZTE_YCM_20160530 yi.changming 400267
-  */
-// --->
+
 	case CFG_POWER_RESET:
 		if (s_ctrl->is_csid_tg_mode)
 			goto DONE;
@@ -889,7 +863,7 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			rc = -EFAULT;
 		}
 		break;
-// <---400267
+
 	case CFG_POWER_DOWN:
 		if (s_ctrl->is_csid_tg_mode)
 			goto DONE;
@@ -1376,12 +1350,7 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 			rc = -EFAULT;
 		}
 		break;
- /*
-  * recovery camera preview after camera sensor is died
-  *
-  * by ZTE_YCM_20160530 yi.changming 400267
-  */
-// --->
+
 	case CFG_POWER_RESET:
 		if (s_ctrl->is_csid_tg_mode)
 			goto DONE;
@@ -1405,7 +1374,7 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 			rc = -EFAULT;
 		}
 		break;
-// <---400267
+
 	case CFG_POWER_DOWN:
 		if (s_ctrl->is_csid_tg_mode)
 			goto DONE;
@@ -1583,14 +1552,7 @@ static struct msm_sensor_fn_t msm_sensor_func_tbl = {
 	.sensor_config32 = msm_sensor_config32,
 #endif
 	.sensor_power_up = msm_sensor_power_up,
- /*
-  * recovery camera preview after camera sensor is died
-  *
-  * by ZTE_YCM_20160530 yi.changming 400267
-  */
-// --->
 	.sensor_power_reset = msm_sensor_power_reset,
-// <---400267
 	.sensor_power_down = msm_sensor_power_down,
 	.sensor_match_id = msm_sensor_match_id,
 };

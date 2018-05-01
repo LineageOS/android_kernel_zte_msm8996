@@ -28,12 +28,14 @@ static struct v4l2_file_operations msm_flash_v4l2_subdev_fops;
 static struct led_trigger *torch_trigger;
 
 typedef  int (*check_hw_version_t) (void);
+#define HW_BOARD_A_ID 1
+#define HW_BOARD_B_ID 2
 
 static int check_hw_version_AB(void)
 {
 	int board_id  = check_hw_id();
 
-	if ((board_id == 1) || (board_id == 2))
+	if ((board_id == HW_BOARD_A_ID) || (board_id == HW_BOARD_B_ID))
 		return 1;
 	else
 		return 0;
@@ -43,7 +45,7 @@ static int check_hw_version_C(void)
 {
 	int board_id  = check_hw_id();
 
-	if ((board_id == 1) || (board_id == 2))
+	if ((board_id == HW_BOARD_A_ID) || (board_id == HW_BOARD_B_ID))
 		return 0;
 	else
 		return 1;
@@ -343,14 +345,6 @@ static int32_t msm_flash_i2c_init(
 		settings = kzalloc(sizeof(
 			struct msm_camera_i2c_reg_setting_array), GFP_KERNEL);
 		if (!settings) {
-
-/*
- * Fixed CWE-404, Resource leak(RESOURCE_LEAK), checked by Coverity
- */
-#ifdef CONFIG_COMPAT
-			kfree(power_setting_array32);
-#endif
-
 			pr_err("%s mem allocation failed %d\n",
 				__func__, __LINE__);
 			return -ENOMEM;
@@ -359,14 +353,6 @@ static int32_t msm_flash_i2c_init(
 		if (copy_from_user(settings, (void *)flash_init_info->settings,
 			sizeof(struct msm_camera_i2c_reg_setting_array))) {
 			kfree(settings);
-
-/*
- * Fixed CWE-404, Resource leak(RESOURCE_LEAK), checked by Coverity
- */
-#ifdef CONFIG_COMPAT
-			kfree(power_setting_array32);
-#endif
-
 			pr_err("%s copy_from_user failed %d\n",
 				__func__, __LINE__);
 			return -EFAULT;
@@ -384,14 +370,6 @@ static int32_t msm_flash_i2c_init(
 	return 0;
 
 msm_flash_i2c_init_fail:
-
-/*
- * Fixed CWE-404, Resource leak(RESOURCE_LEAK), checked by Coverity
- */
-#ifdef CONFIG_COMPAT
-	kfree(power_setting_array32);
-#endif
-
 	return rc;
 }
 
@@ -779,6 +757,7 @@ static int32_t msm_flash_config(struct msm_flash_ctrl_t *flash_ctrl,
 		break;
 	case CFG_FLASH_LOW:
 		if ((flash_ctrl->flash_state == MSM_CAMERA_FLASH_OFF) ||
+			(flash_ctrl->flash_state == MSM_CAMERA_FLASH_LOW) ||
 			(flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)) {
 			rc = flash_ctrl->func_tbl->camera_flash_low(
 				flash_ctrl, flash_data);
@@ -1286,7 +1265,7 @@ static int32_t msm_flash_platform_probe(struct platform_device *pdev)
 
 	match = of_match_device(msm_flash_dt_match, &pdev->dev);
 	check_hw_version = (check_hw_version_t)match->data;
-	pr_err("%s:%d  hw_id(%d)\n", __func__, __LINE__, check_hw_id());
+	pr_info("%s:%d  hw_id(%d)\n", __func__, __LINE__, check_hw_id());
 	if (check_hw_version && !check_hw_version())
 		return  -EINVAL;
 

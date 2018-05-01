@@ -691,10 +691,6 @@ static int32_t msm_actuator_move_focus(
 	reg_setting.reg_setting = a_ctrl->i2c_reg_tbl;
 	reg_setting.data_type = a_ctrl->i2c_data_type;
 	reg_setting.size = a_ctrl->i2c_tbl_index;
-	if (a_ctrl->i2c_tbl_index == 0) {
-		pr_err("fail reg_setting.size:%d\n", reg_setting.size);
-		return rc;
-	}
 	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table_w_microdelay(
 		&a_ctrl->i2c_client, &reg_setting);
 	if (rc < 0) {
