@@ -2907,7 +2907,6 @@ static struct snd_soc_dai_link msm8996_common_dai_links[] = {
 		 /* this dainlink has playback support */
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA10,
 	},
-#if 0
 	{
 		.name = "MSM8996 ULL NOIRQ",
 		.stream_name = "MM_NOIRQ",
@@ -2925,7 +2924,6 @@ static struct snd_soc_dai_link msm8996_common_dai_links[] = {
 		 /* this dainlink has playback support */
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA8,
 	},
-#endif
 	{
 		.name = "QCHAT",
 		.stream_name = "QCHAT",
@@ -4426,10 +4424,10 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		dev_dbg(dev, "%s(): No hdmi audio support\n", __func__);
 	}
 	#endif
-	if (card) {
+	//if (card) {
 		card->dai_link = dailink;
 		card->num_links = len_4;
-	}
+	//}
 
 	return card;
 }
