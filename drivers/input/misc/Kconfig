@@ -777,6 +777,14 @@ config INPUT_DRV2667_HAPTICS
 	  To compile this driver as a module, choose M here: the
 	  module will be called drv260x-haptics.
 
+config SENSORS_HALL_AH1898
+	tristate "HALL sensor for ah1898"
+	default n
+	help
+	  This driver provides support for the AH1898 HALL sensor
+	  The sensor report a gpio interrupt for input system. The sensor is for
+	  /sys/bus/platform/ah1898.
+
 source "drivers/input/misc/ots_pat9125/Kconfig"
 
 config SENSORS_LTR553
