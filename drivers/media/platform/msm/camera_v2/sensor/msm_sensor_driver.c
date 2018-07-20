@@ -268,7 +268,7 @@ static int32_t msm_sensor_fill_flash_subdevid(
 			of_node_put(src_node);
 			src_node = NULL;
 			continue;
-	       }
+		}
 
 		rc = of_property_read_u32(src_node, "cell-index", &val);
 		if (rc < 0) {
@@ -874,7 +874,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 
 		slave_info->slave_addr = slave_info32->slave_addr;
 
-	      slave_info->bakeup_slave_addr = slave_info32->bakeup_slave_addr;
+		slave_info->bakeup_slave_addr = slave_info32->bakeup_slave_addr;
 
 		slave_info->power_setting_array.size =
 			slave_info32->power_setting_array.size;
@@ -1067,12 +1067,12 @@ CSID_TG:
 	s_ctrl->sensordata->eeprom_name = slave_info->eeprom_name;
 	s_ctrl->sensordata->actuator_name = slave_info->actuator_name;
 	s_ctrl->sensordata->ois_name = slave_info->ois_name;
-	s_ctrl->sensordata->flash_name = slave_info->flash_name;
 
 	s_ctrl->sensordata->sensor_module_name = NULL;
 	s_ctrl->sensordata->chromtix_lib_name = NULL;
 	s_ctrl->sensordata->default_chromtix_lib_name = NULL;
 
+	s_ctrl->sensordata->flash_name = slave_info->flash_name;
 	/*
 	 * Update eeporm subdevice Id by input eeprom name
 	 */
@@ -1121,8 +1121,8 @@ CSID_TG:
 		s_ctrl->sensordata->sensor_info->
 			subdev_id[SUB_MODULE_LED_FLASH] = -1;
 	} else {
-		 msm_sensor_fill_flash_subdevid(s_ctrl);
-		 has_flash = 1;
+		msm_sensor_fill_flash_subdevid(s_ctrl);
+		has_flash = 1;
 	}
 	pr_err("has_flash=%ld\n", has_flash);
 
@@ -1163,7 +1163,7 @@ CSID_TG:
 		((s_ctrl->sensordata->
 		sensor_info->sensor_mount_angle / 90) << 8);
 
-    mount_pos = mount_pos | (has_flash << 31);
+	mount_pos = mount_pos | (has_flash << 31);
 
 	s_ctrl->msm_sd.sd.entity.flags = mount_pos | MEDIA_ENT_FL_DEFAULT;
 
