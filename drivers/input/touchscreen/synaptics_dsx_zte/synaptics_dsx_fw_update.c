@@ -43,17 +43,6 @@
 #include <linux/input/synaptics_dsx_zte.h>
 #include "synaptics_dsx_core.h"
 
-/*fw for 4-layer*/
-//#define FW_IMAGE_NAME "synaptics/startup_fw_update.img"
-/*fw for 3-layer*/
-#define FW_IMAGE_NAME_NO_KEY 	"synaptics/startup_fw_update_no_key.img"
-
-#ifndef ZTE_TS_FIRMWARE_UPDATE_IMPROVE
-#define FW_IMAGE_NAME_KEY      "synaptics/startup_fw_update_key.img"
-#else
-#define FW_IMAGE_NAME_KEY      "synaptics/startup_fw_update_key_improve.img"
-#endif
-
 #define DO_STARTUP_FW_UPDATE
 #ifdef DO_STARTUP_FW_UPDATE
 #ifdef CONFIG_FB
@@ -64,9 +53,6 @@
 #endif
 
 #define MAX_WRITE_SIZE 4096
-//#define MAX_WRITE_SIZE 32
-
-
 
 #define FORCE_UPDATE false
 #define DO_LOCKDOWN false
@@ -137,7 +123,21 @@
 
 #define INT_DISABLE_WAIT_MS 20
 #define ENTER_FLASH_PROG_WAIT_MS 20
+
+#define OFFCHARING_AUTO_UPDATE_DISABLE 0
+
+#define CHIP_INFO_LEN 30
+
 char *syna_file_name;
+static char fwname[128];
+unsigned char get_config_id_addr;
+/*extern int offcharging_flag;*/
+extern int syna_update_flag;
+static int ready_fw_version;
+bool bootloader_mode;
+
+static struct synaptics_rmi4_fwu_handle *fwu;
+extern struct synaptics_rmi4_data *syn_ts;
 
 static int fwu_do_reflash(void);
 
@@ -195,6 +195,13 @@ static ssize_t fwu_sysfs_guest_code_block_count_show(struct device *dev,
 
 static ssize_t fwu_sysfs_write_guest_code_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count);
+
+extern void synaptics_get_configid(struct synaptics_rmi4_data *ts,
+	char *p_chip_type,
+	char *p_sensor,
+	int *p_fw_ver);
+
+static int fwu_do_read_config(void);
 
 enum f34_version {
 	F34_V0 = 0,
@@ -706,7 +713,7 @@ struct synaptics_rmi4_fwu_handle {
 static struct bin_attribute dev_attr_data = {
 	.attr = {
 		.name = "data",
-		.mode = (S_IRUGO | S_IWUGO),
+		.mode = (S_IRUGO | S_IWUSR | S_IWGRP),
 	},
 	.size = 0,
 	.read = fwu_sysfs_show_image,
@@ -714,25 +721,25 @@ static struct bin_attribute dev_attr_data = {
 };
 
 static struct device_attribute attrs[] = {
-	__ATTR(dorecovery, S_IWUSR|S_IWGRP,
+	__ATTR(dorecovery, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			fwu_sysfs_do_recovery_store),
-	__ATTR(doreflash, S_IWUSR|S_IWGRP,
+	__ATTR(doreflash, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			fwu_sysfs_do_reflash_store),
-	__ATTR(writeconfig, S_IWUSR|S_IWGRP,
+	__ATTR(writeconfig, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			fwu_sysfs_write_config_store),
-	__ATTR(readconfig, S_IWUSR|S_IWGRP,
+	__ATTR(readconfig, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			fwu_sysfs_read_config_store),
-	__ATTR(configarea, S_IWUSR|S_IWGRP,
+	__ATTR(configarea, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			fwu_sysfs_config_area_store),
-	__ATTR(imagename, S_IWUSR|S_IWGRP,
+	__ATTR(imagename, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			fwu_sysfs_image_name_store),
-	__ATTR(imagesize, S_IWUSR|S_IWGRP,
+	__ATTR(imagesize, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			fwu_sysfs_image_size_store),
 	__ATTR(blocksize, S_IRUGO,
@@ -761,10 +768,6 @@ static struct device_attribute attrs[] = {
 			fwu_sysfs_write_guest_code_store),
 };
 
-//static struct synaptics_rmi4_fwu_handle *fwu;
-  static struct synaptics_rmi4_fwu_handle *fwu;
-unsigned char get_configID_addr;
-
 DECLARE_COMPLETION(fwu_remove_complete);
 
 static void calculate_checksum(unsigned short *data, unsigned long len,
@@ -786,8 +789,6 @@ static void calculate_checksum(unsigned short *data, unsigned long len,
 	}
 
 	*result = sum2 << 16 | sum1;
-
-	return;
 }
 
 static void convert_to_little_endian(unsigned char *dest, unsigned long src)
@@ -796,8 +797,6 @@ static void convert_to_little_endian(unsigned char *dest, unsigned long src)
 	dest[1] = (unsigned char)((src >> 8) & 0xff);
 	dest[2] = (unsigned char)((src >> 16) & 0xff);
 	dest[3] = (unsigned char)((src >> 24) & 0xff);
-
-	return;
 }
 
 static unsigned int le_to_uint(const unsigned char *ptr)
@@ -817,7 +816,7 @@ static int fwu_f51_force_data_init(void)
 	unsigned char offset[2];
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-       printk("syna---%s:Enter!\n",__func__);
+	pr_notice("%s: Enter!\n", __func__);
 	retval = synaptics_rmi4_reg_read(rmi4_data,
 			rmi4_data->f51_query_base_addr + 7,
 			offset,
@@ -876,7 +875,7 @@ static int fwu_f51_force_data_init(void)
 			fwu->cal_data_buf_size = 0;
 			return -ENOMEM;
 		}
-		printk("syna---fwu_f51_force_data_init---alloc mem for fwu->cal_data successfully!\n");
+		pr_notice("syna---fwu_f51_force_data_init---alloc mem for fwu->cal_data successfully!\n");
 	}
 
 	return 0;
@@ -1100,8 +1099,6 @@ static void fwu_parse_image_header_10_utility(const unsigned char *image)
 			break;
 		};
 	}
-
-	return;
 }
 
 static void fwu_parse_image_header_10_bootloader(const unsigned char *image)
@@ -2537,10 +2534,52 @@ static int fwu_get_device_config_id(void)
 				fwu->f34_fd.ctrl_base_addr,
 				fwu->config_id,
 				config_id_size);
-	printk("pzh:fwu_get_device_config_id---f34_fd.ctrl_base_addr=0x%x\n",fwu->f34_fd.ctrl_base_addr);
-	get_configID_addr=fwu->f34_fd.ctrl_base_addr;
+	pr_notice("%s: f34_fd.ctrl_base_addr = 0x%x\n",
+		__func__, fwu->f34_fd.ctrl_base_addr);
+	get_config_id_addr = fwu->f34_fd.ctrl_base_addr;
 	if (retval < 0)
 		return retval;
+	return 0;
+}
+
+int syna_get_config_in_bl_mode(struct rmi_config_id *config_id)
+{
+	int retval;
+	unsigned char *customer_ID;
+	unsigned char *customer_ID_temp;
+	bool customer_ID_error = false;
+	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
+
+	if (!fwu)
+		return -EINVAL;
+
+	fwu->config_area = PM_CONFIG_AREA;
+
+	retval = fwu_do_read_config();
+	customer_ID = fwu->read_config_buf;
+	usleep_range(10000, 10500);
+	retval = fwu_do_read_config();
+	customer_ID_temp = fwu->read_config_buf;
+	dev_info(rmi4_data->pdev->dev.parent,
+		"%s: customer_ID = %s, customer_ID_temp = %s\n",
+		__func__, customer_ID, customer_ID_temp);
+	if (strcmp(customer_ID, customer_ID_temp))
+		customer_ID_error = true;
+
+	if (retval < 0 || customer_ID_error) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to read config\n",
+				__func__);
+		return -EINVAL;
+	}
+
+	config_id->chip_type = ((customer_ID[0] & 0x0f) << 4) | (customer_ID[1] & 0x0f);
+	config_id->sensor = ((customer_ID[2] & 0x0f) << 4) | (customer_ID[3] & 0x0f);
+	dev_info(rmi4_data->pdev->dev.parent,
+		"%s: chip_type = 0x%x, sensor = 0x%x",
+		__func__,
+		config_id->chip_type,
+		config_id->sensor);
 
 	return 0;
 }
@@ -2551,11 +2590,11 @@ static enum flash_area fwu_go_nogo(void)
 	enum flash_area flash_area = NONE;
 	unsigned char ii;
 	unsigned char config_id_size;
+	unsigned char syna_config_id;
+	unsigned char syna_version_id;
 	unsigned int device_fw_id;
 	unsigned int image_fw_id;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
-	unsigned char syna_config_id;
-	unsigned char syna_version_id;
 
 	if (fwu->force_update) {
 		flash_area = UI_FIRMWARE;
@@ -2568,31 +2607,33 @@ static enum flash_area fwu_go_nogo(void)
 		goto exit;
 	}
 
-	retval = synaptics_rmi4_reg_read(rmi4_data, get_configID_addr, (char *)&rmi4_data->config_id, 4);
-	printk("pzh:get_configID_addr=0x%x\n", get_configID_addr);
-	if (retval < 0){
+	retval = synaptics_rmi4_reg_read(rmi4_data, get_config_id_addr,
+			(char *)&rmi4_data->config_id, 4);
+	pr_notice("%s: get_config_id_addr = 0x%x\n",
+		__func__, get_config_id_addr);
+	if (retval < 0)
 		pr_err("%s: failed to get ts f34.ctrl_base\n", __func__);
-	}
-	syna_config_id = rmi4_data->config_id.fw_ver&0x00ff;
+
+	syna_config_id = rmi4_data->config_id.fw_ver & 0x00ff;
 	syna_version_id = (rmi4_data->config_id.fw_ver >> 8) & 0x00ff;
-	printk("%s: syna_config_id =0x%04x, syna_version_id =0x%04x\n",
+	pr_notice("%s: syna_config_id = 0x%04x, syna_version_id = 0x%04x\n",
 		__func__, syna_config_id, syna_version_id);
 	if (!strcmp(fwu->read_config_buf, "A2504801")) {
-		printk("syna---%s:without key!\n", __func__);
+		pr_notice("%s: without key!\n", __func__);
 		if (syna_config_id != 0x0035) {
 			flash_area = UI_FIRMWARE;
-			printk("syna---%s:incompatible fw, update both UI and config!\n", __func__);
+			pr_notice("%s: incompatible fw, update both UI and config!\n", __func__);
 			goto exit;
 		}
-	}else if (!strcmp(fwu->read_config_buf, "A2PRO4801")) {
-		printk("syna---%s:with key!\n", __func__);
+	} else if (!strcmp(fwu->read_config_buf, "A2PRO4801")) {
+		pr_notice("%s: with key!\n", __func__);
 		if (syna_config_id == 0x0035) {
 			flash_area = UI_FIRMWARE;
-			printk("syna---%s:incompatible fw, update both UI and config!\n", __func__);
+			pr_notice("%s: incompatible fw, update both UI and config!\n", __func__);
 			goto exit;
-		}else if (syna_version_id < 0x0037){
+		} else if (syna_version_id < 0x0037) {
 			flash_area = NONE;
-			printk("syna---%s: older key sensor\n", __func__);
+			pr_notice("%s: older key sensor\n", __func__);
 			goto exit;
 		}
 	}
@@ -2613,26 +2654,6 @@ static enum flash_area fwu_go_nogo(void)
 			"%s: Image firmware ID = %d\n",
 			__func__, image_fw_id);
 
-#ifndef ZTE_TS_FIRMWARE_UPDATE_IMPROVE
-	pr_info("ZTE_TS_FIRMWARE_UPDATE_IMPROVE: no\n");
-	if (image_fw_id > device_fw_id) {
-		flash_area = UI_FIRMWARE;
-		goto exit;
-	} else if (image_fw_id < device_fw_id) {
-		dev_info(rmi4_data->pdev->dev.parent,
-				"%s: Image firmware ID older than device firmware ID\n",
-				__func__);
-		flash_area = NONE;
-		goto exit;
-	}
-#else
-	pr_info("ZTE_TS_FIRMWARE_UPDATE_IMPROVE: yes\n");
-	if (image_fw_id != device_fw_id) {
-		flash_area = UI_FIRMWARE;
-		goto exit;
-	}
-#endif
-
 	/* Get device config ID */
 	retval = fwu_get_device_config_id();
 	if (retval < 0) {
@@ -2648,11 +2669,18 @@ static enum flash_area fwu_go_nogo(void)
 	else
 		config_id_size = V5V6_CONFIG_ID_SIZE;
 
+	ready_fw_version = (fwu->img.ui_config.data[2] << 8) | fwu->img.ui_config.data[3];
+	pr_notice("%s: ready_fw_version = %d\n", __func__, ready_fw_version);
+
 	for (ii = 0; ii < config_id_size; ii++) {
-		printk("syna_fwu->img.ui_config.data[%d]=0x%x,fwu->config_id[%d]=0x%x\n",
-			ii,fwu->img.ui_config.data[ii],ii,fwu->config_id[ii]);
+		pr_notice("%s: syna_fwu->img.ui_config.data[%d] = 0x%x, fwu->config_id[%d] = 0x%x\n",
+			__func__, ii, fwu->img.ui_config.data[ii], ii, fwu->config_id[ii]);
 		if (fwu->img.ui_config.data[ii] > fwu->config_id[ii]) {
-			flash_area = UI_CONFIG;
+			if (image_fw_id != device_fw_id)
+				flash_area = UI_FIRMWARE;
+			else
+				flash_area = UI_CONFIG;
+
 			goto exit;
 		} else if (fwu->img.ui_config.data[ii] < fwu->config_id[ii]) {
 			flash_area = NONE;
@@ -2661,7 +2689,6 @@ static enum flash_area fwu_go_nogo(void)
 	}
 
 	flash_area = NONE;
-	printk("syna_flash_area=%d\n",flash_area);
 
 exit:
 	if (flash_area == NONE) {
@@ -3245,7 +3272,7 @@ static int fwu_write_utility_parameter(void)
 						__func__);
 				return retval;
 			}
-			printk("syna---fwu_write_utility_parameter---copy force calibration data successfully!\n");
+			pr_notice("syna---fwu_write_utility_parameter---copy force calibration data successfully!\n");
 			pbuf += fwu->cal_data_size + 4;
 			remaining_size -= (fwu->cal_data_size + 4);
 			break;
@@ -3306,7 +3333,6 @@ img_force_param:
 
 static int fwu_write_configuration(void)
 {
-    printk("syna---start fwu_write_configuration");
 	return fwu_write_f34_blocks((unsigned char *)fwu->config_data,
 			fwu->config_block_count, CMD_WRITE_CONFIG);
 }
@@ -3361,6 +3387,10 @@ static int fwu_write_flash_configuration(void)
 	retval = fwu_erase_configuration();
 	if (retval < 0)
 		return retval;
+
+	dev_dbg(rmi4_data->pdev->dev.parent,
+			"%s: Idle status detected\n",
+			__func__);
 
 	retval = fwu_write_configuration();
 	if (retval < 0)
@@ -3526,7 +3556,7 @@ static int fwu_do_reflash(void)
 	bool do_bl_update = false;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-    printk("syna---start fwu_do_reflash\n");
+	pr_notice("%s: start reflash\n", __func__);
 	if (!fwu->new_partition_table) {
 		retval = fwu_check_ui_firmware_size();
 		if (retval < 0)
@@ -3562,8 +3592,8 @@ static int fwu_do_reflash(void)
 	if (fwu->has_utility_param && !fwu->img.contains_utility_param) {
 		if (fwu->bl_version == BL_V7 || fwu->bl_version == BL_V8) {
 			if (fwu->force_update)
-				do_bl_update = true;	
-		}			
+				do_bl_update = true;
+		}
 	}
 
 	if (!do_bl_update && fwu->incompatible_partition_tables) {
@@ -3636,7 +3666,7 @@ static int fwu_do_read_config(void)
 	unsigned short block_count;
 	unsigned short config_area;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
-       printk("syna---enter %s\n",__func__);
+
 	switch (fwu->config_area) {
 	case UI_CONFIG_AREA:
 		block_count = fwu->blkcount.ui_config;
@@ -3651,14 +3681,13 @@ static int fwu_do_read_config(void)
 		block_count = fwu->blkcount.dp_config;
 		break;
 	case PM_CONFIG_AREA:
-		printk("syna---fwu->config_area=PM_CONFIG_AREA!\n");
 		if (!fwu->flash_properties.has_pm_config) {
 			dev_err(rmi4_data->pdev->dev.parent,
 					"%s: Permanent configuration not supported\n",
 					__func__);
 			return -EINVAL;
 		}
-		block_count = fwu->blkcount.pm_config;		
+		block_count = fwu->blkcount.pm_config;
 		break;
 	case BL_CONFIG_AREA:
 		if (!fwu->flash_properties.has_bl_config) {
@@ -3674,13 +3703,15 @@ static int fwu_do_read_config(void)
 				"%s: Invalid config area\n",
 				__func__);
 		return -EINVAL;
-	}	
+	}
+
 	if (block_count == 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
 				"%s: Invalid block count\n",
 				__func__);
 		return -EINVAL;
-	}	
+	}
+
 	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
 
 	if (fwu->bl_version == BL_V5 || fwu->bl_version == BL_V6) {
@@ -3689,7 +3720,7 @@ static int fwu_do_read_config(void)
 		fwu->config_area = config_area;
 		if (retval < 0)
 			goto exit;
-	}	
+	}
 	fwu->config_size = fwu->block_size * block_count;
 
 	retval = fwu_allocate_read_config_buf(fwu->config_size);
@@ -3810,8 +3841,8 @@ static int fwu_do_restore_f51_cal_data(void)
 				__func__);
 		return retval;
 	}
-	
-	printk("syna---fwu_do_restore_f51_cal_data---restore calibration data successfully!\n");
+
+	pr_notice("syna---fwu_do_restore_f51_cal_data---restore calibration data successfully!\n");
 
 	calculate_checksum((unsigned short *)fwu->read_config_buf,
 			((fwu->config_size - 4) / 2),
@@ -4050,32 +4081,27 @@ exit:
 	return retval;
 }
 
- int fwu_start_reflash(void)
+int fwu_start_reflash(void)
 {
 	int retval = 0;
-
-//#ifdef ZTE_FASTMMI_MANUFACTURING_VERSION
+	int fw_ver = 0;
 	int i;
-//#endif
-
+	char chiptype[CHIP_INFO_LEN];
+	char sensor[CHIP_INFO_LEN];
 	enum flash_area flash_area;
 	bool do_rebuild = false;
 	const struct firmware *fw_entry = NULL;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
-	unsigned char * customer_ID_1st;
-	unsigned char * customer_ID_2nd;
-	bool customer_ID_error=false;
-	
-//#ifdef ZTE_FASTMMI_MANUFACTURING_VERSION
-	for(i = 0;i < 4;i++){
-		if(rmi4_data->sensor_sleep){
+
+	pr_notice("%s: Start of reflash process\n", __func__);
+
+	for (i = 0; i < 4; i++) {
+		if (rmi4_data->sensor_sleep) {
 			msleep(300);
-			printk("Syna--%s--loop time is valid",__func__);//added by SZQ
-			}
-		else
+			pr_notice("%s: loop time is valid", __func__);
+		} else
 			break;
 	}
-//#endif
 
 	if (rmi4_data->sensor_sleep) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -4086,71 +4112,19 @@ exit:
 
 	rmi4_data->stay_awake = true;
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
-
-	pr_notice("%s: Start of reflash process\n", __func__);
-	
-	if (fwu->force_update) {
-		if (!syna_file_name) {
-			printk("syna fw name is null\n");
-			return -EINVAL;
-		}
-		if (!strcmp(syna_file_name, ""))	{
-			printk("%s file_name is null\n", __func__);
-			return -EINVAL;
-		}
-		snprintf(fwu->image_name, MAX_IMAGE_NAME_LEN, "%s", syna_file_name);
-	}else if (fwu->image == NULL) {
-		printk("syna---%s:fwu->image =NULL!\n", __func__);
-		fwu->config_area = PM_CONFIG_AREA;
-		mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
-		retval = fwu_do_read_config();
-		customer_ID_1st = fwu->read_config_buf;
-		msleep(10);
-		retval = fwu_do_read_config();
-		customer_ID_2nd = fwu->read_config_buf;
-		printk("syna---%s:customer_ID_1st=%s  customer_ID_2nd=%s\n",
-			__func__, customer_ID_1st, customer_ID_2nd);
-		if (strcmp(customer_ID_1st, customer_ID_2nd))
-			customer_ID_error = true;
-		mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
-		if ((retval < 0) || customer_ID_error) {
-			dev_err(rmi4_data->pdev->dev.parent,
-					"%s: Failed to read config\n",
-					__func__);
-			goto exit;
-		}
-		
-		/* customer serializatoin available in fwu->read_config_buf */
-		if (!strcmp(fwu->read_config_buf, "A2504801")) {
-			retval = secure_memcpy(fwu->image_name, MAX_IMAGE_NAME_LEN,
-					FW_IMAGE_NAME_NO_KEY, sizeof(FW_IMAGE_NAME_NO_KEY),
-					sizeof(FW_IMAGE_NAME_NO_KEY));
-			if (retval < 0) {
-				dev_err(rmi4_data->pdev->dev.parent,
-					"%s: Failed to copy image file name\n",
-					__func__);
-				goto exit;
-			}
-		}else if (!strcmp(fwu->read_config_buf, "A2PRO4801")) {
-			retval = secure_memcpy(fwu->image_name, MAX_IMAGE_NAME_LEN,
-					FW_IMAGE_NAME_KEY, sizeof(FW_IMAGE_NAME_KEY),
-					sizeof(FW_IMAGE_NAME_KEY));
-			if (retval < 0) {
-				dev_err(rmi4_data->pdev->dev.parent,
-					"%s: Failed to copy image file name\n",
-					__func__);
-				goto exit;
-			}
-		}else{
-			printk("syna---%s:fwu->read_config_buf is NULL and interrupt auto update!\n",
-					__func__);
-			goto exit;
-		}
+	bootloader_mode = fwu->in_bl_mode;
+	if (!fwu->force_update)
+		synaptics_get_configid(syn_ts, (char *)&chiptype, (char *)&sensor, &fw_ver);
+	if ((!syna_file_name) || (!strcmp(syna_file_name, ""))) {
+		pr_notice("%s: syna fw name is null\n", __func__);
+		return -EINVAL;
 	}
 
-	printk("syna---%s:fwu->image_name=%s\n", __func__, fwu->image_name);
-	dev_dbg(rmi4_data->pdev->dev.parent,
+	snprintf(fwu->image_name, MAX_IMAGE_NAME_LEN, "%s", syna_file_name);
+
+	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+
+	dev_info(rmi4_data->pdev->dev.parent,
 			"%s: Requesting firmware image %s\n",
 			__func__, fwu->image_name);
 
@@ -4188,12 +4162,12 @@ exit:
 		retval = -EINVAL;
 		goto exit;
 	}
-	
-       /*when BL7.1 update to BL7.7, execute force update*/
+
+	   /*when BL7.1 update to BL7.7, execute force update*/
 	if (!fwu->has_utility_param && fwu->img.contains_utility_param) {
-		if (fwu->bl_version == BL_V7 || fwu->bl_version == BL_V8){
+		if (fwu->bl_version == BL_V7 || fwu->bl_version == BL_V8) {
 			fwu->force_update = true;
-			printk("syna---%s: BL7.1 to BL7.7, force update!\n",__func__);
+			pr_notice("syna---%s: BL7.1 to BL7.7, force update!\n", __func__);
 		}
 	}
 
@@ -4243,7 +4217,7 @@ exit:
 			goto exit;
 		}
 
-		if(fwu->cal_data==NULL){
+		if (fwu->cal_data == NULL) {
 			fwu->cal_data = kmalloc(fwu->cal_data_buf_size, GFP_KERNEL);
 			if (!fwu->cal_data) {
 				dev_err(rmi4_data->pdev->dev.parent,
@@ -4253,9 +4227,9 @@ exit:
 				retval = -ENOMEM;
 				goto exit;
 			}
-			printk("syna---%s---alloc mem for fwu->cal_data successfully!\n",__func__);
+			pr_notice("syna---%s---alloc mem for fwu->cal_data successfully!\n", __func__);
 		}
-		
+
 		retval = secure_memcpy(fwu->cal_data, fwu->cal_data_buf_size,
 				&fwu->read_config_buf[fwu->cal_data_off],
 				fwu->cal_data_size, fwu->cal_data_size);
@@ -4266,14 +4240,14 @@ exit:
 			rmi4_data->reset_device(rmi4_data, false);
 			goto exit;
 		}
-		
-		printk("syna---fwu_start_reflash---save calibration data successfully!\n");
+
+		pr_notice("syna---fwu_start_reflash---save calibration data successfully!\n");
 #endif
 	}
 
 	switch (flash_area) {
 	case UI_FIRMWARE:
-		printk("syna---fwu_start_reflash---start to update UI_FIRMWARE!\n");
+		pr_notice("%s: start to update UI_FIRMWARE!\n", __func__);
 		do_rebuild = true;
 		retval = fwu_do_reflash();
 #ifdef F51_DISCRETE_FORCE
@@ -4296,7 +4270,7 @@ exit:
 #endif
 		break;
 	case UI_CONFIG:
-		printk("syna---fwu_start_reflash---start to update UI_CONFIG\n");
+		pr_notice("%s: start to update UI_CONFIG\n", __func__);
 		do_rebuild = true;
 		retval = fwu_check_ui_configuration_size();
 		if (retval < 0)
@@ -4318,7 +4292,7 @@ exit:
 		break;
 	case NONE:
 	default:
-		printk("syna---fwu_start_reflash---nothing to update\n");
+		pr_notice("%s: nothing to update\n", __func__);
 		break;
 	}
 
@@ -4365,7 +4339,7 @@ exit:
 	if (do_rebuild)
 		rmi4_data->reset_device(rmi4_data, true);
 
-	printk("syna---%s: End of reflash process\n", __func__);
+	pr_notice("%s: End of reflash process\n", __func__);
 
 	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
@@ -4476,9 +4450,15 @@ static int fwu_recovery_write_chunk(void)
 			chunk_size = F35_CHUNK_SIZE;
 
 		memset(buf, 0x00, F35_CHUNK_SIZE);
-		secure_memcpy(buf, sizeof(buf), chunk_ptr,
+		retval = secure_memcpy(buf, sizeof(buf), chunk_ptr,
 					fwu->image_size - bytes_written,
 					chunk_size);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to copy chunk_ptr\n",
+					__func__);
+			return retval;
+		}
 
 		retval = synaptics_rmi4_reg_write(rmi4_data,
 				base + F35_CHUNK_DATA_OFFSET,
@@ -4602,48 +4582,38 @@ exit:
 
 int syna_get_fw_ver(struct i2c_client *client, char *pfwfilename)
 {
-	int ret=0;
-	int fwver=-1;
-	char *charcmp="";
-	const unsigned char *fw_image;
+	int ret = 0;
+	int fwver = -1;
+	char *charcmp = "";
 	const struct firmware *fw_entry = NULL;
-	unsigned long firmware_imgsize;
-	unsigned char *config_imgdata = NULL;
-	if ( !client || !pfwfilename )
-		return -1;
-	if(!strcmp(pfwfilename,charcmp))
-	{
-		printk("syna_get_fw_ver pfwfilename is null\n");
-		return -1;
+
+	if (!client || !pfwfilename)
+		return -EINVAL;
+
+	if (!strcmp(pfwfilename, charcmp)) {
+		pr_notice("syna_get_fw_ver pfwfilename is null\n");
+		return -EINVAL;
 	}
-	printk("syna_get_fw_ver fw name:%s\n",pfwfilename);
+
+	pr_notice("%s: ready_fw_name = %s\n", __func__, pfwfilename);
 	ret = request_firmware(&fw_entry, pfwfilename,
 		&fwu->rmi4_data->i2c_client->dev);
 	if (ret != 0) {
 		dev_err(&fwu->rmi4_data->i2c_client->dev,
 			"%s: Firmware image %s not available\n",
 			__func__, fwu->image_name);
-		ret = -1;
+		ret = -EINVAL;
 		return ret;
 	}
 
-	dev_err(&fwu->rmi4_data->i2c_client->dev,
-		"%s: Firmware image size = %d\n",
-		__func__, (int)fw_entry->size);
-	fw_image = fw_entry->data;
-	firmware_imgsize = le_to_uint(fw_image+8);
-	printk("syna_get_fw_ver firmware_imgsize:0x%x%x\n",(int)firmware_imgsize>>16,(int)firmware_imgsize);
-	config_imgdata = (unsigned char*) ( fw_image + 0x100 + firmware_imgsize );
-	fwver = ((*(config_imgdata+2))<<8)|(*(config_imgdata+3));
-	printk("syna fw ver:%x \n",fwver);
-	
+	fwver = ready_fw_version;
+	pr_notice("%s: syna fw_ver = %x\n", __func__, fwver);
+
 	if (fw_entry)
 		release_firmware(fw_entry);
-	
+
 	return fwver;
-
 }
-
 
 int synaptics_fw_updater(const unsigned char *fw_data)
 {
@@ -4662,10 +4632,10 @@ int synaptics_fw_updater(const unsigned char *fw_data)
 
 	retval = fwu_start_reflash();
 
-	if(retval==0)
-		pr_info("%s: update success \n", __func__);
+	if (retval == 0)
+		pr_notice("%s: update success\n", __func__);
 	else
-		pr_info("%s: update fail  \n", __func__);
+		pr_notice("%s: update fail\n", __func__);
 
 	fwu->image = NULL;
 
@@ -4677,31 +4647,45 @@ EXPORT_SYMBOL(synaptics_fw_updater);
 static void fwu_startup_fw_update_work(struct work_struct *work)
 {
 	static unsigned char do_once = 1;
+	int retval = 0;
 #ifdef WAIT_FOR_FB_READY
 	unsigned int timeout;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 #endif
 
+	syna_update_flag = 1;
+
 	if (!do_once)
-		return;
+		goto exit;
 	do_once = 0;
 
 #ifdef WAIT_FOR_FB_READY
 	timeout = FB_READY_TIMEOUT_S * 1000 / FB_READY_WAIT_MS + 1;
-
+	pr_notice("%s: fb_ready = %d\n", __func__, rmi4_data->fb_ready);
 	while (!rmi4_data->fb_ready) {
+		syna_update_flag = 3;
 		msleep(FB_READY_WAIT_MS);
 		timeout--;
 		if (timeout == 0) {
 			dev_err(rmi4_data->pdev->dev.parent,
 					"%s: Timed out waiting for FB ready\n",
 					__func__);
-			return;
+			goto exit;
 		}
 	}
 #endif
 
-	synaptics_fw_updater(NULL);
+	syna_update_flag = 1;
+
+	retval = synaptics_fw_updater(NULL);
+	if (retval)
+		syna_update_flag = 3;
+	else
+		syna_update_flag = 2;
+
+exit:
+	rmi4_data->stay_awake = false;
+	pr_notice("%s: stay_awake = %d\n", __func__, rmi4_data->stay_awake);
 
 	return;
 }
@@ -5079,25 +5063,24 @@ exit:
 	return retval;
 }
 
-static char fwname[128];
-
-//upgrade from app.bin
 static ssize_t syna_fwupdate_store(struct device *dev,
 					struct device_attribute *attr,
 						const char *buf, size_t count)
 {
-	//struct i2c_client *client = syna_i2c_client;
-
 	memset(fwname, 0, sizeof(fwname));
-	sprintf(fwname, "%s", buf);
+	snprintf(fwname, sizeof(fwname), "%s", buf);
 	fwname[count-1] = '\0';
-	syna_file_name=fwname;
+	syna_file_name = fwname;
 
 	fwu->force_update = false;
-	if(0 == fwu_start_reflash())
-		pr_info("%s: update success \n", __func__);
-	else
-		pr_info("%s: update fail  \n", __func__);
+	syna_update_flag = 1;
+	if (0 == fwu_start_reflash()) {
+		syna_update_flag = 2;
+		pr_notice("%s: update success\n", __func__);
+	} else {
+		syna_update_flag = 3;
+		pr_notice("%s: update fail\n", __func__);
+	}
 
 	return count;
 }
@@ -5109,20 +5092,21 @@ static ssize_t syna_force_fwupdate_store(struct device *dev,
 						struct device_attribute *attr,
 							const char *buf, size_t count)
 {
-	//char fwname[128];
-	//struct i2c_client *client = syna_i2c_client;
 	memset(fwname, 0, sizeof(fwname));
-	sprintf(fwname, "%s", buf);
+	snprintf(fwname, sizeof(fwname), "%s", buf);
 	fwname[count-1] = '\0';
 
-	syna_file_name=fwname;
+	syna_file_name = fwname;
 
 	fwu->force_update = true;
-
-	if(0 == fwu_start_reflash())
-		pr_info("%s: update success \n", __func__);
-	else
-		pr_info("%s: update fail  \n", __func__);
+	syna_update_flag = 1;
+	if (0 == fwu_start_reflash()) {
+		syna_update_flag = 2;
+		pr_notice("%s: update success\n", __func__);
+	} else {
+		syna_update_flag = 3;
+		pr_notice("%s: update fail\n", __func__);
+	}
 
 	return count;
 }
@@ -5146,14 +5130,11 @@ static void synaptics_rmi4_fwu_attn(struct synaptics_rmi4_data *rmi4_data,
 int syna_fwupdate_init(struct i2c_client *client)
 {
 	int ret;
-	struct kobject * fts_fw_kobj=NULL;
+	struct kobject *fts_fw_kobj = NULL;
 
 
 	if (!client)
 		return 0;
-
-	//syna_i2c_client = client;
-	//fw_update_mode = false;
 
 	fts_fw_kobj = kobject_get(firmware_kobj);
 	if (fts_fw_kobj == NULL) {
@@ -5165,19 +5146,19 @@ int syna_fwupdate_init(struct i2c_client *client)
 		}
 	}
 
- 	ret=sysfs_create_file(fts_fw_kobj, &dev_attr_synafwupdate.attr);
+	ret = sysfs_create_file(fts_fw_kobj, &dev_attr_synafwupdate.attr);
 	if (ret) {
 		pr_err("%s: sysfs_create_file failed\n", __func__);
 		return ret;
 	}
-	
-	ret=sysfs_create_file(fts_fw_kobj, &dev_attr_synafwupdate_force.attr);
+
+	ret = sysfs_create_file(fts_fw_kobj, &dev_attr_synafwupdate_force.attr);
 	if (ret) {
 		pr_err("%s: sysfs_create_file failed\n", __func__);
 		return ret;
-	}	
+	}
 
-	pr_info("%s:synaptics firmware update init succeed!\n", __func__);
+	pr_notice("%s:synaptics firmware update init succeed!\n", __func__);
 	return 0;
 
 }
@@ -5185,16 +5166,15 @@ int syna_fwupdate_init(struct i2c_client *client)
 
 int syna_fwupdate_deinit(struct i2c_client *client)
 {
-	struct kobject * fts_fw_kobj=NULL;
+	struct kobject *fts_fw_kobj = NULL;
 
 	fts_fw_kobj = kobject_get(firmware_kobj);
-	if ( !firmware_kobj ){
-		printk("%s: error get kobject\n", __func__);
-		return -1;
+	if (!firmware_kobj) {
+		pr_notice("%s: error get kobject\n", __func__);
+		return -EINVAL;
 	}
-	
+
 	sysfs_remove_file(firmware_kobj, &dev_attr_synafwupdate.attr);
-	//	kobject_del(virtual_key_kobj);
 
 	return 0;
 }
@@ -5310,10 +5290,9 @@ static int synaptics_rmi4_fwu_init(struct synaptics_rmi4_data *rmi4_data)
 	return 0;
 
 exit_remove_attrs:
-	for (attr_count--; attr_count >= 0; attr_count--) {
+	for (attr_count--; attr_count != 0; attr_count--)
 		sysfs_remove_file(&rmi4_data->input_dev->dev.kobj,
 				&attrs[attr_count].attr);
-	}
 
 	sysfs_remove_bin_file(&rmi4_data->input_dev->dev.kobj, &dev_attr_data);
 

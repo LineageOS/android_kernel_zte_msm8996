@@ -5,7 +5,7 @@
  *
  * Copyright (C) 2012 Alexandra Chin <alexandra.chin@tw.synaptics.com>
  * Copyright (C) 2012 Scott Lin <scott.lin@tw.synaptics.com>
- *
+ * Copyright (C) 2016, The Linux Foundation.  All rights reserved.
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -82,8 +82,7 @@ static int parse_dt(struct device *dev, struct synaptics_dsx_board_data *bdata)
 	retval = of_property_read_u32(np, "synaptics,irq-flags", &value);
 	if (retval < 0)
 		return retval;
-	else
-		bdata->irq_flags = value;
+	bdata->irq_flags = value;
 
 	retval = of_property_read_string(np, "synaptics,pwr-reg-name", &name);
 	if (retval == -EINVAL)
@@ -113,47 +112,37 @@ static int parse_dt(struct device *dev, struct synaptics_dsx_board_data *bdata)
 	} else {
 		bdata->power_gpio = -1;
 	}
-//pzh-2015/12/18
-//	if (of_property_read_bool(np, "synaptics,power-delay-ms")) {
-		retval = of_property_read_u32(np, "synaptics,power-delay-ms",
-				&value);
-		if (retval < 0)
-			return retval;
-		else
-			bdata->power_delay_ms = value;
-//	} else {
-//		bdata->power_delay_ms = 0;
-//	}
 
-	//if (of_property_read_bool(np, "synaptics,reset-gpio")) {
-		bdata->reset_gpio = of_get_named_gpio_flags(np,
-				"synaptics,reset-gpio", 0, NULL);
-		retval = of_property_read_u32(np, "synaptics,reset-on-state",
-				&value);
-		if (retval < 0)
-			return retval;
-		else
-			bdata->reset_on_state = value;
-		retval = of_property_read_u32(np, "synaptics,reset-active-ms",
-				&value);
-		if (retval < 0)
-			return retval;
-		else
-			bdata->reset_active_ms = value;
-//	} else {
-//		bdata->reset_gpio = -1;
-//	}
+	retval = of_property_read_u32(np, "synaptics,power-delay-ms",
+			&value);
+	if (retval < 0)
+		bdata->power_delay_ms = 200;
+	else
+		bdata->power_delay_ms = value;
 
-//	if (of_property_read_bool(np, "synaptics,reset-delay-ms")) {
-		retval = of_property_read_u32(np, "synaptics,reset-delay-ms",
-				&value);
-		if (retval < 0)
-			return retval;
-		else
-			bdata->reset_delay_ms = value;
-//	} else {
-//		bdata->reset_delay_ms = 0;
-//	}
+	bdata->reset_gpio = of_get_named_gpio_flags(np,
+			"synaptics,reset-gpio", 0, NULL);
+
+	retval = of_property_read_u32(np, "synaptics,reset-on-state",
+			&value);
+	if (retval < 0)
+		bdata->reset_on_state = 0;
+	else
+		bdata->reset_on_state = value;
+
+	retval = of_property_read_u32(np, "synaptics,reset-active-ms",
+			&value);
+	if (retval < 0)
+		bdata->reset_active_ms = 20;
+	else
+		bdata->reset_active_ms = value;
+
+	retval = of_property_read_u32(np, "synaptics,reset-delay-ms",
+			&value);
+	if (retval < 0)
+		bdata->reset_delay_ms = 200;
+	else
+		bdata->reset_delay_ms = value;
 
 	if (of_property_read_bool(np, "synaptics,max-y-for-2d")) {
 		retval = of_property_read_u32(np, "synaptics,max-y-for-2d",
@@ -179,9 +168,8 @@ static int parse_dt(struct device *dev, struct synaptics_dsx_board_data *bdata)
 			return retval;
 		else
 			bdata->ub_i2c_addr = (unsigned short)value;
-	} else {
+	} else
 		bdata->ub_i2c_addr = -1;
-	}
 
 	prop = of_find_property(np, "synaptics,cap-button-codes", NULL);
 	if (prop && prop->length) {
@@ -255,9 +243,6 @@ static int synaptics_rmi4_i2c_alloc_buf(struct synaptics_rmi4_data *rmi4_data,
 static void synaptics_rmi4_i2c_check_addr(struct synaptics_rmi4_data *rmi4_data,
 		struct i2c_client *i2c)
 {
-	if (hw_if.board_data->ub_i2c_addr == -1)
-		return;
-
 	if (hw_if.board_data->i2c_addr == i2c->addr)
 		hw_if.board_data->i2c_addr = hw_if.board_data->ub_i2c_addr;
 	else
@@ -269,7 +254,7 @@ static void synaptics_rmi4_i2c_check_addr(struct synaptics_rmi4_data *rmi4_data,
 static int synaptics_rmi4_i2c_set_page(struct synaptics_rmi4_data *rmi4_data,
 		unsigned short addr)
 {
-	int retval;
+	int retval = 0;
 	unsigned char retry;
 	unsigned char buf[PAGE_SELECT_LEN];
 	unsigned char page;
@@ -423,11 +408,11 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
 	struct i2c_client *i2c = to_i2c_client(rmi4_data->pdev->dev.parent);
 	struct i2c_msg msg[1];
 
-	mutex_lock(&rmi4_data->rmi4_io_ctrl_mutex);
-
 	retval = synaptics_rmi4_i2c_alloc_buf(rmi4_data, length + 1);
 	if (retval < 0)
-		goto exit;
+		return retval;
+
+	mutex_lock(&rmi4_data->rmi4_io_ctrl_mutex);
 
 	retval = synaptics_rmi4_i2c_set_page(rmi4_data, addr);
 	if (retval != PAGE_SELECT_LEN) {
@@ -495,8 +480,9 @@ static int synaptics_rmi4_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *dev_id)
 {
 	int retval;
-	global_client=client;
-       printk("pzh:Enter synaptics_rmi4_i2c_probe\n");
+	global_client = client;
+
+	pr_notice("%s: start\n", __func__);
 	if (!i2c_check_functionality(client->adapter,
 			I2C_FUNC_SMBUS_BYTE_DATA)) {
 		dev_err(&client->dev,
@@ -567,7 +553,7 @@ static int synaptics_rmi4_i2c_probe(struct i2c_client *client,
 				__func__);
 		return -ENODEV;
 	}
-	printk("pzh:leave synaptics_rmi4_i2c_probe\n");
+	pr_notice("%s: end\n", __func__);
 
 	return 0;
 }

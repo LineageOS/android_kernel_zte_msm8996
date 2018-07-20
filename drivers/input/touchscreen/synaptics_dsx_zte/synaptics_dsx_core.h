@@ -5,7 +5,7 @@
  *
  * Copyright (C) 2012 Alexandra Chin <alexandra.chin@tw.synaptics.com>
  * Copyright (C) 2012 Scott Lin <scott.lin@tw.synaptics.com>
- *
+ * Copyright (C) 2016 The Linux Foundation. All rights reserved.
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -62,9 +62,9 @@
 #define sstrtoul(...) strict_strtoul(__VA_ARGS__)
 #endif
 
-//#define F51_DISCRETE_FORCE
+/*#define F51_DISCRETE_FORCE*/
 #ifdef F51_DISCRETE_FORCE
-//#define FORCE_LEVEL_ADDR 0x041A
+/*#define FORCE_LEVEL_ADDR 0x041A*/
 #define FORCE_LEVEL_MAX 255
 #define CAL_DATA_SIZE 144
 #endif
@@ -314,9 +314,11 @@ struct rmi_config_id {
  * @report_pressure: flag to indicate reporting of pressure data
  * @stylus_enable: flag to indicate reporting of stylus data
  * @eraser_enable: flag to indicate reporting of eraser data
+ * @external_afe_buttons: flag to indicate presence of external AFE buttons
  * @reset_device: pointer to device reset function
  * @irq_enable: pointer to interrupt enable function
  * @sleep_enable: pointer to sleep enable function
+ * @report_touch: pointer to touch reporting function
  */
 struct synaptics_rmi4_data {
 	struct pinctrl *ts_pinctrl;
@@ -480,18 +482,11 @@ static inline int secure_memcpy(unsigned char *dest, unsigned int dest_size,
 		const unsigned char *src, unsigned int src_size,
 		unsigned int count)
 {
-
-	if (dest == NULL || src == NULL){
-		printk("syna---%s:dest=%s,src=%s\n",__func__,
-			dest==NULL?"NULL":"NOT NULL",src==NULL?"NULL":"NOT NULL");
+	if (dest == NULL || src == NULL)
 		return -EINVAL;
-	}
 
-	if (count > dest_size || count > src_size){
-		printk("syna---%s:count=%d,dest_size=%d,src_size=%d\n",
-			__func__,count,dest_size,src_size);
+	if (count > dest_size || count > src_size)
 		return -EINVAL;
-	}
 
 	memcpy((void *)dest, (const void *)src, count);
 

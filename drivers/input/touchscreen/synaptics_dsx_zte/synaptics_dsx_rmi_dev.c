@@ -111,7 +111,7 @@ struct rmidev_data {
 static struct bin_attribute attr_data = {
 	.attr = {
 		.name = "data",
-		.mode = (S_IRUGO | S_IWUGO),
+		.mode = (S_IRUGO | S_IWUSR | S_IWGRP),
 	},
 	.size = 0,
 	.read = rmidev_sysfs_data_show,
@@ -119,22 +119,22 @@ static struct bin_attribute attr_data = {
 };
 
 static struct device_attribute attrs[] = {
-	__ATTR(open, S_IWUSR|S_IWGRP,
+	__ATTR(open, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			rmidev_sysfs_open_store),
-	__ATTR(release, S_IWUSR|S_IWGRP,
+	__ATTR(release, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			rmidev_sysfs_release_store),
 	__ATTR(attn_state, S_IRUGO,
 			rmidev_sysfs_attn_state_show,
 			synaptics_rmi4_store_error),
-	__ATTR(pid, S_IRUGO | S_IWUSR|S_IWGRP,
+	__ATTR(pid, S_IRUGO | S_IWUSR | S_IWGRP,
 			rmidev_sysfs_pid_show,
 			rmidev_sysfs_pid_store),
-	__ATTR(term, S_IWUSR|S_IWGRP,
+	__ATTR(term, S_IWUSR | S_IWGRP,
 			synaptics_rmi4_show_error,
 			rmidev_sysfs_term_store),
-	__ATTR(intr_mask, S_IRUGO | S_IWUSR|S_IWGRP,
+	__ATTR(intr_mask, S_IRUGO | S_IWUSR | S_IWGRP,
 			rmidev_sysfs_intr_mask_show,
 			rmidev_sysfs_intr_mask_store),
 };
@@ -577,9 +577,6 @@ static int rmidev_open(struct inode *inp, struct file *filp)
 	struct rmidev_data *dev_data =
 			container_of(inp->i_cdev, struct rmidev_data, main_dev);
 
-	if (!dev_data)
-		return -EACCES;
-
 	if (rmi4_data->sensor_sleep) {
 		dev_err(rmi4_data->pdev->dev.parent,
 				"%s: Sensor sleeping\n",
@@ -613,9 +610,6 @@ static int rmidev_release(struct inode *inp, struct file *filp)
 	struct synaptics_rmi4_data *rmi4_data = rmidev->rmi4_data;
 	struct rmidev_data *dev_data =
 			container_of(inp->i_cdev, struct rmidev_data, main_dev);
-
-	if (!dev_data)
-		return -EACCES;
 
 	mutex_lock(&(dev_data->file_mutex));
 
@@ -756,6 +750,12 @@ static int rmidev_init_device(struct synaptics_rmi4_data *rmi4_data)
 	if (rmidev_major_num) {
 		dev_no = MKDEV(rmidev_major_num, DEV_NUMBER);
 		retval = register_chrdev_region(dev_no, 1, CHAR_DEVICE_NAME);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to register char device region\n",
+					__func__);
+			goto err_device_region;
+		}
 	} else {
 		retval = alloc_chrdev_region(&dev_no, 0, 1, CHAR_DEVICE_NAME);
 		if (retval < 0) {
@@ -860,7 +860,7 @@ static int rmidev_init_device(struct synaptics_rmi4_data *rmi4_data)
 	return 0;
 
 err_sysfs_attrs:
-	for (attr_count--; attr_count >= 0; attr_count--)
+	for (attr_count--; attr_count != 0; attr_count--)
 		sysfs_remove_file(rmidev->sysfs_dir, &attrs[attr_count].attr);
 
 	sysfs_remove_bin_file(rmidev->sysfs_dir, &attr_data);
