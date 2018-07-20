@@ -30,9 +30,7 @@ extern const u8 ak4961_reg_defaults[AK4961_CACHE_SIZE];
 /* ZTE_chenjun */
 extern bool msm_is_in_voice_call(void);
 
-#ifdef ZTE_FEATURE_AKM_VOICECALL
 #define AKM_VOICE_CALL
-#endif
 
 enum ak4961_state {
 	AK4961_IDLE = 0,

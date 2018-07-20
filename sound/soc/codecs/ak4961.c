@@ -5944,9 +5944,11 @@ static irqreturn_t ak4961_jde_irq(int irq, void *data)
         struct snd_soc_codec *codec = priv->codec;
         int val, val1;
         int report = last_report_sw;
-	bool in_voice_call = false;
+	 bool in_voice_call = false;
 
+	 dev_info(codec->dev, "%s: enter in\n", __func__);
         val = snd_soc_read(codec, JACK_DETECTION_STATUS);
+
         if (val < 0) {
                 snd_soc_write(codec, DETECTION_EVENT_RESET, 0x01);
                 dev_err(codec->dev, "Failed to read JACK_DETECTION_STATUS: %d\n",
@@ -6081,6 +6083,7 @@ static irqreturn_t ak4961_rce_irq(int irq, void *data)
 	int val, mic_level;
 	int report;
 
+	dev_info(codec->dev, "%s: enter in\n", __func__);
 	val = snd_soc_read(codec, JACK_DETECTION_STATUS);
 	if (val < 0) {
 		snd_soc_write(codec, DETECTION_EVENT_RESET, 0x01);
@@ -6099,6 +6102,14 @@ static irqreturn_t ak4961_rce_irq(int irq, void *data)
 		}
 
 		if (mic_level < 0x03) { // ZTE_chenjun:orig:0x05
+			usleep_range(100*1000, 100*1000);
+			val = snd_soc_read(codec, JACK_DETECTION_STATUS);
+			if (val & 0x02)
+				dev_info(codec->dev, "%s: hp status is insertion (mic_level=%d)\n", __func__,mic_level);
+			else {
+				dev_info(codec->dev, "%s: hp status is removal (mic_level=%d)\n", __func__,mic_level);
+				return IRQ_HANDLED;
+			}
 #ifdef CONFIG_SWITCH
 			report = KEY_MEDIA;
 #else
