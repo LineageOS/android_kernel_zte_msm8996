@@ -27,10 +27,10 @@
 /*#define AH1898_IRQ 11*/
 
 static int hall_status = 1;
-struct pinctrl *hall_gpio_pinctrl = NULL;
-struct pinctrl_state *hall_gpio_state = NULL;
 
-static int set_hall_gpio_state(struct device *dev);
+#if defined(CONFIG_BOARD_AILSA_II)
+extern void synaptics_rmi4_smart_cover(bool enable);
+#endif
 
 module_param(hall_status, int, 0644);
 
@@ -86,6 +86,11 @@ static void ah1898_work_func(struct work_struct *work)
 			hall_status = 0;
 		}
 		input_sync(ah1898_chip_data->input);
+
+/* used for touchscreen mode switching */
+#if defined(CONFIG_BOARD_AILSA_II)
+		synaptics_rmi4_smart_cover(!value);
+#endif
 	}
 	/*enable_irq(ah1898_chip_data->irq);*/
 }
@@ -119,37 +124,9 @@ int ah1898_parse_dt(struct platform_device *pdev)
 
 }
 
-/* set hall gpio input and no pull*/
-static int set_hall_gpio_state(struct device *dev)
-{
-	int error = 0;
-
-	hall_gpio_pinctrl = devm_pinctrl_get(dev);
-	if (IS_ERR_OR_NULL(hall_gpio_pinctrl)) {
-		pr_info("Can not get hall_gpio_pinctrl\n");
-		error = PTR_ERR(hall_gpio_pinctrl);
-		return error;
-	}
-	hall_gpio_state = pinctrl_lookup_state(hall_gpio_pinctrl, "zte_hall_gpio_active");
-	if (IS_ERR_OR_NULL(hall_gpio_state)) {
-		pr_info("Can not get hall_gpio_state\n");
-		error = PTR_ERR(hall_gpio_state);
-		return error;
-	}
-
-	error = pinctrl_select_state(hall_gpio_pinctrl, hall_gpio_state);
-	if (error) {
-		pr_info("can not set hall_gpio pins to zte_hall_gpio_active states\n");
-	} else {
-		pr_info("set_hall_gpio_state success.\n");
-	}
-	return error;
-}
-
 static int  ah1898_probe(struct platform_device *pdev)
 {
 	int value_status;
-	struct device *dev = &pdev->dev;
 
 	int error = 0;
 	int irq = 0;
@@ -206,13 +183,6 @@ static int  ah1898_probe(struct platform_device *pdev)
 		}
 	}
 
-	error = set_hall_gpio_state(dev);
-	if (error < 0) {
-		pr_info("set_hall_gpio_state failed.\n");
-	}
-
-
-/* 对GPIO11中断引脚的配置*/
 	if (irq) {
 
 	INIT_WORK(&(ah1898_chip_data->work), ah1898_work_func);

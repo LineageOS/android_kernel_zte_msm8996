@@ -337,10 +337,10 @@
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
 
-/* add start by jiangchong for Hall sensor driver,20141212*/
+/* add start by zte_pm for Hall sensor driver*/
 #define KEY_HALL_SENSOR_DOWN	249
 #define KEY_HALL_SENSOR_UP	 250
-/* add end by jiangchong for Hall sensor driver,20141212*/
+/* add end by zte_pm for Hall sensor driver*/
 
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
