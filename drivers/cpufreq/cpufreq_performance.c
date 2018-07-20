@@ -22,8 +22,13 @@ static int cpufreq_governor_performance(struct cpufreq_policy *policy,
 	switch (event) {
 	case CPUFREQ_GOV_START:
 	case CPUFREQ_GOV_LIMITS:
-		pr_debug("setting to %u kHz because of event %u\n",
+			pr_debug("1 setting to %u kHz because of event %u\n",
 						policy->max, event);
+			if (policy->max == policy->cpuinfo.max_freq) {
+				policy->max = policy->max - 200000;
+			}
+			pr_debug("2 setting to %u kHz because of event %u\n",
+					policy->max, event);
 		__cpufreq_driver_target(policy, policy->max,
 						CPUFREQ_RELATION_H);
 		break;
