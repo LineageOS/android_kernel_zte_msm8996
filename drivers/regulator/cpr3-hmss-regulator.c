@@ -669,6 +669,8 @@ static int cpr3_hmss_parse_corner_data(struct cpr3_regulator *vreg)
 		return rc;
 	}
 
+	/* from case 03429344, print the value before add 50mv */
+	cpr3_err(vreg, "QMCK : Force boost ceiling add ZTE_CORNER_INC\n");
 	return rc;
 }
 

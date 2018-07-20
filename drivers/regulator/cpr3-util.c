@@ -44,6 +44,9 @@
 /* This constant has units of uV/mV so 1000 corresponds to 100%. */
 #define CPR3_AGING_DERATE_UNITY		1000
 
+/* From case 03429344, add 50mv */
+#define ZTE_CORNER_INC		50000
+
 /**
  * cpr3_allocate_regulators() - allocate and initialize CPR3 regulators for a
  *		given thread based upon device tree data
@@ -707,7 +710,8 @@ int cpr3_parse_common_corner_data(struct cpr3_regulator *vreg)
 		goto free_temp;
 	for (i = 0; i < vreg->corner_count; i++) {
 		vreg->corner[i].ceiling_volt
-			= CPR3_ROUND(temp[i], ctrl->step_volt);
+			= CPR3_ROUND(temp[i] + ZTE_CORNER_INC,
+			ctrl->step_volt);
 		vreg->corner[i].abs_ceiling_volt = vreg->corner[i].ceiling_volt;
 	}
 
@@ -717,7 +721,8 @@ int cpr3_parse_common_corner_data(struct cpr3_regulator *vreg)
 		goto free_temp;
 	for (i = 0; i < vreg->corner_count; i++)
 		vreg->corner[i].floor_volt
-			= CPR3_ROUND(temp[i], ctrl->step_volt);
+			= CPR3_ROUND(temp[i] + ZTE_CORNER_INC,
+			ctrl->step_volt);
 
 	/* Validate ceiling and floor values */
 	for (i = 0; i < vreg->corner_count; i++) {
