@@ -530,7 +530,7 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	const struct firmware *fw, *dp_fw = NULL;
 	char fw_name_legacy[10] = "mba.b00";
 	char fw_name[10] = "mba.mbn";
-	char *dp_name = "msadp";
+	char *dp_name = "msadp.mbn";
 	char *fw_name_p;
 	void *mba_dp_virt;
 	dma_addr_t mba_dp_phys, mba_dp_phys_end;
