@@ -2116,6 +2116,29 @@ void mmc_get_card(struct mmc_card *card)
 }
 EXPORT_SYMBOL(mmc_get_card);
 
+/*
+ * This is a helper function, which fetches a runtime pm reference for the
+ * card device and also tries to claims the host within specified time.
+ *     @card: card device to claim host
+ *     @dealy_ms: delay in ms
+ *
+ *     Returns %0 if the host is claimed, %1 otherwise.
+ */
+int mmc_try_get_card(struct mmc_card *card, unsigned int delay_ms)
+{
+	pm_runtime_get_sync(&card->dev);
+	if (!mmc_try_claim_host(card->host, delay_ms)) {
+		pm_runtime_mark_last_busy(&card->dev);
+		pm_runtime_put_autosuspend(&card->dev);
+		return -EAGAIN;
+	}
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+	if (mmc_bus_needs_resume(card->host))
+		mmc_resume_bus(card->host);
+#endif
+	return 0;
+}
+EXPORT_SYMBOL(mmc_try_get_card);
 
 /*
  * This is a helper function, which releases the host and drops the runtime
@@ -3008,6 +3031,9 @@ static void _mmc_detect_change(struct mmc_host *host, unsigned long delay,
 	 */
 	if (cd_irq && mmc_bus_manual_resume(host))
 		host->ignore_bus_resume_flags = true;
+
+	if (cd_irq)
+		host->is_bad_card = false;
 
 	mmc_schedule_delayed_work(&host->detect, delay);
 }
@@ -4185,8 +4211,8 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 
 		spin_lock_irqsave(&host->lock, flags);
 		host->rescan_disable = 0;
-		if (mmc_bus_manual_resume(host) &&
-				!host->ignore_bus_resume_flags) {
+		if ((mmc_bus_manual_resume(host) &&
+				!host->ignore_bus_resume_flags) || host->is_bad_card) {
 			spin_unlock_irqrestore(&host->lock, flags);
 			break;
 		}
