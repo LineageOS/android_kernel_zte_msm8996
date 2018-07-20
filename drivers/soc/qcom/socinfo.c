@@ -743,8 +743,12 @@ int socinfo_get_charger_flag(void)
 }
 EXPORT_SYMBOL(socinfo_get_charger_flag);
 
-
-
+int socinfo_get_normal_flag(void)
+{
+	return ((g_boot_mode == ENUM_BOOT_MODE_NORMAL)
+		|| (g_boot_mode == ENUM_BOOT_MODE_FFBM)) ? 1 : 0;
+}
+EXPORT_SYMBOL(socinfo_get_normal_flag);
 //ZTE fingerprint hw setting
 /*
 static int fingprint_hw_type = -1;

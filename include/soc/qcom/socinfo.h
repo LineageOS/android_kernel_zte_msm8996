@@ -54,6 +54,7 @@ void socinfo_set_boot_mode(int boot_mode);
 int socinfo_get_ftm_flag(void);
 int socinfo_get_ffbm_flag(void);
 int socinfo_get_charger_flag(void);
+int socinfo_get_normal_flag(void);
 
 //#endif
 /*
