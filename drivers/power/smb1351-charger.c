@@ -1746,7 +1746,7 @@ static struct power_supply *smb1351_get_parallel_slave(
 	if (chip->parallel.psy)
 		return chip->parallel.psy;
 
-	chip->parallel.psy = power_supply_get_by_name("usb-parallel");
+	chip->parallel.psy = power_supply_get_by_name("parallel");
 	if (!chip->parallel.psy)
 		pr_debug("parallel slave not found\n");
 
