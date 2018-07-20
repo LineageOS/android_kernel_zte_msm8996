@@ -445,7 +445,8 @@ enum wake_reason {
 #define	HVDCP_PMIC_VOTER		"HVDCP_PMIC_VOTER"
 #define	HVDCP_OTG_VOTER			"HVDCP_OTG_VOTER"
 #define	HVDCP_PULSING_VOTER		"HVDCP_PULSING_VOTER"
-static int smbchg_debug_mask;
+
+static int smbchg_debug_mask = PR_INTERRUPT | PR_STATUS;
 module_param_named(
 	debug_mask, smbchg_debug_mask, int, S_IRUSR | S_IWUSR
 );
@@ -462,7 +463,7 @@ ZTE add
  1: hvdcp
  2: AC
 */
-static int charge_type_oem = -1;
+extern int charge_type_oem;
 module_param_named(
     charge_type_oem, charge_type_oem, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
 );
@@ -1740,7 +1741,7 @@ static struct power_supply *get_parallel_psy(struct smbchg_chip *chip)
 		return NULL;
 	if (chip->parallel.psy)
 		return chip->parallel.psy;
-	chip->parallel.psy = power_supply_get_by_name("usb-parallel");
+	chip->parallel.psy = power_supply_get_by_name("parallel");
 	if (!chip->parallel.psy)
 		pr_smb(PR_STATUS, "parallel charger not found\n");
 	return chip->parallel.psy;
@@ -4017,7 +4018,7 @@ int get_design_capacity(void)
 #define LOADING_BATT_TYPE	"Loading Battery Data"
 static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 {
-	int rc = 0, max_voltage_uv = 0, fastchg_ma = 0, ret = 0, iterm_ua = 0, design_capacity = 0;
+	int rc = 0, max_voltage_uv = 0, fastchg_ma = 0, ret = 0, iterm_ua = 0;
 	struct device_node *batt_node, *profile_node;
 	struct device_node *node = chip->spmi->dev.of_node;
 	union power_supply_propval prop = {0,};
@@ -4102,15 +4103,6 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 			}
 		}
 		chip->iterm_ma = iterm_ua / 1000;
-	}
-	rc = of_property_read_u32(profile_node, "qcom,nom-batt-capacity-mah",
-						&design_capacity);
-	if (rc && rc != -EINVAL) {
-		pr_warn("couldn't read battery term current=%d\n", rc);
-		ret = rc;
-	} else if (!rc) {
-		chip->design_capacity = design_capacity;
-		pr_info("design_capacity:%d\n", design_capacity);
 	}
 
 	/*
@@ -8357,6 +8349,9 @@ static int smb_parse_dt(struct smbchg_chip *chip)
 	chip->apsd_rerun_config_enable = of_property_read_bool(node,
 				"qcom,apsd_rerun_config_enable");
 	pr_smb(PR_STATUS, "chip->apsd_rerun_config_enable:%d\n", chip->apsd_rerun_config_enable);
+	OF_PROP_READ(chip, chip->design_capacity,
+				"design_capacity", rc, 1);
+	pr_smb(PR_STATUS, "chip->design_capacity:%d\n", chip->design_capacity);
 
 	return 0;
 }
