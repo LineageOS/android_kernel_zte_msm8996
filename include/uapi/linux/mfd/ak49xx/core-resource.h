@@ -16,6 +16,7 @@
 #include <linux/types.h>
 #include <linux/interrupt.h>
 #include <linux/pm_qos.h>
+#include <linux/wakelock.h>
 
 #define AK49XX_NUM_IRQ_REGS 1
 #define AK49XX_MAX_IRQ_REGS 1
@@ -86,6 +87,7 @@ struct ak49xx_core_resource {
 	struct pm_qos_request pm_qos_req;
 	int wlock_holders;
 
+	struct wake_lock spi_wake_lock;
 
 	/* holds the table of interrupts per codec */
 	unsigned int irq_base;
