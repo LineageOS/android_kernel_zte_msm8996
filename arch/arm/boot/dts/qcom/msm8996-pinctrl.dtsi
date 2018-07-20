@@ -912,6 +912,7 @@
 			};
 		};
 
+		/*ergate*/
 		ndt_mux {
 			ndt_power_active: ndt_power_active {
 				mux {

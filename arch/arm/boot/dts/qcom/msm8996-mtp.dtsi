@@ -697,15 +697,40 @@
 };
 
 &soc {
+
 	goodix_gf3118@1 {
-		compatible = "goodix,fingerprint";
-		spi-max-frequency = <4800000>;
-		interrupt-parent = <&tlmm>;
-		interrupts = <123 0x0>;
-		goodix,gpio_pwr = <&tlmm 85 0>;
-		goodix,gpio_reset = <&tlmm 39 0>;
-		goodix,gpio_id = <&tlmm 21 0>;
-		goodix,gpio_irq = <&tlmm 123 0>;
+			compatible = "goodix,fingerprint";
+			//reg = <0x1>;
+			spi-max-frequency = <4800000>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <123 0x0>;
+			goodix,gpio_pwr = <&tlmm 85 0>;
+			goodix,gpio_reset = <&tlmm 39 0>;
+			goodix,gpio_id = <&tlmm 21 0>;
+			goodix,gpio_irq = <&tlmm 123 0>;
+	};
+
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm8994_gpios 2 0x1>;
+			linux,input-type = <1>;
+			linux,code = <114>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+		vol_down {
+			label = "volume_down";
+			gpios = <&pm8994_gpios 3 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
 	};
 
 // ZTE_chenjun

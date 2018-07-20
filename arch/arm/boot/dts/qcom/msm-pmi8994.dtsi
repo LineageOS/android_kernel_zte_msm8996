@@ -227,7 +227,7 @@
 			qcom,vchg-adc-channel-id = <3>;
 			qcom,vchg_sns-vadc = <&pmi8994_vadc>;
 			qcom,apsd_rerun_config_enable;
-			//qcom,design_capacity = <3200>;
+			qcom,design_capacity = <3200>;
 
 			qcom,chgr@1000 {
 				reg = <0x1000 0x100>;
@@ -543,7 +543,7 @@
 					"qpnp-wled-lab-base";
 			interrupts = <0x3 0xd8 0x2>;
 			interrupt-names = "sc-irq";
-			status = "ok";
+			status = "okay";
 			linux,name = "wled";
 			linux,default-trigger = "bkl-trigger";
 			qcom,fdbk-output = "auto";
