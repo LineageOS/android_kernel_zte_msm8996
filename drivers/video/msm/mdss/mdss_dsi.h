@@ -24,6 +24,12 @@
 #include "mdss_dsi_cmd.h"
 #include "mdss_dsi_clk.h"
 
+/*zte add common function for lcd module begin*/
+#ifdef CONFIG_ZTE_LCD_COMMON_FUNCTION
+#include "zte_lcd_common.h"
+#endif
+/*zte add common function for lcd module end*/
+
 #define MMSS_SERDES_BASE_PHY 0x04f01000 /* mmss (De)Serializer CFG */
 
 #define MIPI_OUTP(addr, data) writel_relaxed((data), (addr))
@@ -521,6 +527,7 @@ struct mdss_dsi_ctrl_pdata {
 	char dlane_swap;	/* data lane swap */
 	bool is_phyreg_enabled;
 	bool burst_mode_enabled;
+	bool is_cmdlist_from_mdp;
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
@@ -566,6 +573,12 @@ struct mdss_dsi_ctrl_pdata {
 	bool update_phy_timing; /* flag to recalculate PHY timings */
 
 	bool phy_power_off;
+
+/*zte add common function for lcd module begin*/
+#ifdef CONFIG_ZTE_LCD_COMMON_FUNCTION
+	struct zte_lcd_ctrl_data zte_lcd_ctrl;
+#endif
+/*zte add common function for lcd module end*/
 };
 
 struct dsi_status_data {

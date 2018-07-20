@@ -57,4 +57,11 @@ config FB_MSM_QPIC_PANEL_DETECT
 if FB_MSM_MDSS
 	source "drivers/video/msm/mdss/Kconfig"
 endif
+
+#/*zte add for lcd common function begin */
+config ZTE_LCD_COMMON_FUNCTION
+        bool "Support for ZTE lcd common function"
+        default y
+#/*zte add for lcd common function end */
+
 endif
