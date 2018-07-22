@@ -583,7 +583,7 @@
 			qcom,brake-pattern = [03 03 00 00];
 			qcom,use-play-irq;
 			qcom,use-sc-irq;
-			qcom,wave-samples = [33 33 33 33 33 33 33 33];
+			qcom,wave-samples = [3e 3e 3e 3e 3e 3e 3e 3e];
 			qcom,wave-rep-cnt = <1>;
 			qcom,wave-samp-rep-cnt = <1>;
 			qcom,lra-high-z = "opt1";
