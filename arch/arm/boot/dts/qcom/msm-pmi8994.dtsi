@@ -578,9 +578,9 @@
 			qcom,vmax-mv = <2668>;
 			qcom,ilim-ma = <800>;
 			qcom,sc-deb-cycles = <8>;
-			qcom,int-pwm-freq-khz = <505>;
+			qcom,int-pwm-freq-khz = <253>;
 			qcom,en-brake;
-			qcom,brake-pattern = [03 03 00 00];
+			qcom,brake-pattern = [02 01 00 00];
 			qcom,use-play-irq;
 			qcom,use-sc-irq;
 			qcom,wave-samples = [3e 3e 3e 3e 3e 3e 3e 3e];
@@ -589,6 +589,8 @@
 			qcom,lra-high-z = "opt1";
 			qcom,lra-auto-res-mode = "qwd";
 			qcom,lra-res-cal-period = <4>;
+			qcom,drive-period-code-min-limit-percent-variation = <20>;
+			qcom,drive-period-code-max-limit-percent-variation = <20>;
 			clocks = <&clock_gcc 0x94adbf3d>; //ZTE
 			clock-names = "xo";               //ZTE
 		};
