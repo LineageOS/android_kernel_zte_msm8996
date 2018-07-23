@@ -1,0 +1,70 @@
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/ {
+	  reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		vlog_mem:vlog_mem_region@9ff00000 {
+			compatible = "removed_vlog_memory";
+			no-map;
+			reg = <0 0x9ff00000 0 0x100000>;
+		};
+	};
+};
+
+
+&soc {
+	qcom,msm-vendor-imem@66bfb5c {
+		reg = <0x66bfb5c 0x1000>; /* Address and size of IMEM */
+		ranges = <0x0 0x66bfb5c 0x480>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		efs_golden_copy@04 {
+			compatible = "qcom,msm-imem-efs-golden-copy";
+			reg = <0x04 8>;
+		};
+
+		pm-count-time@0c {
+			compatible = "qcom,msm-vendor-imem-pm-count-time";
+			reg = <0x0c 24>;
+		};
+		sd_dump_mode@2c {
+			compatible = "qcom,msm-vendor-imem-sd_dump_mode";
+			reg = <0x2c 4>;
+		};
+
+		vlog_memory_cookie@64 {
+			compatible = "qcom,msm-vendor-imem-vlog_memory_cookie";
+			reg = <0x64 4>;
+		};
+
+		vlog_memory_addr@68 {
+			compatible = "qcom,msm-vendor-imem-vlog_memory_addr";
+			reg = <0x68 4>;
+		};
+
+		vlog_memory_size@6c {
+			compatible = "qcom,msm-imem-vlog_memory_size";
+			reg = <0x6c 4>;
+		};
+	};
+
+	vendor,f3mem{
+		compatible = "vendor,f3mem";
+	};
+
+	zte_pm_debug {
+		compatible = "zte_pm_debug_vendor";
+	};
+};

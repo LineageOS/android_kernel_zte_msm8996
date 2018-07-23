@@ -5935,6 +5935,11 @@ static int msm_pcie_probe(struct platform_device *pdev)
 				rc_idx, MAX_RC_NUM);
 			goto out;
 		}
+		if (rc_idx == 2) {
+			pr_err(
+				"PCIe: RC2 GPIO is used by modem GRFC and connect nothing, do not probe!!!\n");
+			goto out;
+		}
 		pcie_drv.rc_num++;
 		PCIE_DBG(&msm_pcie_dev[rc_idx], "PCIe: RC index is %d.\n",
 			rc_idx);
